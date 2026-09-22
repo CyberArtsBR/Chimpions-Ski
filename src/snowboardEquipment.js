@@ -45,7 +45,8 @@ function makeBoardGeometry(width=0.48,length=2.08,thickness=.045,upturn=.085){
   return geometry;
 }
 
-export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1}={}){
+export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stanceHalfLength=.28}={}){
+  const bindingOffset=THREE.MathUtils.clamp(Number(stanceHalfLength)||.28,.20,.36);
   const root=new THREE.Group();
   root.name='snowboard-equipment';
 
@@ -72,7 +73,7 @@ export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1}={}){
   stripe.position.set(0,.060,.02);
   root.add(stripe);
 
-  for(const [index,zOffset] of [-.34,.34].entries()){
+  for(const [index,zOffset] of [-bindingOffset,bindingOffset].entries()){
     const sign=index===0?-1:1;
     const binding=new THREE.Group();
     binding.position.set(0,.086,zOffset);
