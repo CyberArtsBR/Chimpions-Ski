@@ -2,24 +2,17 @@ import * as THREE from 'three';
 
 const _dummy=new THREE.Object3D();
 const _color=new THREE.Color();
-const _normalMatrix=new THREE.Matrix3();
 
 function addGeometryPiece(target,geometry,matrix,color){
   const source=geometry.index?geometry.toNonIndexed():geometry.clone();
   source.applyMatrix4(matrix);
   const position=source.getAttribute('position');
   const normal=source.getAttribute('normal');
-  _normalMatrix.getNormalMatrix(matrix);
 
   for(let i=0;i<position.count;i++){
     target.positions.push(position.getX(i),position.getY(i),position.getZ(i));
     if(normal){
-      const nx=normal.getX(i),ny=normal.getY(i),nz=normal.getZ(i);
-      const x=_normalMatrix.elements[0]*nx+_normalMatrix.elements[3]*ny+_normalMatrix.elements[6]*nz;
-      const y=_normalMatrix.elements[1]*nx+_normalMatrix.elements[4]*ny+_normalMatrix.elements[7]*nz;
-      const z=_normalMatrix.elements[2]*nx+_normalMatrix.elements[5]*ny+_normalMatrix.elements[8]*nz;
-      const inv=1/Math.max(1e-6,Math.hypot(x,y,z));
-      target.normals.push(x*inv,y*inv,z*inv);
+      target.normals.push(normal.getX(i),normal.getY(i),normal.getZ(i));
     }else{
       target.normals.push(0,1,0);
     }
@@ -115,12 +108,12 @@ function applyInstance(mesh,index,entry,ground,time,lod){
 
   const cool=entry.colorSeed;
   const variant=entry.variant;
-  const base=variant===0?[.94,1,.96]:variant===2?[.84,.95,.89]:variant===3?[.88,.97,.92]:[.90,.98,.93];
-  _color.setRGB(
-    base[0]*(.965+cool*.035),
-    base[1]*(.965+cool*.035),
-    base[2]*(.965+cool*.035)
-  );
+  let r=.90,g=.98,b=.93;
+  if(variant===0){r=.94;g=1;b=.96;}
+  else if(variant===2){r=.84;g=.95;b=.89;}
+  else if(variant===3){r=.88;g=.97;b=.92;}
+  const variation=.965+cool*.035;
+  _color.setRGB(r*variation,g*variation,b*variation);
   mesh.setColorAt(index,_color);
 }
 
