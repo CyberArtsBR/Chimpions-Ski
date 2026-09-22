@@ -1,0 +1,63 @@
+name: Build source audit bundle
+
+on:
+  push:
+    branches:
+      - audit/source-bundle
+
+permissions:
+  contents: read
+
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble audit source
+        run: |
+          set -e
+          mkdir -p audit
+          files=(
+            package.json
+            index.html
+            render.yaml
+            AUDIT_BRIEF.md
+            src/main.js
+            src/gameplayTuning.js
+            src/skiPhysics.js
+            src/course.js
+            src/terrainContact.js
+            src/skiCamera.js
+            src/startCameraSequence.js
+            src/skier.js
+            src/environment.js
+            src/snowMaterial.js
+            src/snowTrails.js
+            src/collectibleVisuals.js
+            src/audio.js
+            src/input.js
+            src/ui.js
+            src/gameFeedback.js
+            src/avatar-system.js
+            src/style.css
+            checks/physics-invariants.mjs
+            checks/course-invariants.mjs
+            checks/assets.mjs
+            checks/desktop-browser.mjs
+            public/avatars.json
+            public/characters.json
+            public/avatar-overrides.json
+          )
+          for file in "${files[@]}"; do
+            mkdir -p "audit/$(dirname "$file")"
+            cp "$file" "audit/$file"
+          done
+          printf '%s\n' 'a9275d34ea5facb58e5b409d1c6442d841644115' > audit/SOURCE_COMMIT.txt
+          cd audit
+          zip -r ../chimpions-ski-audit-bundle.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chimpions-ski-audit-bundle
+          path: chimpions-ski-audit-bundle.zip
+          if-no-files-found: error
+          retention-days: 7
