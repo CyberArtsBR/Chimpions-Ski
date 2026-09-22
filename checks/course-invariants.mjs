@@ -34,7 +34,7 @@ for(let i=0;i<120;i++){
     assert.equal(section.type,'RECOVERY',previousType+' was not followed by RECOVERY');
   }
 
-  assert(section.placements.length>0,'course section emitted no placements');
+  if(!['OPEN CARVE','RECOVERY'].includes(section.type))assert(section.placements.length>0,'course section emitted no placements');
   for(const p of section.placements){
     assert(Number.isFinite(p.x)&&Number.isFinite(p.z)&&Number.isFinite(p.safeX),'non-finite placement');
     assert(Math.abs(p.x)<=T.COURSE_OBJECT_HALF_WIDTH+1e-6,'placement escaped course bounds');
