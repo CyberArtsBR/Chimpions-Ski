@@ -163,6 +163,58 @@ function createDistantForest(count,seed=81){
   return mesh;
 }
 
+function createDistantValley(material){
+  const xSegments=24;
+  const zSegments=14;
+  const width=220;
+  const zNear=-172;
+  const zFar=-268;
+  const positions=[];
+  const uvs=[];
+  const indices=[];
+
+  for(let zi=0;zi<=zSegments;zi++){
+    const t=zi/zSegments;
+    const z=THREE.MathUtils.lerp(zNear,zFar,t);
+    for(let xi=0;xi<=xSegments;xi++){
+      const u=xi/xSegments;
+      const nx=u*2-1;
+      const x=nx*width*.5;
+      const side=Math.pow(Math.abs(nx),1.55);
+      const y=
+        -1.0-t*7.1+
+        side*(5.5+t*4.6)+
+        Math.sin(x*.043+z*.031)*.20+
+        Math.sin(z*.064)*.12;
+      positions.push(x,y,z);
+      uvs.push(u*8,t*4);
+    }
+  }
+
+  const stride=xSegments+1;
+  for(let z=0;z<zSegments;z++){
+    for(let x=0;x<xSegments;x++){
+      const a=z*stride+x;
+      const b=a+1;
+      const c=a+stride;
+      const d=c+1;
+      indices.push(a,c,b,b,c,d);
+    }
+  }
+
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
+  geometry.setIndex(indices);
+  geometry.computeVertexNormals();
+
+  const mesh=new THREE.Mesh(geometry,material);
+  mesh.receiveShadow=true;
+  mesh.frustumCulled=false;
+  mesh.renderOrder=-8;
+  return mesh;
+}
+
 function createMovingInstances(count,mesh,makeEntry){
   const entries=new Array(count);
   for(let i=0;i<count;i++)entries[i]=makeEntry(i);
@@ -250,7 +302,10 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
   });
   const points=new THREE.Points(geometry,material);
   points.frustumCulled=false;
-  return {count,positions,fall,sway,geometry,points,xSpread,zMin,zMax,ground};
+  return {
+    count,positions,initialPositions:positions.slice(),fall,sway,
+    geometry,points,xSpread,zMin,zMax,ground
+  };
 }
 
 function makeContactShadow(scene){
@@ -380,6 +435,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
+  const distantValley=createDistantValley(snowMaterials.bank);
+  scene.add(distantValley);
   atmosphere.add(
     createRidge(252,43,1.1,-190,0xd3e2e8,.52,1.2,44),
     createRidge(230,39,-.3,-164,0xbfd4dd,.62,2.4,40),
@@ -563,9 +620,16 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
     trees.entries.forEach((entry,index)=>resetTree(entry,index));
     refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
+    for(const layer of snowLayers){
+      layer.positions.set(layer.initialPositions);
+      layer.geometry.attributes.position.needsUpdate=true;
+    }
     snowParticles.reset();
     surfaceDetail.reset();
     boundaryMarkers.reset();
+    contactShadow.position.y=-100;
+    contactShadow.material.opacity=.16;
+    contactShadow.scale.set(1.45,.52,1);
     dayCycle.apply(0);
   }
   function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time){
@@ -583,17 +647,17 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
     for(let i=0;i<banks.entries.length;i++){
       const e=banks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>22){resetBank(e,i,true);e.z=-185-wave(time+i)*55;}
+      if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
     }
     for(let i=0;i<windBanks.entries.length;i++){
       const e=windBanks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>20){resetBank(e,i,false);e.z=-170-wave(time*1.7+i)*65;}
+      if(e.z>20){resetBank(e,i,false);e.z=-216-wave(time*1.7+i)*54;}
     }
     refreshBanks(banks);refreshBanks(windBanks);
 
     for(let i=0;i<trees.entries.length;i++){
       const e=trees.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>24){resetTree(e,i);e.z=-190-wave(time*.9+i)*70;}
+      if(e.z>24){resetTree(e,i);e.z=-220-wave(time*.9+i)*56;}
     }
     refreshTrees(time);
 
