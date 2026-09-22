@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {disposeAvatarObject} from './avatar-system.js';
-import {SKI_TUNING} from './gameplayTuning.js';
+import {SKI_TUNING,getSpeedFeel} from './gameplayTuning.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -170,7 +170,7 @@ export function createFallbackSkier(){
     pose.carve=mix(pose.carve,target,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
     pose.air=mix(pose.air,air?1:0,air?.24:.16);
     pose.landing=mix(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
-    pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
+    pose.speed=mix(pose.speed,getSpeedFeel(speed),.08);
     const ascent=air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
     const descent=air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
     const apex=air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
@@ -327,7 +327,7 @@ function makeRigController(model){
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(targetCarve)!==Math.sign(pose.carve)&&Math.abs(targetCarve)>.035&&Math.abs(pose.carve)>.035;
     pose.carve=mix(pose.carve,targetCarve,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
-    pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
+    pose.speed=mix(pose.speed,getSpeedFeel(speed),.08);
     pose.air=mix(pose.air,air?1:0,air?.24:.15);
     const landingTarget=THREE.MathUtils.clamp(landing,0,1);
     pose.landing=mix(pose.landing,landingTarget,landingTarget>pose.landing?.52:.20);
@@ -408,7 +408,7 @@ export async function loadSkier(url='/models/default.glb'){
       const carve=pose?.carve??THREE.MathUtils.clamp(state.steer||0,-1,1);
       const air=pose?.air??Number(!!state.air);
       const landing=pose?.landing??THREE.MathUtils.clamp(state.landing||0,0,1);
-      const speed=pose?.speed??THREE.MathUtils.clamp(((state.speed||12)-12)/19,0,1);
+      const speed=pose?.speed??getSpeedFeel(state.speed);
       const verticalVelocity=state.verticalVelocity||0;
       const ascent=state.air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
       const descent=state.air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;

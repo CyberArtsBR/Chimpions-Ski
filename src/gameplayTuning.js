@@ -1,42 +1,42 @@
 export const SKI_TUNING=Object.freeze({
   // Practical ski corridor: ±11.3 versus the previous ±8.1 (~39.5% wider).
   PLAYER_HALF_WIDTH:11.3,
-  COURSE_OBJECT_HALF_WIDTH:10.2,
-  SAFE_ROUTE_HALF_WIDTH:8.4,
-  CONTENT_BAND_HALF_WIDTH:8.8,
+  COURSE_OBJECT_HALF_WIDTH:11.05,
+  SAFE_ROUTE_HALF_WIDTH:9.7,
+  CONTENT_BAND_HALF_WIDTH:10.7,
 
-  // Speed progression: ~60% faster opening pace, then modest 30-second tiers.
-  BASE_SPEED:19.2,
+  // 150 km/h opening pace, then +10 km/h every 30 seconds to a 210 km/h cap.
+  BASE_SPEED:41.6667,
   SPEED_TIER_SECONDS:30,
-  SPEED_TIER_INCREMENT:1.9,
-  MAX_SPEED:32.5,
-  SPEED_RESPONSE:2.4,
+  SPEED_TIER_INCREMENT:2.7778,
+  MAX_SPEED:58.3333,
+  SPEED_RESPONSE:2.2,
 
-  // Fast arcade carve response while retaining edge -> turn -> heading -> vx.
-  INPUT_DEADZONE:.018,
+  // Responsive arcade carving, deliberately calmer than the previous hyper-reactive pass.
+  INPUT_DEADZONE:.022,
   CONTROLLER_DEADZONE:.14,
-  EDGE_RESPONSE:60,
-  EDGE_RELEASE:26,
-  EDGE_REVERSAL:90,
-  CARVE_LOAD_RESPONSE:28,
-  TURN_RATE_BASE:5.0,
-  TURN_RATE_SPEED_BONUS:.35,
-  TURN_INPUT_ASSIST:1.2,
-  TURN_RESPONSE:40,
-  TURN_REVERSAL_RESPONSE:64,
-  COUNTER_HEADING_RESPONSE:28,
-  HEADING_LIMIT_LOW:.60,
-  HEADING_LIMIT_HIGH:.53,
-  HEADING_RECENTER:9.0,
-  TURN_RECENTER:16.0,
-  LATERAL_SCALE_LOW:1.02,
-  LATERAL_SCALE_HIGH:.74,
-  LATERAL_RESPONSE:36,
-  LATERAL_REVERSAL_RESPONSE:64,
-  PLAYER_YAW_RESPONSE:14,
-  PLAYER_BANK_RESPONSE:18,
-  POSE_CARVE_BLEND:.28,
-  POSE_REVERSAL_BLEND:.42,
+  EDGE_RESPONSE:40,
+  EDGE_RELEASE:20,
+  EDGE_REVERSAL:58,
+  CARVE_LOAD_RESPONSE:22,
+  TURN_RATE_BASE:3.8,
+  TURN_RATE_SPEED_BONUS:.30,
+  TURN_INPUT_ASSIST:.68,
+  TURN_RESPONSE:25,
+  TURN_REVERSAL_RESPONSE:40,
+  COUNTER_HEADING_RESPONSE:17,
+  HEADING_LIMIT_LOW:.46,
+  HEADING_LIMIT_HIGH:.40,
+  HEADING_RECENTER:6.4,
+  TURN_RECENTER:11.5,
+  LATERAL_SCALE_LOW:.48,
+  LATERAL_SCALE_HIGH:.40,
+  LATERAL_RESPONSE:23,
+  LATERAL_REVERSAL_RESPONSE:40,
+  PLAYER_YAW_RESPONSE:10.5,
+  PLAYER_BANK_RESPONSE:13,
+  POSE_CARVE_BLEND:.20,
+  POSE_REVERSAL_BLEND:.30,
 
   // Manual jump remains small; ramps produce the requested monster jump.
   MANUAL_JUMP_VELOCITY:5.9,
@@ -44,3 +44,14 @@ export const SKI_TUNING=Object.freeze({
   RAMP_JUMP_SPEED_FACTOR:.095,
   RAMP_RETRIGGER_GRACE:.85
 });
+
+
+export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
+  const range=Math.max(.001,SKI_TUNING.MAX_SPEED-SKI_TUNING.BASE_SPEED);
+  return Math.max(0,Math.min(1,(Number(speed)-SKI_TUNING.BASE_SPEED)/range));
+}
+
+export function getSpeedFeel(speed=SKI_TUNING.BASE_SPEED){
+  // 150 km/h should already feel fast; later tiers add the remaining intensity.
+  return .64+getSpeedProgress(speed)*.36;
+}

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {createSnowMaterials} from './snowMaterial.js';
+import {getSpeedFeel} from './gameplayTuning.js';
 
 const _dummy=new THREE.Object3D();
 const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);
@@ -540,7 +541,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     }
     refreshTrees(time);
 
-    const speed01=THREE.MathUtils.clamp((speed-12)/19,0,1);
+    const speed01=getSpeedFeel(speed);
     for(const layer of snowLayers){
       const p=layer.positions;
       layer.materialScale=speed01;

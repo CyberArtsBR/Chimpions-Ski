@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-
-function speedFeel(speed=12){
-  return 1-Math.exp(-Math.max(0,speed-11.5)/24);
-}
+import {getSpeedFeel} from './gameplayTuning.js';
 
 export function createSkiCamera(camera){
   const chasePosition=new THREE.Vector3();
@@ -24,7 +21,7 @@ export function createSkiCamera(camera){
   }
 
   function getChaseFrame(state,positionOut=chasePosition,lookOut=lookTarget){
-    const speed01=speedFeel(state.speed);
+    const speed01=getSpeedFeel(state.speed);
     const air=!!state.air;
     const rampAir=air&&state.jumpSource==='ramp';
     const manualAir=air&&state.jumpSource==='manual';
@@ -96,7 +93,7 @@ export function createSkiCamera(camera){
     camera.updateProjectionMatrix();
     camera.lookAt(lookTarget);
 
-    const speed01=speedFeel(state.speed);
+    const speed01=getSpeedFeel(state.speed);
     const carveRoll=-state.edge*(.010+speed01*.016);
     const terrainRoll=-(state.groundRoll||0)*.045;
     const crashRoll=THREE.MathUtils.clamp(-crashDir*.038,-.040,.040)*crashSettle;

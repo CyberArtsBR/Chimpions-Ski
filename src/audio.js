@@ -1,10 +1,11 @@
+import {SKI_TUNING,getSpeedFeel} from './gameplayTuning.js';
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const AudioContextClass=globalThis.AudioContext||globalThis.webkitAudioContext;
 
 export function createSkiAudio(){
   let context=null;
   let graph=null;
-  let pendingState={mode:'menu',speed:12,carve:0,air:false,intensity:0};
+  let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0};
   const buffers=new Map();
   const eventLast=new Map();
   const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,crash:.34,menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14};
@@ -263,7 +264,7 @@ export function createSkiAudio(){
   function applyState(state,instant=false){
     pendingState={...pendingState,...state};
     if(!graph||!context)return;
-    const speed01=1-Math.exp(-Math.max(0,(pendingState.speed||12)-11.5)/24);
+    const speed01=getSpeedFeel(pendingState.speed);
     const carve=clamp(Math.abs(pendingState.carve||0));
     const air=!!pendingState.air;
     const mode=pendingState.mode||'menu';

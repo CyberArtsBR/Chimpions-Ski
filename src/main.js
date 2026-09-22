@@ -361,8 +361,8 @@ function update(dt){
   jumpKeyPressed=false;
   let worldDistance=0;
   if(state.mode==='playing'){
-    // At maximum speed each collision step advances at most 0.271 m.
-    const steps=Math.ceil(dt/(1/120));
+    // 150–210 km/h needs tighter collision sampling so dense hazards cannot be skipped.
+    const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
     const dt=stepDt;
