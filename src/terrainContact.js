@@ -4,6 +4,14 @@ const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export function terrainHeight(x,z){
   const downhill=-z;
+
+  // Long, periodic alpine rolls give the descent a macro slope rhythm without
+  // introducing an unbounded Y drop. Wavelengths are deliberately hundreds of
+  // metres so local ski contact and jump surfaces remain smooth.
+  const macro=
+    Math.sin(downhill*.0075+.90)*.30+
+    Math.sin(downhill*.0037-.35)*.16;
+
   const broad=Math.sin(downhill*.045)*.105+Math.sin(downhill*.017+.65)*.068;
   const crest=Math.sin(downhill*.086+Math.sin(downhill*.012)*.8)*.028;
   const gentleBank=x*.006*Math.sin(downhill*.014+.4);
@@ -12,7 +20,7 @@ export function terrainHeight(x,z){
     Math.sin(downhill*.027+x*.19)*.14+
     Math.cos(downhill*.014-x*.11)*.07
   );
-  return broad+crest+gentleBank+edgeRelief;
+  return macro+broad+crest+gentleBank+edgeRelief;
 }
 
 export function sampleSkiGround(heightFn,x,z,heading=0,halfWidth=.235){

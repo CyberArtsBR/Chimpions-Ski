@@ -1,6 +1,9 @@
-import {SKI_TUNING as T} from './gameplayTuning.js';
+import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
+import {estimateRampFlightEnvelope} from './rampTrajectory.js';
+import {createSafeRouteTracker} from './courseSafety.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const lerp=(a,b,t)=>a+(b-a)*t;
 
 export const COURSE_TYPES=[
   'OPEN CARVE',
@@ -13,6 +16,15 @@ export const COURSE_TYPES=[
   'LOG JUMP'
 ];
 
+export const FORMATION_TYPES=[
+  'ROW',
+  'STAGGER',
+  'CLUSTER',
+  'ISOLATED',
+  'OFFSET_GATE',
+  'EDGE_THREAT'
+];
+
 export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
   const speedPart=clamp((speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
   const distancePart=clamp(distance/2600,0,1);
@@ -23,13 +35,21 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let lastType='RECOVERY';
   let sectionIndex=0;
   let recentBands=[3];
+  let pendingLanding=null;
+  let edgeThreatCountdown=3;
+  let lastThreatSide=0;
+  const safeRoute=createSafeRouteTracker(0,null);
+
+  // Seven conceptual lanes remain useful for fairness, but formation jitter/stagger
+  // prevents the player from seeing a repeated seven-column grid.
   const bands=[-1,-.72,-.36,0,.36,.72,1];
   const obstacleLanes=[-10.65,-7.10,-3.55,0,3.55,7.10,10.65];
   const opening=[
     'OPEN CARVE','BANANA LINE','GATE','FOREST',
-    'RAMP','RECOVERY','ROCK SLALOM','GATE','RAMP','RECOVERY'
+    'RAMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
   ];
 
+  const rand=(min,max)=>min+(max-min)*random();
   const weightedIndex=weights=>{
     let total=weights.reduce((sum,value)=>sum+value,0);
     let roll=random()*total;
@@ -39,6 +59,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
     return weights.length-1;
   };
+
+  function effectiveSpeed(speed,difficulty){
+    if(Number.isFinite(speed)&&speed>0)return clamp(speed,T.BASE_SPEED*.9,T.MAX_SPEED);
+    // Conservative fallback until main.js passes state.speed: assume at least 18% of speed range.
+    return lerp(T.BASE_SPEED,T.MAX_SPEED,clamp(.18+difficulty*.82,0,1));
+  }
 
   function pickBand(){
     const weights=[1.24,1.08,.98,.94,.98,1.08,1.24];
@@ -70,32 +96,170 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   });
   const banana=(z,x,safeX=x)=>place('banana',x,z,safeX);
 
-  function movingSafe(z,base=0,range=2.4){
-    const band=contentX(z,pickBand(),.88);
-    const target=band*.55+base*.45+Math.sin(sectionIndex*.77-z*.019)*range;
-    return clamp(target,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+  function desiredSafe(z,base=0,range=3.4){
+    const band=contentX(z,pickBand(),.86);
+    return clamp(
+      band*.48+base*.34+Math.sin(sectionIndex*.77-z*.017)*range,
+      -T.SAFE_ROUTE_HALF_WIDTH,
+      T.SAFE_ROUTE_HALF_WIDTH
+    );
   }
 
-  function hazardRow(z,safeX,{gap=3.05,kinds=['tree','rock'],offset=0}={}){
-    const placements=[];
-    for(let i=0;i<obstacleLanes.length;i++){
-      const x=clamp(obstacleLanes[i]+offset,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      if(Math.abs(x-safeX)<gap)continue;
-      const kind=kinds[(i+sectionIndex)%kinds.length];
-      placements.push(place(kind,x,z,safeX));
-    }
-    return placements;
+  function safeAt(z,speed,base=0,range=3.4){
+    return safeRoute.constrain(desiredSafe(z,base,range),z,speed);
   }
 
-  function addBananas(placements,startZ,length,count=2,safeHint=0){
-    const used=[];
-    for(let i=0;i<count;i++){
-      let z=startZ-(18+(i+random()*.7)*(length-32)/Math.max(1,count));
-      for(const previous of used)if(Math.abs(z-previous)<15)z-=16;
-      used.push(z);
-      const x=clamp(contentX(z,pickBand(),.96)+safeHint*.10,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      placements.push(banana(z,x,clamp(x,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH)));
+  function chooseFormation(sectionKind='OPEN CARVE'){
+    edgeThreatCountdown--;
+    if(edgeThreatCountdown<=0){
+      edgeThreatCountdown=3+Math.floor(random()*3);
+      return 'EDGE_THREAT';
     }
+
+    const weights={
+      'OPEN CARVE':[.08,.23,.16,.28,.13,.12],
+      'GATE':[.12,.18,.08,.10,.42,.10],
+      'FOREST':[.08,.32,.22,.12,.18,.08],
+      'ROCK SLALOM':[.08,.34,.18,.18,.14,.08],
+      'RECOVERY':[.04,.16,.10,.46,.12,.12],
+      'BANANA LINE':[.05,.18,.10,.40,.15,.12]
+    }[sectionKind]||[.10,.24,.16,.24,.16,.10];
+    return FORMATION_TYPES[weightedIndex(weights)];
+  }
+
+  function isOutsideSafeCorridor(x,safeX,gap){
+    return Math.abs(x-safeX)>=gap;
+  }
+
+  function addFormation(placements,type,z,safeX,{kinds=['tree','rock'],intensity=.5,landingProtected=false}={}){
+    const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(3.15,2.85,intensity);
+    const kindAt=i=>kinds[(i+sectionIndex)%kinds.length];
+
+    if(type==='ROW'){
+      for(let i=0;i<obstacleLanes.length;i++){
+        const x=obstacleLanes[i];
+        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
+        placements.push(place(kindAt(i),x,z,safeX,{formation:type}));
+      }
+      return;
+    }
+
+    if(type==='STAGGER'){
+      for(let i=0;i<obstacleLanes.length;i++){
+        const x=clamp(obstacleLanes[i]+rand(-.48,.48),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
+        placements.push(place(kindAt(i),x,z+rand(-1.8,1.8),safeX,{formation:type}));
+      }
+      return;
+    }
+
+    if(type==='CLUSTER'){
+      const side=safeX>=0?-1:1;
+      const center=side*rand(6.8,9.3);
+      const count=3+Math.floor(random()*2);
+      for(let i=0;i<count;i++){
+        const x=clamp(center+rand(-1.2,1.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
+        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type}));
+      }
+      return;
+    }
+
+    if(type==='ISOLATED'){
+      const count=random()<.68?1:2;
+      for(let i=0;i<count;i++){
+        let x=contentX(z+rand(-2,2),pickBand(),.98);
+        if(!isOutsideSafeCorridor(x,safeX,gap)){
+          const side=x>=safeX?1:-1;
+          x=clamp(safeX+side*(gap+rand(.8,2.4)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        }
+        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type}));
+      }
+      return;
+    }
+
+    if(type==='OFFSET_GATE'){
+      const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type}));
+      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type}));
+      if(intensity>.62){
+        const outer=lastThreatSide<=0?T.COURSE_OBJECT_HALF_WIDTH-.55:-(T.COURSE_OBJECT_HALF_WIDTH-.55);
+        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type}));
+      }
+      return;
+    }
+
+    // EDGE_THREAT: pressure one edge, but never invade the guaranteed safe corridor.
+    let side;
+    if(lastThreatSide===0)side=random()<.5?-1:1;
+    else side=random()<.68?-lastThreatSide:lastThreatSide;
+    let edgeX=side*rand(9.15,10.72);
+    if(!isOutsideSafeCorridor(edgeX,safeX,gap)){
+      side=-side;
+      edgeX=side*rand(9.15,10.72);
+    }
+    lastThreatSide=side;
+    if(isOutsideSafeCorridor(edgeX,safeX,gap)){
+      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type}));
+    }
+    if(random()<.58){
+      const supportX=clamp(side*rand(5.2,7.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      if(isOutsideSafeCorridor(supportX,safeX,gap)){
+        placements.push(place(kindAt(1),supportX,z+rand(-2,2),safeX,{formation:type}));
+      }
+    }
+  }
+
+  function spacing(intense=false){
+    return intense
+      ?rand(T.COURSE_INTENSE_SPACING_MIN,T.COURSE_INTENSE_SPACING_MAX)
+      :rand(T.COURSE_NORMAL_SPACING_MIN,T.COURSE_NORMAL_SPACING_MAX);
+  }
+
+  function addBananaEvent(placements,startZ,length,safeHint=0,chance=.64){
+    if(random()>chance)return {type:'none',count:0};
+    const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+    const bananaClear=(x,z)=>!placements.some(p=>
+      p.kind!=='banana'&&
+      Math.abs(p.z-z)<3.2&&
+      Math.abs(p.x-x)<1.45
+    );
+    const pushClearBanana=(z,preferredX)=>{
+      const preferred=clamp(preferredX,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      if(bananaClear(preferred,z)){placements.push(banana(z,preferred,safe));return true;}
+      if(bananaClear(safe,z)){placements.push(banana(z,safe,safe));return true;}
+      return false;
+    };
+
+    const roll=random();
+    const usable=Math.max(24,length-28);
+    const firstZ=startZ-rand(15,Math.min(32,usable*.44));
+
+    if(roll<.55){
+      const x=contentX(firstZ,pickBand(),.96);
+      const count=pushClearBanana(firstZ,x)?1:0;
+      return {type:'single',count};
+    }
+
+    if(roll<.90){
+      const secondZ=Math.max(startZ-length+12,firstZ-rand(24,34));
+      const firstX=clamp(contentX(firstZ,pickBand(),.92),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      const secondTarget=Math.abs(firstX)>5?firstX*.28:contentX(secondZ,pickBand(),.82);
+      let count=0;
+      if(pushClearBanana(firstZ,firstX))count++;
+      if(pushClearBanana(secondZ,secondTarget))count++;
+      return {type:'pair',count};
+    }
+
+    const direction=Math.abs(safe)<2?(random()<.5?-1:1):-Math.sign(safe);
+    const baitX=clamp(
+      safe+direction*rand(4.0,6.1),
+      -T.COURSE_OBJECT_HALF_WIDTH,
+      T.COURSE_OBJECT_HALF_WIDTH
+    );
+    const count=pushClearBanana(firstZ,baitX)?1:0;
+    return {type:'movement-bait',count};
   }
 
   function chooseType(difficulty){
@@ -110,7 +274,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       'FOREST':['OPEN CARVE','GATE','ROCK SLALOM','RAMP'],
       'ROCK SLALOM':['OPEN CARVE','GATE','FOREST','RAMP']
     };
-    let options=[...(transitions[lastType]||['OPEN CARVE'])];
+    const options=[...(transitions[lastType]||['OPEN CARVE'])];
 
     if(difficulty>.42&&lastType==='OPEN CARVE'&&random()<.22)options.push('LOG JUMP');
     if(lastType!=='RECOVERY'&&random()<.12)options.push('RAMP');
@@ -118,127 +282,236 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
 
-  function next({startZ,difficulty=0}){
+  function populateFlight(placements,rampZ,safeX,envelope,sectionKind){
+    const startDistance=20;
+    const lastDistance=Math.max(startDistance,envelope.flightEndDistance-10);
+    let distance=startDistance;
+    let index=0;
+
+    while(distance<lastDistance){
+      const z=rampZ-distance;
+      const protectedTouchdown=
+        distance>=envelope.protectedStartDistance&&
+        distance<=envelope.protectedEndDistance;
+      const formation=protectedTouchdown
+        ?'EDGE_THREAT'
+        :(index%2===0?'STAGGER':'ISOLATED');
+      addFormation(
+        placements,
+        formation,
+        z,
+        safeX,
+        {
+          kinds:sectionKind==='LOG JUMP'?['rock','tree']:['tree','rock'],
+          intensity:.46,
+          landingProtected:protectedTouchdown
+        }
+      );
+      distance+=rand(24,30);
+      index++;
+    }
+
+    if(random()<.42){
+      const bananaDistance=Math.min(envelope.landingDistance*.48,envelope.protectedStartDistance-8);
+      if(bananaDistance>18){
+        placements.push(banana(rampZ-bananaDistance,safeX,safeX));
+      }
+    }
+  }
+
+  function next({startZ,difficulty=0,speed}){
+    const currentSpeed=effectiveSpeed(speed,difficulty);
     const type=chooseType(difficulty);
     const placements=[];
     const phase=sectionIndex*.73;
     const sectionBand=pickBand();
     const anchor=clamp(contentX(startZ-18,sectionBand,.90),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-    let length=82;
+    let length=86;
 
     if(type==='OPEN CARVE'){
-      length=82;
+      length=90;
+      let z=startZ-20;
       for(let i=0;i<2;i++){
-        const z=startZ-22-i*31;
-        const safeX=movingSafe(z,anchor,2.8);
-        placements.push(...hazardRow(z,safeX,{gap:3.15,kinds:i%2?['rock','tree']:['tree','rock'],offset:i%2?.7:-.7}));
+        const safeX=safeAt(z,currentSpeed,anchor,3.8);
+        addFormation(placements,chooseFormation(type),z,safeX,{kinds:['tree','rock'],intensity:.35});
+        z-=spacing(false);
       }
-      if(difficulty>.28&&random()<.36){
-        const z=startZ-70;
-        const x=contentX(z,pickBand(),.92);
-        placements.push(place(random()<.52?'log':'rock',x,z,movingSafe(z,anchor,2.2)));
-      }
-      addBananas(placements,startZ,length,random()<.62?2:1,anchor);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.66);
     }
 
     if(type==='GATE'){
-      length=92;
-      const rows=3+(difficulty>.72?1:0);
+      length=102;
+      const rows=3+(difficulty>.78?1:0);
+      let z=startZ-18;
       for(let i=0;i<rows;i++){
-        const z=startZ-18-i*22;
-        const safeX=clamp(anchor+Math.sin(phase+i*.86)*3.1,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-        placements.push(...hazardRow(z,safeX,{gap:3.05,kinds:i%2?['tree','rock']:['rock','tree'],offset:i%2?.65:-.65}));
+        const desired=clamp(anchor+Math.sin(phase+i*.86)*4.0,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const safeX=safeRoute.constrain(desired,z,currentSpeed);
+        const formation=i===0?'OFFSET_GATE':chooseFormation(type);
+        addFormation(placements,formation,z,safeX,{kinds:i%2?['tree','rock']:['rock','tree'],intensity:.58});
+        z-=spacing(false);
       }
-      addBananas(placements,startZ,length,random()<.58?2:1,anchor);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.58);
     }
 
     if(type==='BANANA LINE'){
-      length=86;
-      const safeA=movingSafe(startZ-28,anchor,2.7);
-      const safeB=movingSafe(startZ-62,-anchor*.25,2.7);
-      placements.push(...hazardRow(startZ-28,safeA,{gap:3.25,kinds:['rock','tree'],offset:-.55}));
-      placements.push(...hazardRow(startZ-62,safeB,{gap:3.15,kinds:['tree','rock'],offset:.55}));
-      addBananas(placements,startZ,length,2,anchor);
-      if(random()<.35)placements.push(banana(startZ-74,contentX(startZ-74,pickBand(),.96),safeB));
-    }
-
-    if(type==='RAMP'){
-      length=108;
-      const rampZ=startZ-34;
-      const rampX=clamp(contentX(rampZ,pickRampBand(),.99),-(T.COURSE_OBJECT_HALF_WIDTH-.35),T.COURSE_OBJECT_HALF_WIDTH-.35);
-      const landingSafe=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      placements.push(...hazardRow(startZ-12,landingSafe,{gap:3.45,kinds:['tree','rock'],offset:.45}));
-      if(random()<.58)placements.push(banana(startZ-23,rampX,landingSafe));
-      placements.push(place('ramp',rampX,rampZ,landingSafe,{landingZone:true}));
-
-      // Keep the course populated after takeoff: visible hazards flank the controllable airborne route.
-      placements.push(...hazardRow(rampZ-28,landingSafe,{gap:3.65,kinds:['rock','tree'],offset:-.55}));
-      const shiftedSafe=clamp(landingSafe+Math.sin(phase+1.2)*1.8,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      placements.push(...hazardRow(rampZ-54,shiftedSafe,{gap:3.35,kinds:['tree','rock'],offset:.65}));
-      if(random()<.62)placements.push(banana(rampZ-42,shiftedSafe,shiftedSafe));
-    }
-
-    if(type==='RECOVERY'){
-      length=96;
-      // Recovery remains readable, not empty: hazards stay visible with a wider moving landing corridor.
-      const safeA=movingSafe(startZ-30,anchor,2.1);
-      placements.push(...hazardRow(startZ-30,safeA,{gap:3.65,kinds:['rock','tree'],offset:-.45}));
-      const safeB=clamp(safeA+Math.sin(phase+1.45)*2.5,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      placements.push(...hazardRow(startZ-64,safeB,{gap:3.25,kinds:['tree','rock'],offset:.55}));
-      addBananas(placements,startZ,length,random()<.55?2:1,safeB);
+      length=92;
+      let z=startZ-22;
+      for(let i=0;i<2;i++){
+        const safeX=safeAt(z,currentSpeed,anchor,3.2);
+        addFormation(placements,i===0?'ISOLATED':chooseFormation(type),z,safeX,{kinds:['rock','tree'],intensity:.38});
+        z-=spacing(false);
+      }
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.92);
     }
 
     if(type==='FOREST'){
-      length=100;
-      const rows=4+(difficulty>.78?1:0);
+      length=108;
+      const rows=4+(difficulty>.82?1:0);
+      let z=startZ-16;
       for(let i=0;i<rows;i++){
-        const z=startZ-16-i*21;
-        const safeX=clamp(anchor+Math.sin(phase+i*.70)*3.2,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-        placements.push(...hazardRow(z,safeX,{gap:3.05,kinds:['tree','tree','rock'],offset:i%2?.55:-.55}));
+        const desired=clamp(anchor+Math.sin(phase+i*.70)*4.1,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const safeX=safeRoute.constrain(desired,z,currentSpeed);
+        addFormation(placements,chooseFormation(type),z,safeX,{kinds:['tree','tree','rock'],intensity:.72});
+        z-=spacing(true);
       }
-      addBananas(placements,startZ,length,random()<.52?2:1,anchor);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.50);
     }
 
     if(type==='ROCK SLALOM'){
-      length=94;
-      const rows=4;
-      let safeX=anchor;
+      length=104;
+      const rows=4+(difficulty>.84?1:0);
+      let z=startZ-16;
+      let desired=anchor;
       for(let i=0;i<rows;i++){
-        const z=startZ-15-i*21;
-        safeX=clamp(safeX+(i%2?1:-1)*(1.9+random()*1.15),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-        placements.push(...hazardRow(z,safeX,{gap:2.95,kinds:['rock','rock','tree'],offset:i%2?.8:-.8}));
+        desired=clamp(desired+(i%2?1:-1)*rand(3.1,5.0),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const safeX=safeRoute.constrain(desired,z,currentSpeed);
+        addFormation(placements,chooseFormation(type),z,safeX,{kinds:['rock','rock','tree'],intensity:.78});
+        z-=spacing(true);
       }
-      if(random()<.42){
-        const logZ=startZ-84;
-        const logX=contentX(logZ,pickBand(),.92);
-        placements.push(place('log',logX,logZ,movingSafe(logZ,safeX,2.1)));
-      }
-      addBananas(placements,startZ,length,random()<.64?2:1,safeX);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.54);
     }
 
-    if(type==='LOG JUMP'){
-      length=108;
+    if(type==='RAMP'||type==='LOG JUMP'){
       const rampZ=startZ-34;
-      const rampX=clamp(contentX(rampZ,pickRampBand(),.99),-(T.COURSE_OBJECT_HALF_WIDTH-.35),T.COURSE_OBJECT_HALF_WIDTH-.35);
-      const landingSafe=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      placements.push(...hazardRow(startZ-12,landingSafe,{gap:3.45,kinds:['tree','rock'],offset:-.45}));
-      placements.push(place('ramp',rampX,rampZ,landingSafe,{landingZone:true}));
-      placements.push(place('log',rampX,rampZ-13.5,landingSafe,{jumpTarget:true}));
-      placements.push(...hazardRow(rampZ-36,landingSafe,{gap:3.7,kinds:['rock','tree'],offset:.55}));
-      placements.push(...hazardRow(rampZ-60,landingSafe,{gap:3.35,kinds:['tree','rock'],offset:-.55}));
-      if(random()<.60)placements.push(banana(rampZ-48,landingSafe,landingSafe));
+      const rampX=clamp(
+        contentX(rampZ,pickRampBand(),.99),
+        -(T.COURSE_OBJECT_HALF_WIDTH-.25),
+        T.COURSE_OBJECT_HALF_WIDTH-.25
+      );
+      const rampTarget=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+      const envelope=estimateRampFlightEnvelope(currentSpeed);
+
+      // Track the route in chronological downhill order: approach first, ramp second.
+      const approachZ=startZ-12;
+      const approachSafe=safeRoute.constrain(rampTarget,approachZ,currentSpeed);
+      const rampSafe=safeRoute.constrain(rampTarget,rampZ,currentSpeed);
+      addFormation(placements,'OFFSET_GATE',approachZ,approachSafe,{kinds:['tree','rock'],intensity:.42});
+      if(random()<.34)placements.push(banana(startZ-23,rampX,rampSafe));
+
+      placements.push(place('ramp',rampX,rampZ,rampSafe,{
+        landingZone:true,
+        flightTime:envelope.flightTime,
+        landingDistance:envelope.landingDistance
+      }));
+
+      if(type==='LOG JUMP'){
+        placements.push(place('log',rampX,rampZ-13.5,rampSafe,{jumpTarget:true}));
+      }
+
+      // Keep flight visibly populated outside the landing corridor.
+      populateFlight(placements,rampZ,rampSafe,envelope,type);
+
+      const touchdownZ=rampZ-envelope.landingDistance;
+      const landingEndZ=rampZ-envelope.protectedEndDistance;
+
+      // Guarantee visible edge pressure at touchdown without invading the protected corridor.
+      addFormation(
+        placements,
+        'EDGE_THREAT',
+        touchdownZ,
+        rampSafe,
+        {kinds:['tree','rock'],intensity:.34,landingProtected:true}
+      );
+
+      // Resume real pressure shortly after the protected touchdown envelope.
+      const postLandingZ=landingEndZ-16;
+      const postLandingSafe=safeRoute.constrain(rampSafe,postLandingZ,currentSpeed);
+      addFormation(
+        placements,
+        'ISOLATED',
+        postLandingZ,
+        postLandingSafe,
+        {kinds:['rock','tree'],intensity:.30}
+      );
+      if(random()<.38)placements.push(banana(postLandingZ-7,postLandingSafe,postLandingSafe));
+
+      pendingLanding={
+        safeX:postLandingSafe,
+        touchdownSafeX:rampSafe,
+        touchdownZ,
+        landingEndZ,
+        postLandingZ,
+        envelope
+      };
+
+      // Keep the section only slightly beyond the first post-landing pressure row.
+      length=Math.max(112,Math.abs(startZ-postLandingZ)+12);
+    }
+
+    if(type==='RECOVERY'){
+      const landing=pendingLanding;
+      const recoveryAnchor=landing?.safeX??anchor;
+      length=96;
+      let z=startZ-16;
+
+      // Keep first recovery decision reachable from the predicted landing route.
+      const firstSafe=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
+      addFormation(placements,'ISOLATED',z,firstSafe,{kinds:['rock','tree'],intensity:.26});
+
+      z-=spacing(false);
+      const secondSafe=safeAt(z,currentSpeed,firstSafe,2.7);
+      addFormation(placements,chooseFormation(type),z,secondSafe,{kinds:['tree','rock'],intensity:.38});
+
+      addBananaEvent(placements,startZ,length,secondSafe,.70);
+      pendingLanding=null;
     }
 
     for(const placement of placements)placement.section=type;
     lastType=type;
     sectionIndex++;
-    return {type,placements,endZ:startZ-length,length};
+    return {
+      type,
+      placements,
+      endZ:startZ-length,
+      length,
+      speed:currentSpeed,
+      pendingLanding:pendingLanding?{
+        safeX:pendingLanding.safeX,
+        touchdownSafeX:pendingLanding.touchdownSafeX,
+        touchdownZ:pendingLanding.touchdownZ,
+        landingEndZ:pendingLanding.landingEndZ,
+        postLandingZ:pendingLanding.postLandingZ,
+        flightTime:pendingLanding.envelope.flightTime,
+        landingDistance:pendingLanding.envelope.landingDistance
+      }:null
+    };
   }
 
   return {
     next,
-    reset(){lastType='RECOVERY';sectionIndex=0;recentBands=[3];},
+    reset(){
+      lastType='RECOVERY';
+      sectionIndex=0;
+      recentBands=[3];
+      pendingLanding=null;
+      edgeThreatCountdown=3;
+      lastThreatSide=0;
+      safeRoute.reset(0,null);
+    },
     get lastType(){return lastType;},
-    get sectionIndex(){return sectionIndex;}
+    get sectionIndex(){return sectionIndex;},
+    get previousSafeX(){return safeRoute.previousSafeX;},
+    get previousSafeZ(){return safeRoute.previousSafeZ;},
+    get pendingLanding(){return pendingLanding;}
   };
 }

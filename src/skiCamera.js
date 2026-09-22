@@ -33,18 +33,22 @@ export function createSkiCamera(camera){
     const descent=rampAir?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
 
     const steerLead=state.heading*(1.20+speed01*.58)+lateralVelocity*.030;
+    const downhillCameraLift=.22+speed01*.16;
     positionOut.set(
       state.x*.38-steerLead,
-      5.92+speed01*.74+state.y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
+      5.92+speed01*.74+downhillCameraLift+state.y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
       10.28+speed01*1.92+(rampAir?1.05+airHeight*.14+apex*.42:manualAir?airHeight*.07:0)
     );
 
     const lookAhead=1.28+speed01*1.42;
     const lateralLook=state.heading*lookAhead+lateralVelocity*.040;
+    const rampFraming=rampAir?(.88+descent*.08):1;
+    const downhillLookBias=(1.55+speed01*.80)*rampFraming;
+    const downhillLookDistance=1.20+speed01*1.00;
     lookOut.set(
       state.x*.17+lateralLook,
-      .30+state.y*.075+airHeight*(rampAir?.012:.025)-descent*.12,
-      -15.40-speed01*5.10-(rampAir?2.35+descent*1.95:air?.85:0)
+      .30+state.y*.075-downhillLookBias+airHeight*(rampAir?.012:.025)-descent*.12,
+      -15.40-speed01*5.10-downhillLookDistance-(rampAir?2.35+descent*1.95:air?.85:0)
     );
 
     const fov=54.5+speed01*7.4+(rampAir?1.35+apex*.75:manualAir?.42:0);

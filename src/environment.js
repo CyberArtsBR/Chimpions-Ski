@@ -75,7 +75,7 @@ function createRidge(width,height,y,z,color,opacity,seed,segments=26){
   return mesh;
 }
 
-function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin,widthMax,color,snowColor,seed}){
+function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin,widthMax,color,snowColor,seed,valleyGap=0}){
   const group=new THREE.Group();
   const mountainGeometry=new THREE.ConeGeometry(1,1,6,1);
   mountainGeometry.rotateY(Math.PI/6);
@@ -102,7 +102,10 @@ function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin
 
   for(let i=0;i<count;i++){
     const t=count===1?.5:i/(count-1);
-    const x=(t-.5)*spreadX+(wave(seed+i*2.17)-.5)*spreadX*.13;
+    let x=(t-.5)*spreadX+(wave(seed+i*2.17)-.5)*spreadX*.13;
+    if(valleyGap>0&&Math.abs(x)<valleyGap){
+      x=(t<.5?-1:1)*(valleyGap+Math.abs(x)*.28);
+    }
     const depth=(wave(seed+i*4.73)-.5)*15;
     const h=heightMin+wave(seed+i*5.91)*(heightMax-heightMin);
     const w=widthMin+wave(seed+i*7.31)*(widthMax-widthMin);
@@ -159,6 +162,15 @@ function resetTree(entry,i){
   entry.lean=(wave(i*3.41+37)-.5)*.045;
   entry.ry=wave(i*2.61+6)*Math.PI*2;
   entry.phase=wave(i*8.23+17)*Math.PI*2;
+
+  const young=entry.variant===0;
+  const large=entry.variant===2;
+  const heavy=entry.variant===3;
+  entry.heightScale=young?.90:(large?1.15:(heavy?1.06:1));
+  entry.widthScale=entry.width*(young?.72:(large?1.16:(heavy?1.08:1)));
+  entry.snowScale=entry.snow*(heavy?1.20:(young?.62:1));
+  entry.asymScaled=entry.asym*entry.s;
+  entry.trunkScale=entry.s*entry.trunk;
 }
 
 function makeSky(){
@@ -380,23 +392,23 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
   atmosphere.add(
-    createRidge(230,39,-5,-174,0xc9dce5,.62,2.4,40),
-    createRidge(194,33,-5,-141,0x9ebdca,.72,5.9,36),
-    createRidge(154,25,-6,-106,0x759cae,.82,9.1,30),
+    createRidge(230,39,-1.7,-174,0xc9dce5,.62,2.4,40),
+    createRidge(194,33,-2.8,-141,0x9ebdca,.72,5.9,36),
+    createRidge(154,25,-4.0,-106,0x759cae,.82,9.1,30),
     createMountainField({
-      count:11,z:-157,spreadX:190,baseY:-9,
+      count:11,z:-157,spreadX:190,baseY:-6.6,
       heightMin:27,heightMax:43,widthMin:17,widthMax:28,
-      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4
+      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4,valleyGap:18
     }),
     createMountainField({
-      count:10,z:-124,spreadX:154,baseY:-8,
+      count:10,z:-124,spreadX:154,baseY:-5.9,
       heightMin:23,heightMax:36,widthMin:15,widthMax:24,
-      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7
+      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7,valleyGap:13
     }),
     createMountainField({
-      count:8,z:-92,spreadX:112,baseY:-7,
+      count:8,z:-92,spreadX:112,baseY:-5.2,
       heightMin:18,heightMax:29,widthMin:13,widthMax:20,
-      color:0x536f7b,snowColor:0xf7fcff,seed:47.2
+      color:0x536f7b,snowColor:0xf7fcff,seed:47.2,valleyGap:9
     })
   );
 
@@ -424,9 +436,11 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
   const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
   bankMesh.receiveShadow=true;
+  bankMesh.frustumCulled=false;
   world.add(bankMesh);
   const windMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.shadowBank,38);
   windMesh.receiveShadow=true;
+  windMesh.frustumCulled=false;
   world.add(windMesh);
   const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
@@ -447,6 +461,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfUpper,capMesh]){
     mesh.castShadow=true;
     mesh.receiveShadow=true;
+    mesh.frustumCulled=false;
     world.add(mesh);
   }
   const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
@@ -472,17 +487,14 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   function refreshTrees(time=0){
     for(let i=0;i<trees.entries.length;i++){
-      const e=trees.entries[i],s=e.s,w=e.width;
+      const e=trees.entries[i],s=e.s;
       const sway=Math.sin(time*.72+e.phase)*.014;
-      const young=e.variant===0;
-      const large=e.variant===2;
-      const heavy=e.variant===3;
-      const height=young?.90:(large?1.15:(heavy?1.06:1));
-      const width=w*(young?.72:(large?1.16:(heavy?1.08:1)));
-      const snow=e.snow*(heavy?1.20:(young?.62:1));
-      const asym=e.asym*s;
+      const height=e.heightScale;
+      const width=e.widthScale;
+      const snow=e.snowScale;
+      const asym=e.asymScaled;
       const lean=e.lean;
-      const trunkScale=s*e.trunk;
+      const trunkScale=e.trunkScale;
 
       setInstance(trunkMesh,i,e.x,.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
 
@@ -521,7 +533,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     powder.cursor=0;powder.lastLanding=0;powder.emitCarry=0;
     powder.geometry.attributes.position.needsUpdate=true;
   }
-  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true){
+  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY){
     time+=dt;
     sky.position.copy(camera.position);
 
@@ -608,7 +620,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     }
     powder.geometry.attributes.position.needsUpdate=true;
 
-    contactShadow.position.set(playerX,Math.max(.006,playerY-.108),playerZ+.02);
+    contactShadow.position.set(playerX,Math.max(.006,groundY-.108),playerZ+.02);
     const groundAlpha=air?0:THREE.MathUtils.clamp(1-landingPulse*.12,.72,1);
     contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.19*groundAlpha,1-Math.pow(1-(air?.22:.38),dt*60));
     const contactScale=1+landingPulse*.12;

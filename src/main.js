@@ -126,6 +126,7 @@ function makeLog(){
 const course=[];
 let courseDirector=null;
 let courseFrame=0;
+let activeRamp=null;
 // Keep the authored section frontier, including empty recovery/landing space.
 let courseEndZ=-12,courseTravel=0;
 
@@ -133,6 +134,10 @@ function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 }
 const coursePool={tree:[],rock:[],log:[],banana:[],ramp:[]};
+function clearActiveRamp(){
+  if(activeRamp)activeRamp.userData.activated=false;
+  activeRamp=null;
+}
 function makeCourseItem(kind){
   if(kind==='tree')return makeTree();
   if(kind==='rock')return makeRock();
@@ -148,6 +153,8 @@ function acquireCourseItem(kind){
   return item;
 }
 function releaseCourseItem(item){
+  if(item===activeRamp)clearActiveRamp();
+  else item.userData.activated=false;
   item.visible=false;
   world.remove(item);
   coursePool[item.userData.kind]?.push(item);
@@ -168,12 +175,13 @@ function addCoursePlacement(placement){
 function fillCourse(difficulty=0){
   let guard=0;
   while(courseEndZ+courseTravel>-520&&guard++<18){
-    const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty});
+    const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty,speed:state.speed});
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
   }
 }
 function resetCourse(difficulty=0){
+  clearActiveRamp();
   while(course.length)releaseCourseItem(course.pop());
   courseDirector.reset();
   courseEndZ=-12;courseTravel=0;
@@ -254,20 +262,21 @@ async function setAvatar(entry){
   }
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
 const keys=new Set();
 let jumpKeyPressed=false,lastPadJump=false;
 let last=performance.now();
+let physicsSubsteps=0;
 
 function control(pad){
   const keyboard=Number(keys.has('ArrowRight')||keys.has('KeyD'))-Number(keys.has('ArrowLeft')||keys.has('KeyA'));
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function resetRunState(mode='countdown'){
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trailTimer=0;skiTrails.reset();
   keys.clear();
@@ -316,6 +325,7 @@ function resumeGame(){
 }
 function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
+  clearActiveRamp();
   const runDistance=Math.floor(state.distance);
   const previousBest=state.best;
   const newBest=runDistance>previousBest;
@@ -351,6 +361,7 @@ addEventListener('blur',suspendInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInput();});
 
 function update(dt){
+  physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
@@ -365,6 +376,7 @@ function update(dt){
     const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
+    physicsSubsteps++;
     const dt=stepDt;
     state.time+=dt;
     state.frame++;
@@ -386,7 +398,7 @@ function update(dt){
     const groundY=.12+state.centerGround;
 
     updateJumpAssist(state,step===0&&jumpPressed,dt);
-    const ridingRamp=course.some(item=>item.userData.kind==='ramp'&&item.userData.activated&&Math.abs(item.position.x-state.x)<=1.46&&Math.abs(item.position.z-player.position.z)<=1.78);
+    const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&tryManualJump(state,groundY))feedback.onManualTakeoff();
     const landing=stepAir(state,dt,groundY);
     if(landing.landed)feedback.onLanding(landing);
@@ -462,7 +474,8 @@ function update(dt){
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
-        item.visible=false;
+        course.splice(i,1);
+        releaseCourseItem(item);
         state.bananas++;
         audio.play('banana');
         continue;
@@ -474,8 +487,9 @@ function update(dt){
 
         // Downhill travel is toward -Z. Engage on the uphill/low side (+Z end),
         // then launch only as the skier reaches the downhill/high lip (-Z end).
-        if(!item.userData.activated&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
+        if(!activeRamp&&!item.userData.activated&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
           item.userData.activated=true;
+          activeRamp=item;
         }
         const atLip=item.userData.activated&&approachDepth<=-1.42&&approachDepth>=-1.78;
         if(item.userData.activated&&!state.air){
@@ -485,6 +499,7 @@ function update(dt){
         }
         if(atLip&&!state.air){
           item.userData.activated=false;
+          if(activeRamp===item)activeRamp=null;
           if(launchRamp(state,itemGround)){feedback.onRampTakeoff();skiTrails.breakTrail();}
         }
         continue;
@@ -497,12 +512,12 @@ function update(dt){
       crash(item.userData.kind,item);
     }
 
-    fillCourse(state.difficulty);
     if(nearestSectionItem){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
     }
+    if(state.mode==='playing')fillCourse(state.difficulty);
   }else if(state.mode==='countdown'){
     skier?.userData?.updateSkiPose?.({
       dt,
@@ -529,7 +544,7 @@ function update(dt){
     }
   }
   const worldSpeed=worldDistance/dt;
-  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing');
+  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
@@ -552,4 +567,34 @@ function resize(){
 }
 addEventListener('resize',resize);
 
-window.chimpionsSki=()=>({...state,playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});
+window.chimpionsSki=()=>{
+  const courseWorldEndZ=courseEndZ+courseTravel;
+  return {
+    ...state,
+    physicsSubsteps,
+    activeRamp:!!activeRamp,
+    courseAhead:Math.max(0,player.position.z-courseWorldEndZ),
+    courseEndZ,
+    courseWorldEndZ,
+    vx:state.vx,
+    heading:state.heading,
+    turnRate:state.turnRate,
+    carveLoad:state.carveLoad,
+    landingQuality:state.landingQuality,
+    rampGrace:state.rampGrace,
+    rendererCalls:renderer.info.render.calls,
+    rendererTriangles:renderer.info.render.triangles,
+    rendererGeometries:renderer.info.memory.geometries,
+    rendererTextures:renderer.info.memory.textures,
+    playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,
+    courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,
+    ready,
+    catalogSize:catalog.length,
+    selectedAvatar:selectedAvatar?.name||'',
+    skierFallback:!!skier?.userData?.fallback,
+    rigReady:!!skier?.userData?.rigReady,
+    modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',
+    courseObjects:course.length,
+    pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)
+  };
+};
