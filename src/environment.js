@@ -16,6 +16,8 @@ import {
   sideForIndex
 } from './environmentCorridor.js';
 
+// clearHorizon contract: mountains stay on left/right sides outside the central exclusion corridor; recycled scenery preserves side assignment.
+
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
 const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);

@@ -4,6 +4,15 @@ import {getRideProfile} from './rideMode.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
+const SKI_PROFILE_CONTRACT=getRideProfile('ski');
+if(
+  SKI_PROFILE_CONTRACT.baseSpeed!==T.BASE_SPEED||
+  SKI_PROFILE_CONTRACT.maxSpeed!==T.MAX_SPEED||
+  SKI_PROFILE_CONTRACT.tierIncrement!==T.SPEED_TIER_INCREMENT
+){
+  throw new Error('SKI ride profile drifted from gameplay tuning');
+}
+
 export function progressSpeed(state,dt){
   const profile=getRideProfile(state.rideMode);
   const tier=Math.max(0,Math.floor((state.time||0)/profile.tierSeconds));
