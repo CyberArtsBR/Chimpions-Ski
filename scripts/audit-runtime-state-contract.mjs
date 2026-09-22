@@ -3,10 +3,14 @@ import {parseArgs,getRoot,jsSources,read} from '../checks/integration-check-util
 const args=parseArgs(),root=getRoot(args),paths=jsSources(root);
 const fields=['rideMode','rideProfile','trickType','trickState','trickProgress','trickEvent','trickPoints','failedTrick','activeRamp','air','jumpSource','score','combo','clearEvent'];
 const semanticGroups={
- rideMode:['rideMode','rideProfile','sportMode','riderMode','snowMode'],
- trickState:['trickState','trickType','activeTrick','airTrick','trickProgress'],
+ rideMode:['rideMode','sportMode','riderMode','snowMode'],
+ rideProfile:['rideProfile','modeProfile','speedProfile'],
+ trickState:['trickState','activeTrickState','airTrickState'],
+ trickType:['trickType','activeTrick','airTrick'],
+ trickProgress:['trickProgress','trickPhase','trickT'],
  failedTrick:['failedTrick','trickFailed','failedLanding','invalidTrick'],
- scoreEvent:['trickEvent','clearEvent','scoreEvent','scoreEvents'],
+ trickEvent:['trickEvent','airTrickEvent'],
+ clearEvent:['clearEvent','hazardClearEvent'],
  jumpSource:['jumpSource','launchSource','airSource']
 };
 const warnings=[],occurrences={};
