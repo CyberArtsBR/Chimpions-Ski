@@ -25,6 +25,7 @@ import {createTrickSystem} from './trickSystem.js';
 import {announceTrickStart,resetTrickScoring,scoreTrickLanding} from './trickScoring.js';
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
+import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -451,7 +452,7 @@ function resetRunState(mode='countdown'){
   resetTrickScoring(state);
   tricks.reset();
   audio.resetRun?.();
-  player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
+  player.position.set(0,.12,2.2);resetPlayerOrientation(player);
   trailTimer=0;skiTrails.reset();
   keys.clear();
   tiles.forEach((tile,index)=>{
@@ -632,11 +633,7 @@ function update(dt){
     }
 
     player.position.x=state.x;player.position.y=state.y;
-    const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68;
-    const terrainRoll=state.air?0:state.groundRoll*.70;
-    player.rotation.x=THREE.MathUtils.damp(player.rotation.x,terrainPitch,7.2,dt);
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.29+terrainRoll,SKI_TUNING.PLAYER_BANK_RESPONSE,dt);
-    player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,SKI_TUNING.PLAYER_YAW_RESPONSE,dt);
+    updateRidingOrientation(player,state,dt);
     skier?.userData?.updateSkiPose?.({
       dt,
       steer:state.edge,
@@ -809,7 +806,7 @@ function update(dt){
     });
   }else if(state.mode==='crashed'){
     state.crashTime+=dt;
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
+    updateCrashOrientation(player,state,dt);
   }
   for(const tile of tiles){
     tile.position.z+=worldDistance;

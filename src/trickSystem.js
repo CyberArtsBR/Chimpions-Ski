@@ -47,31 +47,31 @@ export function createTrickSystem({visualTarget=null}={}){
     landingValid:true
   };
   const landingResult={hadTrick:false,success:false,type:'',source:'',completed:false,landingValid:true};
-  let target=null;
+  let visualPivot=null;
   let pendingRampType=null;
 
   function normalizeVisual(){
-    if(target?.quaternion)target.quaternion.copy(baseQuaternion);
+    if(visualPivot?.quaternion)visualPivot.quaternion.copy(baseQuaternion);
   }
 
   function setVisualTarget(next){
     normalizeVisual();
-    target=next||null;
-    if(target?.quaternion)baseQuaternion.copy(target.quaternion);
+    visualPivot=next||null;
+    if(visualPivot?.quaternion)baseQuaternion.copy(visualPivot.quaternion);
     else baseQuaternion.identity();
     if(snapshot.state!==TRICK_STATE.NONE&&snapshot.state!==TRICK_STATE.FAILED)applyVisual();
   }
 
   function applyVisual(){
-    if(!target?.quaternion)return;
+    if(!visualPivot?.quaternion)return;
     if(snapshot.completed||snapshot.state===TRICK_STATE.COMPLETED){
-      target.quaternion.copy(baseQuaternion);
+      visualPivot.quaternion.copy(baseQuaternion);
       return;
     }
     const axis=snapshot.type===TRICK_TYPE.BACKFLIP?axisX:axisY;
     const angle=snapshot.type===TRICK_TYPE.BACKFLIP?-snapshot.rotation:snapshot.rotation;
     trickQuaternion.setFromAxisAngle(axis,angle);
-    target.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
+    visualPivot.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
   }
 
   function canStart(){return snapshot.state===TRICK_STATE.NONE;}
@@ -133,7 +133,8 @@ export function createTrickSystem({visualTarget=null}={}){
     landingResult.source=snapshot.source;
     landingResult.completed=snapshot.completed||snapshot.rotation>=TAU-COMPLETE_EPSILON;
     const sourceMatches=snapshot.source==='ramp'&&jumpSource==='ramp';
-    const landingValid=snapshot.type===TRICK_TYPE.BACKFLIP?sourceMatches:true;
+    const manualBackflipInvalid=snapshot.type===TRICK_TYPE.BACKFLIP&&snapshot.source==='manual';
+    const landingValid=snapshot.type===TRICK_TYPE.BACKFLIP?!manualBackflipInvalid&&sourceMatches:true;
     landingResult.landingValid=landingValid;
     landingResult.success=hadTrick&&landingResult.completed&&landingValid;
 
