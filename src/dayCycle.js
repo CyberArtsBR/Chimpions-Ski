@@ -107,6 +107,7 @@ const tmpA=new THREE.Color();
 const tmpB=new THREE.Color();
 const tmpMountain=new THREE.Color();
 const tmpSnowCap=new THREE.Color();
+const tmpAdaptiveTint=new THREE.Color();
 
 function smoothstep(t){
   t=THREE.MathUtils.clamp(t,0,1);
@@ -133,7 +134,7 @@ function setColor(target,a,b,t){
 }
 
 export function createDayCycle({
-  scene,sky,fog,hemisphere,sun,rim,fill,snowMaterials,atmosphere
+  scene,sky,fog,hemisphere,sun,rim,fill,snowMaterials,atmosphere,adaptiveMaterials=[]
 }){
   const atmosphereMaterials=[];
   atmosphere?.traverse?.(object=>{
@@ -142,6 +143,11 @@ export function createDayCycle({
     material.userData.baseDayColor??=material.color.clone();
     atmosphereMaterials.push(material);
   });
+
+  for(const material of adaptiveMaterials){
+    if(!material?.color)continue;
+    material.userData.baseDayColor??=material.color.clone();
+  }
 
   const transitionSeconds=8;
 
@@ -195,6 +201,25 @@ export function createDayCycle({
       }else{
         material.color.copy(mountainColor).lerp(base,.36);
       }
+    }
+
+    setColor(tmpAdaptiveTint,from.hemiSky,to.hemiSky,blend);
+    const maxChannel=Math.max(tmpAdaptiveTint.r,tmpAdaptiveTint.g,tmpAdaptiveTint.b,.001);
+    const lightLevel=THREE.MathUtils.lerp(from.hemiIntensity,to.hemiIntensity,blend);
+    const brightness=.72+.28*THREE.MathUtils.clamp(lightLevel/1.36,0,1);
+    const tintR=tmpAdaptiveTint.r/maxChannel;
+    const tintG=tmpAdaptiveTint.g/maxChannel;
+    const tintB=tmpAdaptiveTint.b/maxChannel;
+    for(const material of adaptiveMaterials){
+      const base=material?.userData?.baseDayColor;
+      if(!base||!material.color)continue;
+      const role=material.userData.dayCycleRole||'foliage';
+      const roleBrightness=role==='background'?brightness*.94:brightness;
+      material.color.setRGB(
+        base.r*(.76+tintR*.24)*roleBrightness,
+        base.g*(.76+tintG*.24)*roleBrightness,
+        base.b*(.76+tintB*.24)*roleBrightness
+      );
     }
   }
 
