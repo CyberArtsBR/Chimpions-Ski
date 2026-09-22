@@ -63,6 +63,7 @@ const pineMat=new THREE.MeshStandardMaterial({color:0x174e49,roughness:.85});
 const rockMat=new THREE.MeshStandardMaterial({color:0x72818b,roughness:.92});
 const bananaMat=new THREE.MeshStandardMaterial({color:0xffd74e,roughness:.55,emissive:0x3d2700,emissiveIntensity:.08});
 const rampMat=new THREE.MeshStandardMaterial({color:0xc7e8f2,roughness:.8});
+const logMat=new THREE.MeshStandardMaterial({color:0x7d5134,roughness:.92});
 
 const tiles=[];
 for(let i=0;i<9;i++){
@@ -120,13 +121,27 @@ function makeRamp(){
   const m=new THREE.Mesh(new THREE.BoxGeometry(2.4,.22,3.2),rampMat);m.rotation.x=-.18;m.position.y=.34;m.castShadow=m.receiveShadow=true;g.add(m);
   g.userData.kind='ramp';g.userData.radius=1.15;return g;
 }
+function makeLog(){
+  const g=new THREE.Group();
+  const log=new THREE.Mesh(new THREE.CylinderGeometry(.22,.28,2.2,12),logMat);
+  log.rotation.z=Math.PI/2;log.position.y=.28;log.castShadow=log.receiveShadow=true;g.add(log);
+  for(const side of [-1,1]){
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.16,12),new THREE.MeshStandardMaterial({color:0x9a704d,roughness:.95}));
+    cap.rotation.z=Math.PI/2;cap.position.set(side*1.12,.28,0);cap.castShadow=true;g.add(cap);
+  }
+  g.userData.kind='log';g.userData.radius=1.15;return g;
+}
 
 const course=[];
 function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 }
+function terrainWave(z){
+  return Math.sin((-z)*.055)*.085+Math.sin((-z)*.019)*.055;
+}
 function placeCourseItem(item,z){
   item.position.z=z;
+  item.position.y=terrainWave(z);
   const center=routeCenter(z);
   if(item.userData.kind==='banana'||item.userData.kind==='ramp'){
     item.position.x=THREE.MathUtils.clamp(center+THREE.MathUtils.randFloat(-.75,.75),-6.9,6.9);
@@ -138,7 +153,7 @@ function placeCourseItem(item,z){
 }
 function spawn(z=-90){
   const roll=Math.random();
-  const item=roll<.48?makeTree():roll<.68?makeRock():roll<.88?makeBanana():makeRamp();
+  const item=roll<.43?makeTree():roll<.61?makeRock():roll<.72?makeLog():roll<.89?makeBanana():makeRamp();
   placeCourseItem(item,z);
   world.add(item);course.push(item);
 }
@@ -258,13 +273,16 @@ function update(dt){
     state.x=THREE.MathUtils.clamp(state.x+state.vx*dt,-8.1,8.1);
     if(state.air){
       state.vy-=17.8*dt;state.y+=state.vy*dt;
-      if(state.y<=.12){
+      const landingGround=.12+terrainWave(-state.distance*1.25);
+      if(state.y<=landingGround){
         state.landingPulse=Math.min(1,Math.abs(state.vy)/8);
-        state.y=.12;state.vy=0;state.air=false;audio.play('land',.55);
+        state.y=landingGround;state.vy=0;state.air=false;audio.play('land',.55);
       }
     }else{
       state.landingPulse=Math.max(0,state.landingPulse-dt*4.2);
     }
+    const groundY=.12+terrainWave(-state.distance*1.25);
+    if(!state.air)state.y=THREE.MathUtils.damp(state.y,groundY,9,dt);
     player.position.x=state.x;player.position.y=state.y;
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-steer*.28,7,dt);
     player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.vx*.045,7,dt);
@@ -295,8 +313,9 @@ function update(dt){
           item.visible=false;state.bananas++;audio.play('banana');continue;
         }
         if(item.userData.kind==='ramp'&&!state.air){
-          state.air=true;state.vy=7.2+state.speed*.045;audio.play('ramp');continue;
+          state.air=true;state.vy=7.7+state.speed*.05;audio.play('ramp');continue;
         }
+        if(item.userData.kind==='log'&&state.air&&state.y>.72)continue;
         if(!state.air||state.y<.85)crash();
       }
     }
@@ -305,6 +324,8 @@ function update(dt){
   }
   for(const tile of tiles){
     tile.position.z+=state.mode==='playing'?state.speed*dt:0;
+    tile.position.y=terrainWave(tile.position.z+state.distance*1.25)*.65;
+    tile.rotation.x=-Math.PI/2+Math.sin((tile.position.z-state.distance)*.045)*.006;
     if(tile.position.z>22)tile.position.z-=tiles.length*28;
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
