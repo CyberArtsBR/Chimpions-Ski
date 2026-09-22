@@ -399,20 +399,6 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     prevButtons=buttons.slice();
   }
 
-  function open(){
-    if(loading)return;
-    search.value='';
-    pendingEntry=null;
-    step='avatar';
-    applyFilter('open');
-    showAvatarStep({focusGrid:false});
-    dialog.showModal();
-    padArmed=false;
-    prevButtons=[];
-    axisLatchX=axisLatchY=0;
-    search.focus();
-  }
-
   function setSelected(entryOrId,rideMode=currentRideMode){
     currentSelectedId=String(typeof entryOrId==='object'?entryOrId?.id:entryOrId??'');
     currentRideMode=normalizeRideMode(rideMode);
@@ -481,6 +467,20 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   metrics.filteredCount=visibleRecords.length;
   metrics.renderedCardCount=0;
   syncRideButtons();
+
+  function open(){
+    if(loading)return;
+    search.value='';
+    pendingEntry=null;
+    step='avatar';
+    applyFilter('open');
+    showAvatarStep({focusGrid:false});
+    dialog.showModal();
+    padArmed=false;
+    prevButtons=[];
+    axisLatchX=axisLatchY=0;
+    search.focus();
+  }
 
   return {
     open,

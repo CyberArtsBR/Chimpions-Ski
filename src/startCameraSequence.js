@@ -20,6 +20,13 @@ export function createStartCameraSequence({camera,skiCamera,player}){
   let active=false;
   let startTime=0;
 
+  function update(state,now=performance.now()){
+    if(!active)return false;
+    const t=(now-startTime)/START_CAMERA_SEQUENCE_MS;
+    apply(state,t);
+    return t<1;
+  }
+
   function apply(state,t){
     const progress=THREE.MathUtils.clamp(t,0,1);
     const eased=smootherstep(progress);
@@ -55,13 +62,6 @@ export function createStartCameraSequence({camera,skiCamera,player}){
     active=true;
     startTime=now;
     apply(state,0);
-  }
-
-  function update(state,now=performance.now()){
-    if(!active)return false;
-    const t=(now-startTime)/START_CAMERA_SEQUENCE_MS;
-    apply(state,t);
-    return t<1;
   }
 
   function finish(state){

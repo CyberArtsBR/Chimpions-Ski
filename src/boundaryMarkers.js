@@ -53,6 +53,19 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const zPositions=new Float32Array(countPerSide);
   let travel=0;
 
+  function update(dt,worldSpeed){
+    if(worldSpeed!==0){
+      const dz=worldSpeed*dt;
+      travel+=dz;
+      const span=countPerSide*spacing;
+      for(let i=0;i<countPerSide;i++){
+        zPositions[i]+=dz;
+        if(zPositions[i]>18)zPositions[i]-=span;
+      }
+      refresh();
+    }
+  }
+
   function reset(){
     travel=0;
     for(let i=0;i<countPerSide;i++){
@@ -82,19 +95,6 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
     bases.instanceMatrix.needsUpdate=true;
     blueFlags.instanceMatrix.needsUpdate=true;
     redFlags.instanceMatrix.needsUpdate=true;
-  }
-
-  function update(dt,worldSpeed){
-    if(worldSpeed!==0){
-      const dz=worldSpeed*dt;
-      travel+=dz;
-      const span=countPerSide*spacing;
-      for(let i=0;i<countPerSide;i++){
-        zPositions[i]+=dz;
-        if(zPositions[i]>18)zPositions[i]-=span;
-      }
-      refresh();
-    }
   }
 
   reset();
