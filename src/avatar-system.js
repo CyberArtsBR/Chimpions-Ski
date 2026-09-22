@@ -414,8 +414,9 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
     if(grid.scrollTop+grid.clientHeight>=grid.scrollHeight-240)appendNextChunk();
   },{passive:true});
 
-  // Keep initial DOM light even before the first modal open.
-  applyFilter('open');
+  // Closed selector owns zero card/image nodes. Cards are materialized only on open.
+  metrics.filteredCount=visibleRecords.length;
+  metrics.renderedCardCount=0;
 
   return {
     open,

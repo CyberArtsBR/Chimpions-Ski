@@ -55,6 +55,7 @@ assert(!avatarSource.includes("button.addEventListener('focus'"),'per-card focus
 assert(avatarSource.includes("ensureRenderedThrough(index)"),'virtualized gamepad/keyboard focus guard is missing');
 assert(avatarSource.includes("focusCard(selectedIndex>=0?selectedIndex:0)"),'gamepad selected-avatar focus path is missing');
 assert(avatarSource.includes("grid.replaceChildren();"),'search/open should discard old card DOM instead of accumulating nodes');
+assert(avatarSource.includes('Closed selector owns zero card/image nodes'),'selector eagerly renders cards before first open');
 
 console.log(JSON.stringify({
   check:'avatar-selector-invariants',
