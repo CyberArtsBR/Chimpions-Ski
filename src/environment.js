@@ -637,17 +637,17 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
     for(let i=0;i<banks.entries.length;i++){
       const e=banks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>22){resetBank(e,i,true);e.z=-185-wave(time+i)*55;}
+      if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
     }
     for(let i=0;i<windBanks.entries.length;i++){
       const e=windBanks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>20){resetBank(e,i,false);e.z=-170-wave(time*1.7+i)*65;}
+      if(e.z>20){resetBank(e,i,false);e.z=-216-wave(time*1.7+i)*54;}
     }
     refreshBanks(banks);refreshBanks(windBanks);
 
     for(let i=0;i<trees.entries.length;i++){
       const e=trees.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>24){resetTree(e,i);e.z=-190-wave(time*.9+i)*70;}
+      if(e.z>24){resetTree(e,i);e.z=-220-wave(time*.9+i)*56;}
     }
     refreshTrees(time);
 
