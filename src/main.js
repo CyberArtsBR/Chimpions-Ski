@@ -139,9 +139,14 @@ function routeCenter(z){
 function terrainWave(z){
   return Math.sin((-z)*.055)*.085+Math.sin((-z)*.019)*.055;
 }
+function terrainHeight(x,z){
+  const broad=terrainWave(z);
+  const cross=Math.sin(x*.34+z*.012)*.018;
+  return broad+cross;
+}
 function placeCourseItem(item,z){
   item.position.z=z;
-  item.position.y=terrainWave(z);
+  item.position.y=terrainHeight(item.position.x,z);
   const center=routeCenter(z);
   if(item.userData.kind==='banana'||item.userData.kind==='ramp'){
     item.position.x=THREE.MathUtils.clamp(center+THREE.MathUtils.randFloat(-.75,.75),-6.9,6.9);
@@ -226,7 +231,7 @@ async function setAvatar(entry){
   }finally{ready=true;}
 })();
 
-const state={mode:'menu',distance:0,bananas:0,speed:12,x:0,vx:0,y:.12,vy:0,air:false,landingPulse:0,best:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,best:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 const keys=new Set();
 let last=performance.now();
@@ -243,7 +248,7 @@ function recycle(item){
 }
 function reset(){
   audio.play('menu',.5);
-  state.mode='playing';state.distance=0;state.bananas=0;state.speed=12;state.x=0;state.vx=0;state.y=.12;state.vy=0;state.air=false;state.landingPulse=0;
+  Object.assign(state,{mode:'playing',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.48;}sprayLife.fill(0);
   course.forEach((o,i)=>{o.visible=true;placeCourseItem(o,-12-i*5.1-Math.random()*2.2);});
@@ -266,14 +271,31 @@ addEventListener('keyup',e=>keys.delete(e.code));
 function update(dt){
   const steer=control();
   if(state.mode==='playing'){
+    state.time+=dt;
     state.speed=Math.min(31,state.speed+dt*.42);
     state.distance+=state.speed*dt*.74;
-    const desired=steer*7.4;
-    state.vx=THREE.MathUtils.damp(state.vx,desired,4.8,dt);
+    state.travel+=state.speed*dt;
+
+    const speed01=THREE.MathUtils.clamp((state.speed-12)/19,0,1);
+    const edgeResponse=steer===0?5.2:7.2;
+    state.edge=THREE.MathUtils.damp(state.edge,steer,edgeResponse,dt);
+    const desiredTurn=state.edge*(.72+speed01*.34);
+    state.turnRate=THREE.MathUtils.damp(state.turnRate,desiredTurn,4.6,dt);
+    state.heading=THREE.MathUtils.clamp(
+      THREE.MathUtils.damp(state.heading,state.turnRate*.72,3.7,dt),
+      -.56,.56
+    );
+    const carveVelocity=Math.sin(state.heading)*state.speed*.47;
+    const grip=steer===0?2.7:4.2;
+    state.vx=THREE.MathUtils.damp(state.vx,carveVelocity,grip,dt);
     state.x=THREE.MathUtils.clamp(state.x+state.vx*dt,-8.1,8.1);
+    if(Math.abs(state.x)>=8.08){
+      state.vx*=.45;
+      state.heading*=.72;
+    }
     if(state.air){
       state.vy-=17.8*dt;state.y+=state.vy*dt;
-      const landingGround=.12+terrainWave(-state.distance*1.25);
+      const landingGround=.12+terrainHeight(state.x,player.position.z-state.travel);
       if(state.y<=landingGround){
         state.landingPulse=Math.min(1,Math.abs(state.vy)/8);
         state.y=landingGround;state.vy=0;state.air=false;audio.play('land',.55);
@@ -281,13 +303,13 @@ function update(dt){
     }else{
       state.landingPulse=Math.max(0,state.landingPulse-dt*4.2);
     }
-    const groundY=.12+terrainWave(-state.distance*1.25);
+    const groundY=.12+terrainHeight(state.x,player.position.z-state.travel);
     if(!state.air)state.y=THREE.MathUtils.damp(state.y,groundY,9,dt);
     player.position.x=state.x;player.position.y=state.y;
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-steer*.28,7,dt);
-    player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.vx*.045,7,dt);
+    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.30,7,dt);
+    player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,6,dt);
     skier?.userData?.updateSkiPose?.({
-      steer,
+      steer:state.edge,
       air:state.air,
       landing:state.landingPulse,
       speed:state.speed,
@@ -296,36 +318,46 @@ function update(dt){
     if(!state.air){
       trackTimer-=dt;
       if(trackTimer<=0){
-        emitTrack(state.x,player.position.z,steer);
+        emitTrack(state.x,player.position.z,state.edge);
         trackTimer=Math.max(.045,.09-state.speed*.0013);
       }
-      if(Math.abs(steer)>.12||state.speed>18)emitSpray(state.x,state.y,player.position.z,steer,state.speed);
+      if(Math.abs(state.edge)>.12||state.speed>18)emitSpray(state.x,state.y,player.position.z,state.edge,state.speed);
     }
 
     for(const item of course){
       item.position.z+=state.speed*dt;
+      item.position.y=terrainHeight(item.position.x,item.position.z-state.travel);
       if(item.userData.kind==='banana')item.rotation.y+=dt*2.8;
-      if(item.position.z>15)recycle(item);
+      if(item.position.z>15){recycle(item);continue;}
+      if(!item.visible)continue;
+
       const dz=Math.abs(item.position.z-player.position.z);
       const dx=Math.abs(item.position.x-state.x);
-      if(dz<1.05&&dx<item.userData.radius+.38){
-        if(item.userData.kind==='banana'&&item.visible){
-          item.visible=false;state.bananas++;audio.play('banana');continue;
-        }
-        if(item.userData.kind==='ramp'&&!state.air){
-          state.air=true;state.vy=7.7+state.speed*.05;audio.play('ramp');continue;
-        }
-        if(item.userData.kind==='log'&&state.air&&state.y>.72)continue;
-        if(!state.air||state.y<.85)crash();
+      if(dz>=1.05||dx>=item.userData.radius+.38)continue;
+
+      if(item.userData.kind==='banana'){
+        item.visible=false;state.bananas++;audio.play('banana');continue;
       }
+      if(item.userData.kind==='ramp'){
+        if(!state.air){
+          state.air=true;
+          state.vy=7.7+state.speed*.05;
+          state.y=Math.max(state.y,item.position.y+.30);
+          audio.play('ramp');
+        }
+        continue;
+      }
+      if(item.userData.kind==='log'&&state.air&&state.y-item.position.y>.72)continue;
+      if(!state.air||state.y-item.position.y<.85)crash();
     }
   }else if(state.mode==='crashed'){
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,.95,5,dt);
   }
   for(const tile of tiles){
     tile.position.z+=state.mode==='playing'?state.speed*dt:0;
-    tile.position.y=terrainWave(tile.position.z+state.distance*1.25)*.65;
-    tile.rotation.x=-Math.PI/2+Math.sin((tile.position.z-state.distance)*.045)*.006;
+    const tileWorldZ=tile.position.z-state.travel;
+    tile.position.y=terrainHeight(0,tileWorldZ)*.65;
+    tile.rotation.x=-Math.PI/2+Math.sin((-tileWorldZ)*.045)*.006;
     if(tile.position.z>22)tile.position.z-=tiles.length*28;
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
@@ -371,15 +403,15 @@ function update(dt){
 function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
-  const lean=state.vx*.035;
   const speed01=THREE.MathUtils.clamp((state.speed-12)/19,0,1);
-  camera.position.x=THREE.MathUtils.damp(camera.position.x,state.x*.22,3.1,dt);
+  const desiredCameraX=state.x*.26-state.heading*1.05;
+  camera.position.x=THREE.MathUtils.damp(camera.position.x,desiredCameraX,2.55,dt);
   camera.position.y=THREE.MathUtils.damp(camera.position.y,6.1+speed01*.55+state.y*.12,2.4,dt);
   camera.position.z=THREE.MathUtils.damp(camera.position.z,10.5+speed01*1.2,2.2,dt);
-  camera.rotation.z=THREE.MathUtils.damp(camera.rotation.z,-lean*.15,3.5,dt);
   const targetFov=55+speed01*5;
   camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,2.5,dt);camera.updateProjectionMatrix();
-  camera.lookAt(camera.position.x*.18,1.05,-12.8);
+  camera.lookAt(camera.position.x*.14+state.heading*.42,1.05,-12.8-speed01*1.8);
+  camera.rotation.z=THREE.MathUtils.damp(camera.rotation.z,-state.edge*(.012+speed01*.018),3.5,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }
