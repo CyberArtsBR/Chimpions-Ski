@@ -122,6 +122,8 @@ function makeLog(){
 const course=[];
 let courseDirector=null;
 let courseFrame=0;
+// Keep the authored section frontier, including empty recovery/landing space.
+let courseEndZ=-12,courseTravel=0;
 
 function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
@@ -149,8 +151,8 @@ function releaseCourseItem(item){
 function addCoursePlacement(placement){
   const item=acquireCourseItem(placement.kind);
   item.position.x=placement.x;
-  item.position.z=placement.z;
-  item.position.y=terrainHeight(item.position.x,item.position.z)+(item.userData.yOffset||0);
+  item.position.z=placement.z+courseTravel;
+  item.position.y=terrainHeight(item.position.x,placement.z)+(item.userData.yOffset||0);
   item.userData.spawnFrame=courseFrame;
   item.userData.section=placement.section;
   item.userData.safeX=placement.safeX;
@@ -160,17 +162,17 @@ function addCoursePlacement(placement){
   course.push(item);
 }
 function fillCourse(difficulty=0){
-  let farthest=course.length?Math.min(...course.map(item=>item.position.z)):-12;
   let guard=0;
-  while(farthest>-260&&guard++<10){
-    const section=courseDirector.next({startZ:farthest-5.5,difficulty});
+  while(courseEndZ+courseTravel>-260&&guard++<10){
+    const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty});
     for(const placement of section.placements)addCoursePlacement(placement);
-    farthest=section.endZ;
+    courseEndZ=section.endZ;
   }
 }
 function resetCourse(difficulty=0){
   while(course.length)releaseCourseItem(course.pop());
   courseDirector.reset();
+  courseEndZ=-12;courseTravel=0;
   fillCourse(difficulty);
 }
 
@@ -189,15 +191,27 @@ const ui=createGameUI({
   onPause:()=>pauseGame(),
   onResume:()=>resumeGame(),
   onRestart:()=>beginRun(),
-  onChoose:()=>selector?.open()
+  onChoose:()=>{
+    if(!ready)return;
+    state.mode='menu';
+    keys.clear();
+    ui.showMenu();
+    selector?.open();
+  }
 });
 const feedback=createGameFeedback({audio,ui});
 ui.setAvatarLoading(true);
 
+let avatarRequest=0;
 async function setAvatar(entry){
   if(!entry)return;
+  if(selectedAvatar?.id===entry.id&&skier)return;
+  const request=++avatarRequest;
+  ready=false;
   ui.setAvatarLoading(true);
+  try{
   const nextSkier=await loadSkier('/'+entry.url);
+  if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
   const previousSkier=skier;
   skier=nextSkier;
   player.add(skier);
@@ -208,7 +222,9 @@ async function setAvatar(entry){
   selectedAvatar=entry;
   ui.setAvatar(entry);
   selector?.setSelected(entry);
-  ui.setAvatarLoading(false);
+  }finally{
+    if(request===avatarRequest){ready=!!skier;ui.setAvatarLoading(!ready);}
+  }
 }
 (async()=>{
   try{
@@ -250,14 +266,22 @@ function resetRunState(mode='countdown'){
   Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trailTimer=0;skiTrails.reset();
+  keys.clear();
+  tiles.forEach((tile,index)=>{
+    tile.position.z=8-index*28;
+    displaceTerrainChunk(tile.geometry,tile.position.z);
+  });
+  environment.reset();
+  Object.assign(state,sampleSkiGround(terrainHeight,0,player.position.z,0,skier?.userData?.skiTrackSpacing));
+  state.y=.12+state.centerGround;player.position.y=state.y;
   courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
-  if(!ready)return;
+  if(!ready||selector?.dialog?.open||document.hidden)return;
   audio.unlock();
   audio.play('menu',.38);
   resetRunState('countdown');
-  ui.prepareRun({best:state.best});
+  ui.prepareRun({best:state.best,speed:state.speed});
   startCamera.begin(state,performance.now());
   ui.startCountdown({
     entry:selectedAvatar,
@@ -266,6 +290,7 @@ function beginRun(){
       if(state.mode!=='countdown')return;
       startCamera.finish(state);
       state.mode='playing';
+      keys.clear();jumpKeyPressed=false;
       ui.setMode('playing');
       last=performance.now();
     }
@@ -274,6 +299,7 @@ function beginRun(){
 function pauseGame(){
   if(state.mode!=='playing')return;
   state.mode='paused';
+  keys.clear();jumpKeyPressed=false;
   ui.showPause();
   audio.play('menu',.24);
 }
@@ -301,6 +327,7 @@ function crash(kind='tree',item=null){
   ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
 }
 addEventListener('keydown',e=>{
+  if(state.mode!=='playing'||selector?.dialog?.open||e.target.closest?.('input,textarea,select,[contenteditable="true"]'))return;
   keys.add(e.code);
   if(e.code==='Space'&&!e.repeat){
     if(state.mode==='playing')jumpKeyPressed=true;
@@ -308,33 +335,55 @@ addEventListener('keydown',e=>{
   }
 });
 addEventListener('keyup',e=>keys.delete(e.code));
+function suspendInput(){
+  keys.clear();jumpKeyPressed=false;
+  if(state.mode==='playing')pauseGame();
+  else if(state.mode==='countdown'){
+    state.mode='menu';startCamera.reset();ui.showMenu();
+  }
+  audio.update({mode:state.mode});
+}
+addEventListener('blur',suspendInput);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInput();});
 
 function update(dt){
   const pad=readPad(navigator.getGamepads?.()||[]);
+  const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
-  const padJumpPressed=!!pad.jump&&!lastPadJump;
+  const padJumpPressed=wasPlaying&&state.mode==='playing'&&!!pad.jump&&!lastPadJump;
   lastPadJump=!!pad.jump;
   const jumpPressed=jumpKeyPressed||padJumpPressed;
   jumpKeyPressed=false;
+  let worldDistance=0;
   if(state.mode==='playing'){
+    // At maximum speed each collision step advances at most 0.271 m.
+    const steps=Math.ceil(dt/(1/120));
+    const stepDt=dt/steps;
+    for(let step=0;step<steps&&state.mode==='playing';step++){
+    const dt=stepDt;
     state.time+=dt;
     state.frame++;
     courseFrame=state.frame;
     progressSpeed(state,dt);
-    state.distance+=state.speed*dt*.74;
-    state.travel+=state.speed*dt;
+    const travelStep=state.speed*dt;
+    state.distance+=travelStep*.74;
+    state.travel+=travelStep;
+    courseTravel=state.travel;
+    worldDistance+=travelStep;
+    skiTrails.update(dt,travelStep/dt);
     state.difficulty=getCourseDifficulty(state.distance,state.speed);
 
     state.rampGrace=Math.max(0,state.rampGrace-dt);
 
-    const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading);
+    stepCarving(state,steer,dt);
+    const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,skier?.userData?.skiTrackSpacing);
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
 
-    updateJumpAssist(state,jumpPressed,dt);
-    tryManualJump(state,groundY);
-    stepCarving(state,steer,dt);
+    updateJumpAssist(state,step===0&&jumpPressed,dt);
+    const ridingRamp=course.some(item=>item.userData.kind==='ramp'&&item.userData.activated&&Math.abs(item.position.x-state.x)<=1.46&&Math.abs(item.position.z-player.position.z)<=1.78);
+    if(!ridingRamp&&tryManualJump(state,groundY))feedback.onManualTakeoff();
     const landing=stepAir(state,dt,groundY);
     if(landing.landed)feedback.onLanding(landing);
 
@@ -345,18 +394,19 @@ function update(dt){
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.29+terrainRoll,7.4,dt);
     player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,6,dt);
     skier?.userData?.updateSkiPose?.({
+      dt,
       steer:state.edge,
       air:state.air,
       landing:state.landingPulse,
       speed:state.speed,
-      time:performance.now()/1000,
+      time:state.time,
       groundPitch:state.groundPitch,
       groundRoll:state.groundRoll,
       leftGround:state.leftGround,
       rightGround:state.rightGround,
       centerGround:state.centerGround
     });
-    if(!state.air){
+    if(!state.air&&!ridingRamp){
       trailTimer-=dt;
       if(trailTimer<=0){
         skiTrails.emit({
@@ -365,7 +415,8 @@ function update(dt){
           travel:state.travel,
           heading:state.heading,
           edge:state.edge,
-          spacing:skier?.userData?.skiTrackSpacing??.245
+          spacing:skier?.userData?.skiTrackSpacing??.245,
+          skis:skier?.userData?.skis
         });
         trailTimer=Math.max(.018,.038-state.speed*.00028);
       }
@@ -377,7 +428,7 @@ function update(dt){
     let nearestSectionItem=null;
     for(let i=course.length-1;i>=0;i--){
       const item=course[i];
-      item.position.z+=state.speed*dt;
+      item.position.z+=travelStep;
       const itemGround=terrainHeight(item.position.x,item.position.z-state.travel);
       item.position.y=itemGround+(item.userData.yOffset||0);
       if(item.userData.kind==='banana'){
@@ -395,7 +446,7 @@ function update(dt){
       if(item.position.z<=player.position.z&&(!nearestSectionItem||item.position.z>nearestSectionItem.position.z)){
         nearestSectionItem=item;
       }
-      if(!item.visible||item.userData.spawnFrame===courseFrame)continue;
+      if(state.mode!=='playing'||!item.visible||item.userData.spawnFrame===courseFrame)continue;
 
       const dz=Math.abs(item.position.z-player.position.z);
       const dx=Math.abs(item.position.x-state.x);
@@ -404,6 +455,7 @@ function update(dt){
       if(dz>radiusZ+.20||dx>radiusX+.30)continue;
 
       if(item.userData.kind==='banana'){
+        if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
         item.visible=false;
         state.bananas++;
         audio.play('banana');
@@ -419,10 +471,15 @@ function update(dt){
         if(!item.userData.activated&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
           item.userData.activated=true;
         }
-        const atLip=item.userData.activated&&approachDepth<=-1.02&&approachDepth>=-1.72;
+        const atLip=item.userData.activated&&approachDepth<=-1.42&&approachDepth>=-1.78;
+        if(item.userData.activated&&!state.air){
+          // Match the tilted deck rather than passing through its rising surface.
+          state.y=Math.max(state.y,itemGround+.34+.11*Math.cos(.18)-approachDepth*Math.sin(.18));
+          player.position.y=state.y;
+        }
         if(atLip&&!state.air){
           item.userData.activated=false;
-          if(launchRamp(state,itemGround))feedback.onRampTakeoff();
+          if(launchRamp(state,itemGround)){feedback.onRampTakeoff();skiTrails.breakTrail();}
         }
         continue;
       }
@@ -432,7 +489,6 @@ function update(dt){
       if(state.air&&clearance>requiredClearance)continue;
 
       crash(item.userData.kind,item);
-      break;
     }
 
     fillCourse(state.difficulty);
@@ -440,8 +496,10 @@ function update(dt){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
+    }
   }else if(state.mode==='countdown'){
     skier?.userData?.updateSkiPose?.({
+      dt,
       steer:0,
       air:false,
       landing:0,
@@ -458,15 +516,14 @@ function update(dt){
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
   }
   for(const tile of tiles){
-    tile.position.z+=state.mode==='playing'?state.speed*dt:0;
+    tile.position.z+=worldDistance;
     if(tile.position.z>22){
       tile.position.z-=tiles.length*28;
       displaceTerrainChunk(tile.geometry,tile.position.z-state.travel);
     }
   }
-  const worldSpeed=state.mode==='playing'?state.speed:0;
-  skiTrails.update(dt,worldSpeed);
-  environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
+  const worldSpeed=worldDistance/dt;
+  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing');
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
@@ -477,7 +534,7 @@ function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
   if(state.mode==='countdown')startCamera.update(state,now);
-  else skiCamera.update(state,dt);
+  else if(state.mode!=='paused')skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }

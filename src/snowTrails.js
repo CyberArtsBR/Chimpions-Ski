@@ -19,6 +19,7 @@ const fragmentShader=`
 varying float vAlpha;
 varying float vSide;
 void main(){
+  if(vAlpha<=0.001)discard;
   float edge=pow(clamp(abs(vSide),0.0,1.0),1.7);
   vec3 groove=vec3(0.31,0.50,0.60);
   vec3 snowEdge=vec3(0.76,0.88,0.93);
@@ -43,6 +44,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
   const prevY=new Float32Array(skiCount);
   const prevZ=new Float32Array(skiCount);
   const hasPrev=new Uint8Array(skiCount);
+  const contact=new THREE.Vector3();
 
   for(let i=0;i<segmentCount;i++){
     const v=i*4;
@@ -94,7 +96,8 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
 
   function writeSegment(skiIndex,x,y,z,edge){
     const base=skiIndex*capacity;
-    const index=base+(cursors[skiIndex]++%capacity);
+    const index=base+cursors[skiIndex];
+    cursors[skiIndex]=(cursors[skiIndex]+1)%capacity;
     const dx=x-prevX[skiIndex];
     const dz=z-prevZ[skiIndex];
     const length=Math.max(.0001,Math.sqrt(dx*dx+dz*dz));
@@ -117,13 +120,18 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     strengths[index]=strength;
   }
 
-  function emit({x,z,travel,heading=0,edge=0,spacing=.245}){
+  function emit({x,z,travel,heading=0,edge=0,spacing=.245,skis}){
     const c=Math.cos(heading);
     const s=Math.sin(heading);
     for(let skiIndex=0;skiIndex<skiCount;skiIndex++){
       const sideSign=skiIndex===0?-1:1;
-      const sx=x+sideSign*spacing*c;
-      const sz=z-.48+sideSign*spacing*s;
+      const ski=skis?.[skiIndex];
+      if(ski){
+        ski.updateWorldMatrix(true,false);
+        ski.localToWorld(contact.set(0,0,.48));
+      }
+      const sx=ski?contact.x:x+sideSign*spacing*c;
+      const sz=ski?contact.z:z+.48+sideSign*spacing*s;
       const sy=terrainHeight(sx,sz-travel)+TRACK_Y_OFFSET;
 
       if(hasPrev[skiIndex]){

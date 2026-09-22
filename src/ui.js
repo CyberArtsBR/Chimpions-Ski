@@ -1,3 +1,5 @@
+import {SKI_TUNING} from './gameplayTuning.js';
+
 function byId(id){return document.getElementById(id);}
 function isVisible(element){return !!element&&!element.hidden&&element.getClientRects().length>0;}
 function buttonList(root){
@@ -105,6 +107,9 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   function setAvatarLoading(loading){
     if(startButton)startButton.disabled=!!loading;
     if(chooseButton)chooseButton.disabled=!!loading;
+    if(restartPause)restartPause.disabled=!!loading;
+    if(restartResult)restartResult.disabled=!!loading;
+    if(chooseResult)chooseResult.disabled=!!loading;
     overlay?.classList.toggle('is-loading',!!loading);
     if(startButton)startButton.textContent=loading?'LOADING CHIMPION…':(mode==='menu'?'START SKIING':'SKI AGAIN');
   }
@@ -126,7 +131,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     element.classList.add(className);
     setTimeout(()=>element.classList.remove(className),420);
   }
-  function prepareRun({best=0}={}){
+  function prepareRun({best=0,speed=SKI_TUNING.BASE_SPEED}={}){
     clearTimeout(resultTimer);
     resultTimer=0;
     countdownToken++;
@@ -145,7 +150,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     setTimeout(()=>{if(mode==='countdown')overlay.hidden=true;},220);
     distanceStat?.classList.remove('is-best');
     setMode('countdown');
-    updateHud({distance:0,bananas:0,speed:12,best:bestDistance});
+    updateHud({distance:0,bananas:0,speed,best:bestDistance});
   }
   function startCountdown({entry,onGo,durationMs=3200}={}){
     const token=++countdownToken;
@@ -232,7 +237,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     overlay.hidden=false;
     overlay.classList.remove('is-leaving');
     setMode('menu');
-    setTimeout(()=>startButton?.focus(),0);
+    setTimeout(()=>{if(!document.querySelector('.selector-dialog[open]'))startButton?.focus();},0);
   }
   function updateHud(values={}){
     const d=Math.max(0,Number(values.distance)||0);
@@ -330,6 +335,8 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       else if(mode==='paused')onResume?.();
       else if(mode==='menu')onStart?.();
       else if(mode==='crashed'&&!results.hidden)onRestart?.();
+      padButtons=buttons.slice();
+      return;
     }
     const root=activeRoot();
     if(root){
@@ -349,7 +356,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   resumeButton?.addEventListener('click',()=>onResume?.());
   restartPause?.addEventListener('click',()=>onRestart?.());
   restartResult?.addEventListener('click',()=>onRestart?.());
-  chooseResult?.addEventListener('click',()=>{results.hidden=true;setMode('menu');overlay.hidden=false;onChoose?.();});
+  chooseResult?.addEventListener('click',()=>onChoose?.());
   sfxButton?.addEventListener('click',()=>{
     const next=!audio.getSettings().sfxEnabled;
     audio.setSfxEnabled(next);syncAudioButtons();
@@ -362,6 +369,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     if(event.target.closest('button'))audio.play('button',.24);
   },true);
   document.addEventListener('keydown',event=>{
+    if(event.repeat)return;
     if(document.querySelector('.selector-dialog[open]'))return;
     if(event.code==='Escape'){
       if(mode==='playing'){event.preventDefault();onPause?.();}

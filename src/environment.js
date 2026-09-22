@@ -509,7 +509,18 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
 
   let time=0;
-  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse){
+  function reset(){
+    time=0;
+    banks.entries.forEach((entry,index)=>resetBank(entry,index,true));
+    windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
+    trees.entries.forEach((entry,index)=>resetTree(entry,index));
+    refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
+    powder.life.fill(0);powder.velocity.fill(0);
+    for(let i=0;i<powder.count;i++)powder.positions[i*3+1]=-100;
+    powder.cursor=0;powder.lastLanding=0;powder.emitCarry=0;
+    powder.geometry.attributes.position.needsUpdate=true;
+  }
+  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true){
     time+=dt;
     sky.position.copy(camera.position);
 
@@ -561,7 +572,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       layer.geometry.attributes.position.needsUpdate=true;
     }
 
-    if(!air){
+    if(running&&!air){
       const carve=Math.abs(edge);
       const straight=.10+speed01*.22;
       powder.emitCarry+=dt*(straight+carve*(1.22+speed01*1.02))*44;
@@ -578,7 +589,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
         powder.emitCarry-=emit;
       }
     }
-    if(landingPulse>.18&&powder.lastLanding<=.18){
+    if(running&&landingPulse>.18&&powder.lastLanding<=.18){
       emitPowder(powder,playerX,playerY,playerZ,edge,speed,46+Math.floor(speed01*22),true,false);
     }
     powder.lastLanding=landingPulse;
@@ -588,7 +599,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       const k=i*3;
       powder.life[i]-=dt;
       powder.velocity[k+1]-=4.4*dt;
-      powder.velocity[k]*=.994;
+      powder.velocity[k]*=Math.pow(.994,dt*60);
       powder.positions[k]+=powder.velocity[k]*dt;
       powder.positions[k+1]+=powder.velocity[k+1]*dt;
       powder.positions[k+2]+=(powder.velocity[k+2]+worldSpeed*.18)*dt;
@@ -598,13 +609,14 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
     contactShadow.position.set(playerX,Math.max(.006,playerY-.108),playerZ+.02);
     const groundAlpha=air?0:THREE.MathUtils.clamp(1-landingPulse*.12,.72,1);
-    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.19*groundAlpha,air?.22:.38);
+    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.19*groundAlpha,1-Math.pow(1-(air?.22:.38),dt*60));
     const contactScale=1+landingPulse*.12;
     contactShadow.scale.set(1.42*contactScale,.5*contactScale,1);
   }
 
   return {
     update,
+    reset,
     terrainMaterial:snowMaterials.terrain,
     courseMaterials:{
       trunk:_barkMaterial,

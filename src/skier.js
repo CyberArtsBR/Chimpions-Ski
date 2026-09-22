@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {disposeAvatarObject} from './avatar-system.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -160,41 +161,43 @@ export function createFallbackSkier(){
   const pose={carve:0,air:0,landing:0,speed:0};
   root.userData.fallback=true;
   root.userData.skiTrackSpacing=.22;
-  root.userData.updateSkiPose=({steer=0,air=false,landing=0,speed=12,time=0,groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
+  root.userData.skis=skis;
+  root.userData.updateSkiPose=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
+    const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
-    pose.carve=THREE.MathUtils.lerp(pose.carve,reversing?0:target,reversing?.24:.14);
-    pose.air=THREE.MathUtils.lerp(pose.air,air?1:0,air?.24:.16);
-    pose.landing=THREE.MathUtils.lerp(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
-    pose.speed=THREE.MathUtils.lerp(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
+    pose.carve=mix(pose.carve,target,reversing?.24:.14);
+    pose.air=mix(pose.air,air?1:0,air?.24:.16);
+    pose.landing=mix(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
+    pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
 
     const crouch=pose.speed*.06+pose.landing*.12+pose.air*.035;
-    root.rotation.z=THREE.MathUtils.lerp(root.rotation.z,-pose.carve*.11,.18);
-    root.rotation.x=THREE.MathUtils.lerp(root.rotation.x,.035-pose.air*.05+pose.speed*.025,.14);
+    root.rotation.z=mix(root.rotation.z,-pose.carve*.11,.18);
+    root.rotation.x=mix(root.rotation.x,.035-pose.air*.05+pose.speed*.025,.14);
     root.position.y=-crouch+pose.air*.055+Math.sin(time*5)*.006;
 
-    torso.rotation.x=THREE.MathUtils.lerp(torso.rotation.x,.05+pose.speed*.035-pose.air*.025,.16);
-    hip.position.y=THREE.MathUtils.lerp(hip.position.y,1.08-crouch,.18);
-    head.rotation.z=THREE.MathUtils.lerp(head.rotation.z,pose.carve*.018,.14);
+    torso.rotation.x=mix(torso.rotation.x,.05+pose.speed*.035-pose.air*.025,.16);
+    hip.position.y=mix(hip.position.y,1.08-crouch,.18);
+    head.rotation.z=mix(head.rotation.z,pose.carve*.018,.14);
     arms.forEach((arm,index)=>{
       const side=index===0?-1:1;
-      arm.rotation.z=THREE.MathUtils.lerp(arm.rotation.z,side*(.48-pose.speed*.04)+pose.carve*.035,.16);
-      arm.rotation.x=THREE.MathUtils.lerp(arm.rotation.x,-.08-pose.air*.08,.16);
+      arm.rotation.z=mix(arm.rotation.z,side*(.48-pose.speed*.04)+pose.carve*.035,.16);
+      arm.rotation.x=mix(arm.rotation.x,-.08-pose.air*.08,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
       const outside=Math.max(0,pose.carve*-side);
       const inside=Math.max(0,pose.carve*side);
-      leg.rotation.z=THREE.MathUtils.lerp(leg.rotation.z,side*(.16+inside*.045-outside*.025),.18);
-      leg.rotation.x=THREE.MathUtils.lerp(leg.rotation.x,-.10-pose.speed*.04-pose.air*.08-pose.landing*.12,.18);
+      leg.rotation.z=mix(leg.rotation.z,side*(.16+inside*.045-outside*.025),.18);
+      leg.rotation.x=mix(leg.rotation.x,-.10-pose.speed*.04-pose.air*.08-pose.landing*.12,.18);
     });
     skis.forEach((ski,index)=>{
       const side=index===0?-1:1;
-      ski.rotation.y=THREE.MathUtils.lerp(ski.rotation.y,-pose.carve*.065+side*.018,.18);
-      ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
-      ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,pose.air*.055-pose.landing*.025+groundPitch*.28,.18);
+      ski.rotation.y=mix(ski.rotation.y,-pose.carve*.065+side*.018,.18);
+      ski.rotation.z=mix(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
+      ski.rotation.x=mix(ski.rotation.x,pose.air*.055-pose.landing*.025+groundPitch*.28,.18);
       const localGround=(side<0?leftGround:rightGround)-centerGround;
-      ski.position.y=THREE.MathUtils.lerp(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
+      ski.position.y=mix(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
     });
   };
   return root;
@@ -301,23 +304,27 @@ function makeRigController(model){
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const pose={carve:0,speed:0,air:0,landing:0};
 
+  let poseDt=1/60;
+  const modelBaseY=model.position.y;
   function rotate(key,x=0,y=0,z=0,response=.20){
     const b=rig[key];if(!b)return;
     targetQ.copy(rest.get(b));
     targetQ.multiply(delta.setFromAxisAngle(axisX,x));
     targetQ.multiply(delta.setFromAxisAngle(axisY,y));
     targetQ.multiply(delta.setFromAxisAngle(axisZ,z));
-    b.quaternion.slerp(targetQ,response);
+    b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
   }
 
-  const update=({steer=0,air=false,landing=0,speed=12,time=0}={})=>{
+  const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0}={})=>{
+    poseDt=dt;
+    const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(targetCarve)!==Math.sign(pose.carve)&&Math.abs(targetCarve)>.035&&Math.abs(pose.carve)>.035;
-    pose.carve=THREE.MathUtils.lerp(pose.carve,reversing?0:targetCarve,reversing?.22:.12);
-    pose.speed=THREE.MathUtils.lerp(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
-    pose.air=THREE.MathUtils.lerp(pose.air,air?1:0,air?.24:.15);
+    pose.carve=mix(pose.carve,targetCarve,reversing?.22:.12);
+    pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
+    pose.air=mix(pose.air,air?1:0,air?.24:.15);
     const landingTarget=THREE.MathUtils.clamp(landing,0,1);
-    pose.landing=THREE.MathUtils.lerp(pose.landing,landingTarget,landingTarget>pose.landing?.52:.20);
+    pose.landing=mix(pose.landing,landingTarget,landingTarget>pose.landing?.52:.20);
 
     const carve=pose.carve;
     const speedCrouch=pose.speed;
@@ -356,7 +363,7 @@ function makeRigController(model){
     }
 
     // Keep vertical movement subtle: landing compresses, airtime lifts the tucked pose.
-    model.position.y=Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.014;
+    model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.014;
   };
   update.rig=rig;
   update.pose=pose;
@@ -364,13 +371,14 @@ function makeRigController(model){
 }
 
 export async function loadSkier(url='/models/default.glb'){
+  let loadedModel=null,loadedRoot=null;
   try{
     const gltf=await new GLTFLoader().loadAsync(url);
-    const model=gltf.scene;
+    const model=gltf.scene;loadedModel=model;
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
     fitModel(model);
     const updateRig=makeRigController(model);
-    const root=new THREE.Group();
+    const root=new THREE.Group();loadedRoot=root;
     // Collection GLBs use +Z as visual forward; gameplay travels downhill toward -Z.
     // Rotate only the imported model carrier so controls, skis and rig animation remain unchanged.
     const modelCarrier=new THREE.Group();
@@ -382,6 +390,8 @@ export async function loadSkier(url='/models/default.glb'){
     root.userData.fallback=false;
     root.userData.rigReady=!!updateRig;
     root.userData.updateSkiPose=(state={})=>{
+      const dt=state.dt??1/60;
+      const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
       updateRig?.(state);
       const pose=updateRig?.pose;
       const carve=pose?.carve??THREE.MathUtils.clamp(state.steer||0,-1,1);
@@ -402,18 +412,19 @@ export async function loadSkier(url='/models/default.glb'){
         const localGround=(side<0?leftGround:rightGround)-centerGround;
 
         // Yaw follows the carve, roll provides a visible but restrained edge angle.
-        ski.rotation.y=THREE.MathUtils.lerp(ski.rotation.y,-carve*.065+side*.012,.18);
-        ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
-        ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,air*.055-landing*.026+groundPitch*.28,.18);
+        ski.rotation.y=mix(ski.rotation.y,-carve*.065+side*.012,.18);
+        ski.rotation.z=mix(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
+        ski.rotation.x=mix(ski.rotation.x,air*.055-landing*.026+groundPitch*.28,.18);
 
         // Preserve avatar-specific spacing while allowing a tiny terrain-contact correction.
-        ski.position.x=THREE.MathUtils.lerp(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);
-        ski.position.y=THREE.MathUtils.lerp(ski.position.y,rest.y+air*.026-landing*.012-speed*.004+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
-        ski.position.z=THREE.MathUtils.lerp(ski.position.z,rest.z+air*.018,.18);
+        ski.position.x=mix(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);
+        ski.position.y=mix(ski.position.y,rest.y+air*.026-landing*.012-speed*.004+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
+        ski.position.z=mix(ski.position.z,rest.z+air*.018,.18);
       });
     };
     return root;
   }catch(error){
+    disposeAvatarObject(loadedRoot?.children.length?loadedRoot:loadedModel);
     console.info('Using procedural skier until a Chimpion GLB is installed:',error.message);
     return createFallbackSkier();
   }

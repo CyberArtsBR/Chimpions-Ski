@@ -184,7 +184,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
     }
     const pressed=index=>!!buttons[index]&&!prevButtons[index];
     if(pressed(1)){
-      dialog.close();
+      if(!loading)dialog.close();
       prevButtons=buttons.slice();
       return;
     }
@@ -243,6 +243,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
 
   search.addEventListener('input',render);
   dialog.addEventListener('keydown',keyboardMove);
+  dialog.addEventListener('cancel',event=>{if(loading)event.preventDefault();});
   dialog.addEventListener('close',()=>{padArmed=false;prevButtons=[];axisLatchX=axisLatchY=0;});
   render();
 

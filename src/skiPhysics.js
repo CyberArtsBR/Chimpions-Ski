@@ -27,6 +27,7 @@ export function stepCarving(state,input,dt){
 
   if(state.air){
     state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
+    if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH&&state.x*state.vx>0)state.vx=0;
     state.vx=THREE.MathUtils.damp(state.vx,state.vx*.995,.32,dt);
     state.edge=THREE.MathUtils.damp(state.edge,0,3.2,dt);
     state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,0,4.8,dt);
@@ -37,7 +38,7 @@ export function stepCarving(state,input,dt){
 
   const reversing=steer!==0&&state.edge*steer<-.01;
   const neutralizing=reversing&&Math.abs(state.edge)>.018;
-  const targetEdge=neutralizing?0:steer;
+  const targetEdge=steer;
   const edgeResponse=neutralizing?T.EDGE_REVERSAL:steer===0?T.EDGE_RELEASE:T.EDGE_RESPONSE;
   state.edge=THREE.MathUtils.damp(state.edge,targetEdge,edgeResponse,dt);
 
@@ -92,10 +93,10 @@ export function stepCarving(state,input,dt){
   }
 
   state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
-  if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH-.03){
-    state.vx*=.32;
-    state.heading*=.60;
-    state.turnRate*=.52;
+  if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH&&state.x*state.vx>0){
+    state.vx=0;
+    if(state.x*state.heading>0)state.heading=0;
+    if(state.x*state.turnRate>0)state.turnRate=0;
   }
 
   state.counterSteer=neutralizing;
@@ -143,8 +144,8 @@ export function stepAir(state,dt,groundY){
   }
 
   state.grounded=false;
+  state.y+=state.vy*dt-.5*17.8*dt*dt;
   state.vy-=17.8*dt;
-  state.y+=state.vy*dt;
   state.jumpVelocity=state.vy;
   if(state.y>groundY||state.vy>0)return {landed:false,impact:0,quality:'air'};
 
@@ -193,7 +194,7 @@ export function launchRamp(state,rampGroundY){
   if(state.air)return false;
   state.air=true;
   state.grounded=false;
-  state.jumping=false;
+  state.jumping=true;
   state.jumpSource='ramp';
   state.vy=T.RAMP_JUMP_BASE_VELOCITY+state.speed*T.RAMP_JUMP_SPEED_FACTOR;
   state.jumpVelocity=state.vy;

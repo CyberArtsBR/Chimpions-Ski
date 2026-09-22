@@ -303,6 +303,7 @@ export function createSkiAudio(){
     amp.gain.value=Math.min(1.08,Math.max(0,gain));
     source.connect(amp);
     amp.connect(graph.eventBus);
+    source.onended=()=>{source.disconnect();amp.disconnect();source.onended=null;};
     source.start();
   }
   function refreshBuses(){

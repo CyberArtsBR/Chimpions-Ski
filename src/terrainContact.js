@@ -15,8 +15,7 @@ export function terrainHeight(x,z){
   return broad+crest+gentleBank+edgeRelief;
 }
 
-export function sampleSkiGround(heightFn,x,z,heading=0){
-  const halfWidth=.235;
+export function sampleSkiGround(heightFn,x,z,heading=0,halfWidth=.235){
   const halfLength=.68;
   const sin=Math.sin(heading),cos=Math.cos(heading);
 
