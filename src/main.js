@@ -15,6 +15,8 @@ import {createGameFeedback} from './gameFeedback.js';
 import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
+import {getCourseLookahead} from './courseStreaming.js';
+import {resetAirborneScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -187,6 +189,7 @@ function acquireCourseItem(kind){
   item.visible=true;
   item.userData.activated=false;
   item.userData.triggered=false;
+  item.userData.clearScored=false;
   world.add(item);
   return item;
 }
@@ -211,8 +214,10 @@ function addCoursePlacement(placement){
   course.push(item);
 }
 function fillCourse(difficulty=0){
+  const lookahead=getCourseLookahead(state?.speed??SKI_TUNING.BASE_SPEED);
+  const targetWorldZ=player.position.z-lookahead;
   let guard=0;
-  while(courseEndZ+courseTravel>-520&&guard++<18){
+  while(courseEndZ+courseTravel>targetWorldZ&&guard++<24){
     const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty,speed:state.speed});
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
@@ -301,6 +306,7 @@ async function setAvatar(entry){
 })();
 
 const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+resetAirborneScoring(state);
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
@@ -315,6 +321,7 @@ function control(pad){
 }
 function resetRunState(mode='countdown'){
   Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  resetAirborneScoring(state);
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trailTimer=0;skiTrails.reset();
   keys.clear();
@@ -410,13 +417,14 @@ function update(dt){
   jumpKeyPressed=false;
   let worldDistance=0;
   if(state.mode==='playing'){
-    // 140–210 km/h uses tight collision sampling so fast hazards cannot be skipped.
+    // 160–210 km/h uses tight collision sampling so fast hazards cannot be skipped.
     const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
     physicsSubsteps++;
     const dt=stepDt;
     state.time+=dt;
+    updateAirborneScoring(state);
     state.frame++;
     courseFrame=state.frame;
     progressSpeed(state,dt);
@@ -484,6 +492,7 @@ function update(dt){
     let nearestSectionItem=null;
     for(let i=course.length-1;i>=0;i--){
       const item=course[i];
+      const previousItemZ=item.position.z;
       item.position.z+=travelStep;
       const itemGround=terrainHeight(item.position.x,item.position.z-state.travel);
       item.position.y=itemGround+(item.userData.yOffset||0);
@@ -508,6 +517,16 @@ function update(dt){
       const dx=Math.abs(item.position.x-state.x);
       const radiusX=item.userData.radiusX??item.userData.radius??.6;
       const radiusZ=item.userData.radiusZ??.7;
+      const requiredClearance=item.userData.clearance??.9;
+
+      tryScoreAirborneClearance(state,item,{
+        previousZ:previousItemZ,
+        playerZ:player.position.z,
+        itemGround,
+        radiusX,
+        requiredClearance
+      });
+
       if(dz>radiusZ+.20||dx>radiusX+.30)continue;
 
       if(item.userData.kind==='banana'){
@@ -544,7 +563,6 @@ function update(dt){
       }
 
       const clearance=state.y-(.12+itemGround);
-      const requiredClearance=item.userData.clearance??.9;
       if(state.air&&clearance>requiredClearance)continue;
 
       if(item.userData.kind==='oil'){
@@ -630,6 +648,7 @@ window.chimpionsSki=()=>{
     physicsSubsteps,
     activeRamp:!!activeRamp,
     courseAhead:Math.max(0,player.position.z-courseWorldEndZ),
+    courseLookaheadTarget:getCourseLookahead(state.speed),
     courseEndZ,
     courseWorldEndZ,
     vx:state.vx,
