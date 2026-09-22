@@ -113,6 +113,8 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   let previewId='';
   let prevButtons=[];
   let axisLatchX=0,axisLatchY=0,padArmed=false;
+  const SELECTOR_CONFIRM_BUTTON=0; // A/Cross selects or chooses in selector context.
+  const SELECTOR_CANCEL_BUTTON=1; // B backs out or closes the selector.
 
   const metrics={
     catalogSize:catalog.length,
@@ -344,7 +346,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     }
     const pressed=index=>!!buttons[index]&&!prevButtons[index];
 
-    if(pressed(1)){
+    if(pressed(SELECTOR_CANCEL_BUTTON)){
       if(!loading){
         if(step==='ride')showAvatarStep();
         else dialog.close();
@@ -353,7 +355,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
       return;
     }
 
-    if(pressed(0)){
+    if(pressed(SELECTOR_CONFIRM_BUTTON)){
       if(step==='ride'){
         const active=rideButtons.includes(document.activeElement)?document.activeElement:(rideButtons.find(button=>button.dataset.rideMode===currentRideMode)||rideButtons[0]);
         active?.click();
