@@ -106,8 +106,8 @@ const environmentSource=readFileSync(new URL('../src/environment.js',import.meta
 const boundarySource=readFileSync(new URL('../src/boundaryMarkers.js',import.meta.url),'utf8');
 assert(environmentSource.includes('createSideRidgePair'),'split lateral ridge framing is missing');
 assert(!environmentSource.includes('valleyGap'),'legacy center-only mountain gap returned');
-assert(environmentSource.includes('entry.side=entry.side??sideForIndex(i)'),'moving bank side ownership is missing');
-assert(environmentSource.includes('entry.side=entry.side??sideForIndex(cluster)'),'moving forest side ownership is missing');
+assert(environmentSource.includes('const side=entry.side??sideForIndex(i)'),'moving bank side ownership is missing');
+assert(environmentSource.includes('const side=entry.side??sideForIndex(cluster)'),'moving forest side ownership is missing');
 assert(environmentSource.includes('createDayCycle'),'day cycle integration regressed');
 assert(environmentSource.includes('scene.fog=new THREE.Fog'),'fog integration regressed');
 assert(environmentSource.includes('createSnowParticles'),'snow integration regressed');
