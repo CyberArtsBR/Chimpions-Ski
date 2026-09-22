@@ -4,6 +4,7 @@ import {createSafeRouteTracker} from './courseSafety.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const lerp=(a,b,t)=>a+(b-a)*t;
+const PHYSICAL_HAZARDS=new Set(['tree','rock','log','wideLog','oil']);
 
 export const COURSE_TYPES=[
   'OPEN CARVE',
@@ -17,7 +18,6 @@ export const COURSE_TYPES=[
 ];
 
 export const FORMATION_TYPES=[
-  'ROW',
   'STAGGER',
   'CLUSTER',
   'ISOLATED',
@@ -119,13 +119,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     const weights={
-      'OPEN CARVE':[.005,.19,.16,.10,.09,.10,.19,.145],
-      'GATE':[.005,.17,.08,.05,.23,.08,.225,.16],
-      'FOREST':[0,.24,.22,.04,.06,.07,.22,.15],
-      'ROCK SLALOM':[0,.245,.15,.05,.055,.075,.25,.175],
-      'RECOVERY':[0,.13,.08,.19,.08,.10,.18,.24],
-      'BANANA LINE':[0,.14,.08,.16,.09,.09,.21,.23]
-    }[sectionKind]||[.005,.20,.15,.10,.09,.09,.20,.165];
+      'OPEN CARVE':[.19,.16,.10,.09,.10,.19,.145],
+      'GATE':[.17,.08,.05,.23,.08,.225,.16],
+      'FOREST':[.24,.22,.04,.06,.07,.22,.15],
+      'ROCK SLALOM':[.245,.15,.05,.055,.075,.25,.175],
+      'RECOVERY':[.13,.08,.19,.08,.10,.18,.24],
+      'BANANA LINE':[.14,.08,.16,.09,.09,.21,.23]
+    }[sectionKind]||[.20,.15,.10,.09,.09,.20,.165];
     return FORMATION_TYPES[weightedIndex(weights)];
   }
 
@@ -137,21 +137,15 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(3.15,2.85,intensity);
     const kindAt=i=>kinds[(i+sectionIndex)%kinds.length];
 
-    if(type==='ROW'){
-      for(let i=0;i<obstacleLanes.length;i++){
-        const x=obstacleLanes[i];
-        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kindAt(i),x,z,safeX,{formation:type}));
-      }
-      return;
-    }
-
     if(type==='STAGGER'){
+      const phaseOffset=rand(-.7,.7);
       for(let i=0;i<obstacleLanes.length;i++){
-        if(random()<.14)continue;
-        const x=clamp(obstacleLanes[i]+rand(-.62,.62),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        if(random()<.18)continue;
+        const x=clamp(obstacleLanes[i]+rand(-.78,.78),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kindAt(i),x,z+rand(-3.1,3.1),safeX,{formation:type}));
+        const alternating=(i%2===0?-1:1)*rand(1.25,2.85);
+        const localZ=z+phaseOffset+alternating+rand(-.45,.45);
+        placements.push(place(kindAt(i),x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true}));
       }
       return;
     }
@@ -163,7 +157,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       for(let i=0;i<count;i++){
         const x=clamp(center+rand(-1.2,1.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type}));
+        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type,decisionZ:z,routeDecision:true}));
       }
       return;
     }
@@ -176,7 +170,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
           const side=x>=safeX?1:-1;
           x=clamp(safeX+side*(gap+rand(.8,2.4)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         }
-        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type}));
+        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type,decisionZ:z,routeDecision:true}));
       }
       return;
     }
@@ -190,7 +184,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         const x=clamp(startX+direction*i*rand(3.4,4.3)+rand(-.45,.45),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         const localZ=z+(i-(count-1)*.5)*rand(3.0,4.2)+rand(-.9,.9);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kind,x,localZ,safeX,{formation:type}));
+        placements.push(place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true}));
       }
       return;
     }
@@ -204,7 +198,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         const localZ=z+rand(-7.5,7.5);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
         if(placed.some(p=>Math.abs(p.x-x)<2.0&&Math.abs(p.z-localZ)<2.9))continue;
-        const entry=place(kind,x,localZ,safeX,{formation:type});
+        const entry=place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true});
         placements.push(entry);placed.push(entry);
       }
       return;
@@ -213,11 +207,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='OFFSET_GATE'){
       const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type}));
-      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type}));
+      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true}));
+      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true}));
       if(intensity>.62){
         const outer=lastThreatSide<=0?T.COURSE_OBJECT_HALF_WIDTH-.55:-(T.COURSE_OBJECT_HALF_WIDTH-.55);
-        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type}));
+        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type,decisionZ:z,routeDecision:true}));
       }
       return;
     }
@@ -233,12 +227,27 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
     lastThreatSide=side;
     if(isOutsideSafeCorridor(edgeX,safeX,gap)){
-      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type}));
+      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type,decisionZ:z,routeDecision:true}));
     }
     if(random()<.72){
       const supportX=clamp(side*rand(5.2,7.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       if(isOutsideSafeCorridor(supportX,safeX,gap)){
-        placements.push(place(kindAt(1),supportX,z+rand(-2,2),safeX,{formation:type}));
+        placements.push(place(kindAt(1),supportX,z+rand(-2,2),safeX,{formation:type,decisionZ:z,routeDecision:true}));
+      }
+    }
+  }
+
+  function pruneExcessiveOverlap(placements){
+    for(let i=placements.length-1;i>=0;i--){
+      const a=placements[i];
+      if(!PHYSICAL_HAZARDS.has(a.kind)||a.jumpTarget)continue;
+      for(let j=0;j<i;j++){
+        const b=placements[j];
+        if(!PHYSICAL_HAZARDS.has(b.kind))continue;
+        if(Math.abs(a.x-b.x)<.42&&Math.abs(a.z-b.z)<.52){
+          placements.splice(i,1);
+          break;
+        }
       }
     }
   }
@@ -357,6 +366,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const formation=protectedTouchdown
         ?'EDGE_THREAT'
         :(index%2===0?'STAGGER':'ISOLATED');
+      const formationStart=placements.length;
       addFormation(
         placements,
         formation,
@@ -368,6 +378,15 @@ export function createCourseDirector({routeCenter,random=Math.random}){
           landingProtected:protectedTouchdown
         }
       );
+      for(let i=placements.length-1;i>=formationStart;i--){
+        const placement=placements[i];
+        const actualDistance=rampZ-placement.z;
+        const invadesTouchdown=
+          actualDistance>=envelope.protectedStartDistance&&
+          actualDistance<=envelope.protectedEndDistance&&
+          Math.abs(placement.x-safeX)<envelope.corridorHalfWidth;
+        if(invadesTouchdown)placements.splice(i,1);
+      }
       distance+=rand(20,27);
       index++;
     }
@@ -476,6 +495,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
       placements.push(place('ramp',rampX,rampZ,rampSafe,{
         landingZone:true,
+        decisionZ:rampZ,
+        routeDecision:true,
         flightTime:envelope.flightTime,
         landingDistance:envelope.landingDistance
       }));
@@ -543,6 +564,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       pendingLanding=null;
     }
 
+    pruneExcessiveOverlap(placements);
     for(const placement of placements)placement.section=type;
     lastType=type;
     sectionIndex++;

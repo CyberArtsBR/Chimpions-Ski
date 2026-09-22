@@ -16,7 +16,7 @@ import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraS
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {getCourseLookahead} from './courseStreaming.js';
-import {resetAirborneScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
+import {resetAirborneScoring,resetHazardScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -189,7 +189,7 @@ function acquireCourseItem(kind){
   item.visible=true;
   item.userData.activated=false;
   item.userData.triggered=false;
-  item.userData.clearScored=false;
+  resetHazardScoring(item);
   world.add(item);
   return item;
 }

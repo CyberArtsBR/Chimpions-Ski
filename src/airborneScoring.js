@@ -12,6 +12,10 @@ export function resetAirborneScoring(state){
   state.clearEvent=null;
 }
 
+export function resetHazardScoring(item){
+  if(item?.userData)item.userData.clearScored=false;
+}
+
 export function updateAirborneScoring(state){
   if((state.combo||0)>0&&state.time-(state.lastClearTime??-Infinity)>T.CLEAR_COMBO_WINDOW){
     state.combo=0;
