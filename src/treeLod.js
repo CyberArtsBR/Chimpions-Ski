@@ -173,7 +173,7 @@ export function createTreeLodSystem({world,entries,terrainHeight}){
       const midEnd=-(MID_MIN+entry.colorSeed*MID_SPREAD);
 
       if(entry.z>nearEnd){
-        const variant=entry.variant%3;
+        const variant=entry.variant===3?2:entry.variant%3;
         const mesh=nearMeshes[variant];
         applyInstance(mesh,counters[variant]++,entry,ground,time,0);
       }else if(entry.z>midEnd){
