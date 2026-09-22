@@ -5,8 +5,8 @@ export const SKI_TUNING=Object.freeze({
   SAFE_ROUTE_HALF_WIDTH:9.7,
   CONTENT_BAND_HALF_WIDTH:10.7,
 
-  // 140 km/h opening pace, +10 km/h every 30 seconds, 210 km/h cap.
-  BASE_SPEED:38.8889,
+  // 160 km/h opening pace, +10 km/h every 30 seconds, 210 km/h cap.
+  BASE_SPEED:44.4444,
   SPEED_TIER_SECONDS:30,
   SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:58.3333,
@@ -62,15 +62,26 @@ export const SKI_TUNING=Object.freeze({
 
   // Course intelligence/rhythm.
   // More pressure without returning to repetitive close-packed rows.
-  COURSE_NORMAL_SPACING_MIN:22,
-  COURSE_NORMAL_SPACING_MAX:30,
-  COURSE_INTENSE_SPACING_MIN:20,
-  COURSE_INTENSE_SPACING_MAX:27,
+  COURSE_NORMAL_SPACING_MIN:17,
+  COURSE_NORMAL_SPACING_MAX:24,
+  COURSE_INTENSE_SPACING_MIN:14,
+  COURSE_INTENSE_SPACING_MAX:20,
   SAFE_ROUTE_ACCELERATION_FACTOR:.72,
   SAFE_ROUTE_BASE_REACH:.75,
   SAFE_ROUTE_MIN_REACH:1.6,
   SAFE_ROUTE_MAX_REACH:6.4,
-  LANDING_CORRIDOR_HALF_WIDTH:4.15
+  LANDING_CORRIDOR_HALF_WIDTH:4.15,
+
+  // Stream pooled course content well beyond the 280m camera far plane.
+  COURSE_LOOKAHEAD_MIN:560,
+  COURSE_LOOKAHEAD_SECONDS:11,
+  COURSE_LOOKAHEAD_MAX:660,
+
+  // Airborne hazard-clear scoring.
+  CLEAR_SCORE_BASE:100,
+  CLEAR_COMBO_WINDOW:1.5,
+  CLEAR_COMBO_STEP:.5,
+  CLEAR_COMBO_MAX_MULTIPLIER:3
 });
 
 export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
@@ -79,6 +90,6 @@ export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
 }
 
 export function getSpeedFeel(speed=SKI_TUNING.BASE_SPEED){
-  // 140 km/h starts intense while still leaving headroom for the 210 km/h cap.
+  // 160 km/h starts intense while still leaving headroom for the 210 km/h cap.
   return .62+getSpeedProgress(speed)*.38;
 }
