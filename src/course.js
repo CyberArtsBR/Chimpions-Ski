@@ -22,7 +22,9 @@ export const FORMATION_TYPES=[
   'CLUSTER',
   'ISOLATED',
   'OFFSET_GATE',
-  'EDGE_THREAT'
+  'EDGE_THREAT',
+  'DIAGONAL',
+  'SCATTER'
 ];
 
 export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
@@ -117,13 +119,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     const weights={
-      'OPEN CARVE':[.08,.23,.16,.28,.13,.12],
-      'GATE':[.12,.18,.08,.10,.42,.10],
-      'FOREST':[.08,.32,.22,.12,.18,.08],
-      'ROCK SLALOM':[.08,.34,.18,.18,.14,.08],
-      'RECOVERY':[.04,.16,.10,.46,.12,.12],
-      'BANANA LINE':[.05,.18,.10,.40,.15,.12]
-    }[sectionKind]||[.10,.24,.16,.24,.16,.10];
+      'OPEN CARVE':[.02,.18,.14,.14,.10,.08,.18,.16],
+      'GATE':[.03,.13,.07,.07,.28,.07,.20,.15],
+      'FOREST':[.01,.20,.19,.06,.08,.05,.22,.19],
+      'ROCK SLALOM':[.01,.21,.13,.07,.07,.06,.25,.20],
+      'RECOVERY':[0,.11,.07,.25,.07,.08,.17,.25],
+      'BANANA LINE':[0,.12,.08,.20,.08,.07,.20,.25]
+    }[sectionKind]||[.02,.17,.13,.14,.10,.08,.19,.17];
     return FORMATION_TYPES[weightedIndex(weights)];
   }
 
@@ -178,6 +180,35 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       return;
     }
 
+    if(type==='DIAGONAL'){
+      const count=3+Math.floor(random()*2);
+      const direction=random()<.5?-1:1;
+      const startX=-direction*rand(7.8,9.4);
+      for(let i=0;i<count;i++){
+        const kind=kindAt(i);
+        const x=clamp(startX+direction*i*rand(3.4,4.3)+rand(-.45,.45),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        const localZ=z+(i-(count-1)*.5)*rand(3.3,4.5)+rand(-.7,.7);
+        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
+        placements.push(place(kind,x,localZ,safeX,{formation:type}));
+      }
+      return;
+    }
+
+    if(type==='SCATTER'){
+      const count=3+Math.floor(random()*3);
+      const placed=[];
+      for(let attempt=0;attempt<18&&placed.length<count;attempt++){
+        const kind=kindAt(attempt);
+        const x=rand(-T.COURSE_OBJECT_HALF_WIDTH+.25,T.COURSE_OBJECT_HALF_WIDTH-.25);
+        const localZ=z+rand(-6.2,6.2);
+        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
+        if(placed.some(p=>Math.abs(p.x-x)<2.2&&Math.abs(p.z-localZ)<3.4))continue;
+        const entry=place(kind,x,localZ,safeX,{formation:type});
+        placements.push(entry);placed.push(entry);
+      }
+      return;
+    }
+
     if(type==='OFFSET_GATE'){
       const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
@@ -215,6 +246,30 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return intense
       ?rand(T.COURSE_INTENSE_SPACING_MIN,T.COURSE_INTENSE_SPACING_MAX)
       :rand(T.COURSE_NORMAL_SPACING_MIN,T.COURSE_NORMAL_SPACING_MAX);
+  }
+
+  function addSpecialHazard(placements,startZ,length,safeHint=0,chance=.52){
+    if(random()>chance)return false;
+    const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+    const roll=random();
+    const kind=roll<.50?'oil':roll<.82?'wideLog':'log';
+    const extra=kind==='wideLog'?2.0:kind==='oil'?.85:.25;
+    const minGap=3.0+extra;
+
+    for(let attempt=0;attempt<18;attempt++){
+      const z=startZ-rand(18,Math.max(20,length-12));
+      if(placements.some(p=>p.kind!=='banana'&&Math.abs(p.z-z)<8.5))continue;
+      let x=rand(-T.COURSE_OBJECT_HALF_WIDTH+.35,T.COURSE_OBJECT_HALF_WIDTH-.35);
+      if(kind==='wideLog')x=clamp(x,-8.25,8.25);
+      if(Math.abs(x-safe)<minGap){
+        const side=x>=safe?1:-1;
+        x=clamp(safe+side*(minGap+rand(.5,1.8)),-T.COURSE_OBJECT_HALF_WIDTH+.35,T.COURSE_OBJECT_HALF_WIDTH-.35);
+      }
+      if(Math.abs(x-safe)<minGap)continue;
+      placements.push(place(kind,x,z,safe,{formation:'SCATTER',special:true}));
+      return true;
+    }
+    return false;
   }
 
   function addBananaEvent(placements,startZ,length,safeHint=0,chance=.64){
@@ -302,7 +357,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         z,
         safeX,
         {
-          kinds:sectionKind==='LOG JUMP'?['rock','tree']:['tree','rock'],
+          kinds:sectionKind==='LOG JUMP'?['rock','tree','rock']:['tree','rock','tree'],
           intensity:.46,
           landingProtected:protectedTouchdown
         }
@@ -329,19 +384,20 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     let length=86;
 
     if(type==='OPEN CARVE'){
-      length=90;
-      let z=startZ-20;
-      for(let i=0;i<2;i++){
+      length=96;
+      let z=startZ-18;
+      for(let i=0;i<3;i++){
         const safeX=safeAt(z,currentSpeed,anchor,3.8);
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:['tree','rock'],intensity:.35});
         z-=spacing(false);
       }
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.66);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.58);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.70);
     }
 
     if(type==='GATE'){
-      length=102;
-      const rows=3+(difficulty>.78?1:0);
+      length=110;
+      const rows=4;
       let z=startZ-18;
       for(let i=0;i<rows;i++){
         const desired=clamp(anchor+Math.sin(phase+i*.86)*4.0,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
@@ -350,23 +406,25 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,formation,z,safeX,{kinds:i%2?['tree','rock']:['rock','tree'],intensity:.58});
         z-=spacing(false);
       }
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.58);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.50);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.62);
     }
 
     if(type==='BANANA LINE'){
-      length=92;
-      let z=startZ-22;
-      for(let i=0;i<2;i++){
+      length=100;
+      let z=startZ-20;
+      for(let i=0;i<3;i++){
         const safeX=safeAt(z,currentSpeed,anchor,3.2);
         addFormation(placements,i===0?'ISOLATED':chooseFormation(type),z,safeX,{kinds:['rock','tree'],intensity:.38});
         z-=spacing(false);
       }
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.92);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.44);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.94);
     }
 
     if(type==='FOREST'){
-      length=108;
-      const rows=4+(difficulty>.82?1:0);
+      length=120;
+      const rows=5;
       let z=startZ-16;
       for(let i=0;i<rows;i++){
         const desired=clamp(anchor+Math.sin(phase+i*.70)*4.1,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
@@ -374,12 +432,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:['tree','tree','rock'],intensity:.72});
         z-=spacing(true);
       }
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.50);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.68);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.54);
     }
 
     if(type==='ROCK SLALOM'){
-      length=104;
-      const rows=4+(difficulty>.84?1:0);
+      length=118;
+      const rows=5;
       let z=startZ-16;
       let desired=anchor;
       for(let i=0;i<rows;i++){
@@ -388,7 +447,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:['rock','rock','tree'],intensity:.78});
         z-=spacing(true);
       }
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.54);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.72);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.58);
     }
 
     if(type==='RAMP'||type==='LOG JUMP'){
@@ -472,7 +532,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const secondSafe=safeAt(z,currentSpeed,firstSafe,2.7);
       addFormation(placements,chooseFormation(type),z,secondSafe,{kinds:['tree','rock'],intensity:.38});
 
-      addBananaEvent(placements,startZ,length,secondSafe,.70);
+      addSpecialHazard(placements,startZ,length,secondSafe,.42);
+      addBananaEvent(placements,startZ,length,secondSafe,.74);
       pendingLanding=null;
     }
 

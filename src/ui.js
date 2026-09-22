@@ -243,7 +243,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     const d=Math.max(0,Number(values.distance)||0);
     const b=Math.max(0,Number(values.bananas)||0);
     const kmh=Math.max(0,Math.round((Number(values.speed)||0)*3.6));
-    const speedFeel=Math.max(.56,Math.min(1,.56+(kmh-120)/90*.44));
+    const speedFeel=Math.max(.62,Math.min(1,.62+(kmh-140)/70*.38));
     if(distance)distance.textContent=Math.floor(d)+' m';
     if(bananas)bananas.textContent=String(b);
     if(speed)speed.textContent=kmh+' km/h';

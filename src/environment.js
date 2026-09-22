@@ -137,7 +137,7 @@ function createMovingInstances(count,mesh,makeEntry){
 
 function resetBank(entry,i,deep=false){
   const side=i%2===0?-1:1;
-  entry.x=side*(18.0+wave(i*2.7+11)*9.0);
+  entry.x=side*(42+wave(i*2.7+11)*52);
   entry.z=-12-wave(i*4.1+21)*205;
   entry.sx=(deep?2.8:2.1)+wave(i*3.4+5)*(deep?3.3:2.6);
   entry.sy=(deep?.34:.18)+wave(i*7.1+9)*(deep?.42:.22);
@@ -150,8 +150,8 @@ function resetTree(entry,i){
   const within=i%6;
   const side=cluster%2===0?-1:1;
   const clusterZ=-16-wave(cluster*4.91+8)*224;
-  const clusterX=side*(17.5+wave(cluster*2.7+4)*9.2);
-  entry.x=clusterX+(wave(i*5.37+1)-.5)*(4.8+within*.28);
+  const clusterX=side*(34+wave(cluster*2.7+4)*54);
+  entry.x=clusterX+(wave(i*5.37+1)-.5)*(10+within*.45);
   entry.z=clusterZ+(wave(i*6.91+8)-.5)*15.5;
   entry.s=.60+wave(i*4.17+3)*1.22;
   entry.width=.80+wave(i*9.13+12)*.38;
