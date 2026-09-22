@@ -31,7 +31,7 @@ function createPool(scene,count,size,opacity){
   return {count,positions,velocity,life,maxLife,geometry,positionAttribute,material,cursor:0};
 }
 
-function emit(pool,{x,y,z,edge,speed,count,landing=false,inside=false}){
+function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
   const turnSign=Math.sign(edge);
   const speed01=THREE.MathUtils.clamp((speed-30)/30,0,1);
   const direction=turnSign===0?(hash(pool.cursor+3)>.5?1:-1):(inside?turnSign:-turnSign);
@@ -66,7 +66,7 @@ export function createSnowParticles({scene}){
   let bumpCarry=0;
   let lastLanding=0;
 
-  function spray({dt,x,y,z,speed,edge,air,landingPulse,running}){
+  function spray(dt,x,y,z,speed,edge,air,landingPulse,running){
     if(!running)return;
     const speed01=THREE.MathUtils.clamp((speed-30)/30,0,1);
 
@@ -77,12 +77,12 @@ export function createSnowParticles({scene}){
       if(total>0){
         const inside=carve>.20?Math.max(1,Math.floor(total*(.14+carve*.08))):0;
         const outside=total-inside;
-        emit(mist,{x,y,z,edge,speed,count:Math.max(1,outside),inside:false});
-        if(inside>0)emit(mist,{x,y,z,edge,speed,count:inside,inside:true});
+        emit(mist,x,y,z,edge,speed,Math.max(1,outside),false,false);
+        if(inside>0)emit(mist,x,y,z,edge,speed,inside,false,true);
 
         if(carve>.28||speed01>.58){
           const chunkCount=Math.max(1,Math.floor(total*(.12+carve*.10+speed01*.05)));
-          emit(chunks,{x,y,z,edge,speed,count:chunkCount,inside:false});
+          emit(chunks,x,y,z,edge,speed,chunkCount,false,false);
         }
         emitCarry-=total;
       }
@@ -91,13 +91,13 @@ export function createSnowParticles({scene}){
       if(bumpCarry>=1){
         bumpCarry-=1;
         const bumpCount=2+Math.floor(speed01*3);
-        emit(chunks,{x,y,z,edge,speed,count:bumpCount,inside:false});
+        emit(chunks,x,y,z,edge,speed,bumpCount,false,false);
       }
     }
 
     if(landingPulse>.18&&lastLanding<=.18){
-      emit(mist,{x,y,z,edge,speed,count:54+Math.floor(speed01*28),landing:true});
-      emit(chunks,{x,y,z,edge,speed,count:22+Math.floor(speed01*15),landing:true});
+      emit(mist,x,y,z,edge,speed,54+Math.floor(speed01*28),true,false);
+      emit(chunks,x,y,z,edge,speed,22+Math.floor(speed01*15),true,false);
     }
     lastLanding=landingPulse;
   }
