@@ -81,12 +81,15 @@ export function stepCarving(state,input,dt){
   const speed01=clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
   state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.25);
   state.landingReengageTime=Math.max(0,(state.landingReengageTime||0)-dt);
+  state.oilSlipTime=Math.max(0,(state.oilSlipTime||0)-dt);
+  const oilSlip=clamp((state.oilSlipTime||0)/T.OIL_SLIP_SECONDS,0,1);
 
   const reversing=steer!==0&&state.edge*steer<-.01;
   const neutralizing=reversing&&Math.abs(state.edge)>.018;
   const targetEdge=steer;
   const edgeResponse=neutralizing?T.EDGE_REVERSAL:steer===0?T.EDGE_RELEASE:T.EDGE_RESPONSE;
-  state.edge=THREE.MathUtils.damp(state.edge,targetEdge,edgeResponse,dt);
+  const effectiveEdgeResponse=edgeResponse*(1-oilSlip*(1-T.OIL_CONTROL_SCALE));
+  state.edge=THREE.MathUtils.damp(state.edge,targetEdge,effectiveEdgeResponse,dt);
 
   if(state.air){
     stepAirControl(state,steer,neutralizing,speed01,dt);
@@ -111,6 +114,7 @@ export function stepCarving(state,input,dt){
     desiredTurnRate-=state.heading*.16;
   }
 
+  desiredTurnRate*=1-oilSlip*.38;
   state.turnRate=THREE.MathUtils.damp(
     state.turnRate,
     desiredTurnRate,
@@ -129,14 +133,15 @@ export function stepCarving(state,input,dt){
   }
 
   const roughLoss=state.landingGripLoss||0;
-  const targetGrip=clamp(.80+speed01*.05+(state.carveLoad||0)*.14-roughLoss*.38,.36,1);
+  const normalTargetGrip=clamp(.80+speed01*.05+(state.carveLoad||0)*.14-roughLoss*.38,.36,1);
+  const targetGrip=THREE.MathUtils.lerp(normalTargetGrip,T.OIL_GRIP,oilSlip);
   const reengageRemaining=clamp((state.landingReengageTime||0)/T.LANDING_REENGAGE_TIME,0,1);
   const reengageBlend=1-reengageRemaining;
   state.grip=THREE.MathUtils.lerp(.42,targetGrip,reengageBlend);
 
   const lateralScale=THREE.MathUtils.lerp(T.LATERAL_SCALE_LOW,T.LATERAL_SCALE_HIGH,speed01);
   let carveVelocity=Math.sin(state.heading)*state.speed*lateralScale;
-  const normalGripResponse=T.LATERAL_RESPONSE+state.grip*1.9+(state.carveLoad||0)*1.4;
+  const normalGripResponse=(T.LATERAL_RESPONSE+state.grip*1.9+(state.carveLoad||0)*1.4)*(1-oilSlip*.48);
   let gripResponse=THREE.MathUtils.lerp(T.AIR_LATERAL_RESPONSE*.46,normalGripResponse,reengageBlend);
 
   if(neutralizing){
@@ -152,7 +157,7 @@ export function stepCarving(state,input,dt){
 
   state.vx=THREE.MathUtils.damp(state.vx,carveVelocity,gripResponse,dt);
 
-  if(state.carveLoad>.62&&reengageBlend>.35){
+  if(state.carveLoad>.62&&reengageBlend>.35&&oilSlip<.35){
     const plantedScrub=1-(state.carveLoad-.62)*.06*dt*reengageBlend;
     state.vx*=Math.max(.984,plantedScrub);
   }

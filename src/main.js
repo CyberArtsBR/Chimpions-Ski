@@ -71,12 +71,23 @@ const {
   logEnd:logEndMat
 }=environment.courseMaterials;
 
+const oilMat=new THREE.MeshStandardMaterial({
+  color:0x10141b,roughness:.16,metalness:.42,transparent:true,opacity:.94
+});
+const oilSheenMat=new THREE.MeshBasicMaterial({
+  color:0x39496f,transparent:true,opacity:.30,depthWrite:false
+});
+const wideLogSnowMat=new THREE.MeshStandardMaterial({
+  color:0xf1f8fb,roughness:.94
+});
+
 const tiles=[];
 for(let i=0;i<9;i++){
-  const geometry=new THREE.PlaneGeometry(72,28,40,18);
-  // Preserve the original snow texel density after widening the visual snowfield.
+  // Gameplay remains ±11.3, but the rendered mountain surface extends far beyond
+  // the camera frustum so the player never sees a hard left/right snow border.
+  const geometry=new THREE.PlaneGeometry(320,28,128,18);
   const uv=geometry.attributes.uv;
-  for(let vertex=0;vertex<uv.count;vertex++)uv.setX(vertex,uv.getX(vertex)*2.25);
+  for(let vertex=0;vertex<uv.count;vertex++)uv.setX(vertex,uv.getX(vertex)*10);
   uv.needsUpdate=true;
   const tile=new THREE.Mesh(geometry,snowMat);
   tile.rotation.x=-Math.PI/2;
@@ -91,7 +102,9 @@ function makeTree(){
   const g=new THREE.Group();
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,1.6,8),trunkMat);trunk.position.y=.8;trunk.castShadow=true;g.add(trunk);
   for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(1.05-i*.12,2.1,10),pineMat);c.position.y=1.35+i*.72;c.castShadow=true;g.add(c);}
-  g.userData.kind='tree';g.userData.radius=.72;g.userData.radiusX=.62;g.userData.radiusZ=.68;g.userData.clearance=99;decorateCourseObject(g,'tree');return g;
+  // Feet above ~3.7 m clear the full tree silhouette; manual jump cannot reach it,
+  // but the upper part of a monster ramp arc can.
+  g.userData.kind='tree';g.userData.radius=.72;g.userData.radiusX=.62;g.userData.radiusZ=.68;g.userData.clearance=3.70;decorateCourseObject(g,'tree');return g;
 }
 function makeRock(){
   const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.64,0),rockMat);m.scale.set(1.15,.75,.9);m.position.y=.48;m.castShadow=true;m.userData.kind='rock';m.userData.radius=.62;m.userData.radiusX=.55;m.userData.radiusZ=.58;m.userData.clearance=.78;decorateCourseObject(m,'rock');return m;
@@ -122,6 +135,28 @@ function makeLog(){
   }
   g.userData.kind='log';g.userData.radius=1.15;g.userData.radiusX=1.02;g.userData.radiusZ=.48;g.userData.clearance=.60;decorateCourseObject(g,'log');return g;
 }
+function makeWideLog(){
+  const g=new THREE.Group();
+  const log=new THREE.Mesh(new THREE.CylinderGeometry(.30,.35,5.2,14),logMat);
+  log.rotation.z=Math.PI/2;log.position.y=.35;log.castShadow=log.receiveShadow=true;g.add(log);
+  const snow=new THREE.Mesh(new THREE.BoxGeometry(4.75,.08,.34),wideLogSnowMat);
+  snow.position.set(0,.64,-.03);snow.rotation.z=.012;snow.castShadow=true;g.add(snow);
+  for(const side of [-1,1]){
+    const cap=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.18,14),logEndMat);
+    cap.rotation.z=Math.PI/2;cap.position.set(side*2.62,.35,0);cap.castShadow=true;g.add(cap);
+  }
+  g.userData.kind='wideLog';g.userData.radius=2.65;g.userData.radiusX=2.48;g.userData.radiusZ=.58;g.userData.clearance=.82;
+  return g;
+}
+function makeOil(){
+  const g=new THREE.Group();
+  const puddle=new THREE.Mesh(new THREE.CircleGeometry(1,28),oilMat);
+  puddle.rotation.x=-Math.PI/2;puddle.scale.set(1.55,.78,1);puddle.position.y=.024;g.add(puddle);
+  const sheen=new THREE.Mesh(new THREE.RingGeometry(.46,.82,28),oilSheenMat);
+  sheen.rotation.x=-Math.PI/2;sheen.scale.set(1.45,.70,1);sheen.position.y=.031;sheen.rotation.z=.38;g.add(sheen);
+  g.userData.kind='oil';g.userData.radius=1.55;g.userData.radiusX=1.48;g.userData.radiusZ=.74;g.userData.clearance=.10;g.userData.yOffset=.012;
+  return g;
+}
 
 const course=[];
 let courseDirector=null;
@@ -133,7 +168,7 @@ let courseEndZ=-12,courseTravel=0;
 function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 }
-const coursePool={tree:[],rock:[],log:[],banana:[],ramp:[]};
+const coursePool={tree:[],rock:[],log:[],wideLog:[],oil:[],banana:[],ramp:[]};
 function clearActiveRamp(){
   if(activeRamp)activeRamp.userData.activated=false;
   activeRamp=null;
@@ -142,6 +177,8 @@ function makeCourseItem(kind){
   if(kind==='tree')return makeTree();
   if(kind==='rock')return makeRock();
   if(kind==='log')return makeLog();
+  if(kind==='wideLog')return makeWideLog();
+  if(kind==='oil')return makeOil();
   if(kind==='banana')return makeBanana();
   return makeRamp();
 }
@@ -149,6 +186,7 @@ function acquireCourseItem(kind){
   const item=coursePool[kind].pop()||makeCourseItem(kind);
   item.visible=true;
   item.userData.activated=false;
+  item.userData.triggered=false;
   world.add(item);
   return item;
 }
@@ -262,7 +300,7 @@ async function setAvatar(entry){
   }
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
@@ -276,7 +314,7 @@ function control(pad){
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function resetRunState(mode='countdown'){
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trailTimer=0;skiTrails.reset();
   keys.clear();
@@ -329,7 +367,7 @@ function crash(kind='tree',item=null){
   const runDistance=Math.floor(state.distance);
   const previousBest=state.best;
   const newBest=runDistance>previousBest;
-  state.crashType=['tree','rock','log'].includes(kind)?kind:'tree';
+  state.crashType=kind==='wideLog'?'log':(['tree','rock','log'].includes(kind)?kind:'tree');
   state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
   state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
   state.crashTime=0;
@@ -372,7 +410,7 @@ function update(dt){
   jumpKeyPressed=false;
   let worldDistance=0;
   if(state.mode==='playing'){
-    // 120–210 km/h uses tight collision sampling so fast hazards cannot be skipped.
+    // 140–210 km/h uses tight collision sampling so fast hazards cannot be skipped.
     const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
@@ -508,6 +546,24 @@ function update(dt){
       const clearance=state.y-(.12+itemGround);
       const requiredClearance=item.userData.clearance??.9;
       if(state.air&&clearance>requiredClearance)continue;
+
+      if(item.userData.kind==='oil'){
+        if(!item.userData.triggered){
+          item.userData.triggered=true;
+          state.oilSlipTime=SKI_TUNING.OIL_SLIP_SECONDS;
+          state.landingGripLoss=Math.max(state.landingGripLoss||0,.82);
+          const slipDirection=Math.sign(state.x-item.position.x)||Math.sign(state.vx)||1;
+          state.vx+=slipDirection*2.15;
+          state.heading=THREE.MathUtils.clamp(
+            state.heading+slipDirection*.055,
+            -SKI_TUNING.HEADING_LIMIT_HIGH,
+            SKI_TUNING.HEADING_LIMIT_HIGH
+          );
+          state.speed=Math.max(SKI_TUNING.BASE_SPEED*.92,state.speed*.94);
+          audio.play('hardLand',.24);
+        }
+        continue;
+      }
 
       crash(item.userData.kind,item);
     }

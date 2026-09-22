@@ -5,8 +5,8 @@ export const SKI_TUNING=Object.freeze({
   SAFE_ROUTE_HALF_WIDTH:9.7,
   CONTENT_BAND_HALF_WIDTH:10.7,
 
-  // Preserve 120 km/h opening pace, +10 km/h every 30 seconds, 210 km/h cap.
-  BASE_SPEED:33.3333,
+  // 140 km/h opening pace, +10 km/h every 30 seconds, 210 km/h cap.
+  BASE_SPEED:38.8889,
   SPEED_TIER_SECONDS:30,
   SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:58.3333,
@@ -48,6 +48,11 @@ export const SKI_TUNING=Object.freeze({
   AIR_LATERAL_SCALE_HIGH:.41,
   LANDING_REENGAGE_TIME:.18,
 
+  // Oil puddles preserve momentum but temporarily reduce ski authority/grip.
+  OIL_SLIP_SECONDS:1.05,
+  OIL_CONTROL_SCALE:.52,
+  OIL_GRIP:.26,
+
   // Shared jump physics. Preserve manual and monster-ramp strength.
   GRAVITY:17.8,
   MANUAL_JUMP_VELOCITY:5.9,
@@ -56,10 +61,11 @@ export const SKI_TUNING=Object.freeze({
   RAMP_RETRIGGER_GRACE:.85,
 
   // Course intelligence/rhythm.
-  COURSE_NORMAL_SPACING_MIN:24,
-  COURSE_NORMAL_SPACING_MAX:32,
-  COURSE_INTENSE_SPACING_MIN:18,
-  COURSE_INTENSE_SPACING_MAX:24,
+  // More pressure without returning to repetitive close-packed rows.
+  COURSE_NORMAL_SPACING_MIN:22,
+  COURSE_NORMAL_SPACING_MAX:30,
+  COURSE_INTENSE_SPACING_MIN:20,
+  COURSE_INTENSE_SPACING_MAX:27,
   SAFE_ROUTE_ACCELERATION_FACTOR:.72,
   SAFE_ROUTE_BASE_REACH:.75,
   SAFE_ROUTE_MIN_REACH:1.6,
@@ -73,6 +79,6 @@ export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
 }
 
 export function getSpeedFeel(speed=SKI_TUNING.BASE_SPEED){
-  // 120 km/h already feels fast, while later tiers still have room to build intensity.
-  return .56+getSpeedProgress(speed)*.44;
+  // 140 km/h starts intense while still leaving headroom for the 210 km/h cap.
+  return .62+getSpeedProgress(speed)*.38;
 }
