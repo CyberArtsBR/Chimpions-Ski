@@ -374,6 +374,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     audio.setMusicEnabled(next);syncAudioButtons();
   });
   document.addEventListener('click',event=>{
+    if(document.body.classList.contains('start-screen-active'))return;
     if(event.target.closest('button'))audio.play('button',.24);
   },true);
   document.addEventListener('keydown',event=>{

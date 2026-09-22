@@ -322,7 +322,8 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
 .start-screen-active .hud,
 .start-screen-active #overlay,
 .start-screen-active .run-countdown,
-.start-screen-active .presentation-overlay{visibility:hidden!important}
+.start-screen-active .presentation-overlay,
+.start-screen-active .score-pop-layer{visibility:hidden!important}
 
 /* Score adapter: presentation only; gameplay owns score/combo/clear events. */
 .stat.is-score strong{color:#c9f6ff}
@@ -347,3 +348,6 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
   70%{opacity:1;transform:translateY(-9px) scale(1)}
   100%{opacity:0;transform:translateY(-18px) scale(.98)}
 }
+
+.start-screen:not(.is-art-ready) .start-screen-art{opacity:0}
+.start-screen-art{transition:opacity .18s ease}
