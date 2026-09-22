@@ -246,8 +246,15 @@ export async function loadSkier(url='/models/default.glb'){
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
     fitModel(model);
     const updateRig=makeRigController(model);
-    const root=new THREE.Group();root.add(model);
+    const root=new THREE.Group();
+    // Collection GLBs use +Z as visual forward; gameplay travels downhill toward -Z.
+    // Rotate only the imported model carrier so controls, skis and rig animation remain unchanged.
+    const modelCarrier=new THREE.Group();
+    modelCarrier.rotation.y=Math.PI;
+    modelCarrier.add(model);
+    root.add(modelCarrier);
     const skis=addSkiEquipment(root,updateRig?.rig);
+    root.userData.modelForwardAxis='-Z';
     root.userData.fallback=false;
     root.userData.rigReady=!!updateRig;
     root.userData.updateSkiPose=(state={})=>{

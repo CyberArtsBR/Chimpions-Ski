@@ -10,7 +10,7 @@ function axisValue(value=0){
 export function readPad(pads){
   const connected=Array.from(pads||[]).filter(p=>p?.connected);
   const active=connected.find(p=>Math.abs(p.axes?.[0]||0)>DEADZONE||Math.abs(p.axes?.[1]||0)>DEADZONE||p.buttons?.some(b=>b.pressed))||connected[0];
-  if(!active)return {connected:false,axis:0,axisY:0,buttons:[],confirm:false,cancel:false,menu:false};
+  if(!active)return {connected:false,axis:0,axisY:0,buttons:[],confirm:false,jump:false,cancel:false,menu:false};
   const buttons=active.buttons.map(button=>!!button.pressed);
   const rawX=axisValue(active.axes?.[0]||0);
   const rawY=axisValue(active.axes?.[1]||0);
@@ -22,6 +22,7 @@ export function readPad(pads){
     axisY:dpadY||rawY,
     buttons,
     confirm:!!buttons[0],
+    jump:!!buttons[0],
     cancel:!!buttons[1],
     menu:!!buttons[9]
   };
