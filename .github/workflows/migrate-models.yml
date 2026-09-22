@@ -1,11 +1,6 @@
 name: One-time Chimpion GLB migration
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/migrate-models.yml"
-      - "scripts/migrate-models.mjs"
   workflow_dispatch:
 
 permissions:
