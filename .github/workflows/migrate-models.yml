@@ -40,8 +40,8 @@ jobs:
           while [ "$START" -lt "$TOTAL" ]; do
             echo "Migrating models $START..$((START+BATCH-1)) of $TOTAL"
             MIGRATION_START=$START MIGRATION_COUNT=$BATCH node scripts/migrate-models.mjs
-            if ! git diff --quiet -- public/model/characters; then
-              git add public/model/characters
+            git add public/model/characters
+            if ! git diff --cached --quiet; then
               git commit -m "Migrate Chimpion GLBs batch $START [skip ci]"
               git push origin HEAD:main
             fi
