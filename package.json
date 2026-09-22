@@ -1,1 +1,20 @@
-{"name":"chimpions-ski","private":true,"version":"0.2.0","type":"module","scripts":{"dev":"vite","build":"vite build && node scripts/build-version.mjs","preview":"vite preview","check":"node --check src/main.js && node --check src/skier.js && node --check src/avatar-system.js && node --check src/input.js && node --check src/audio.js"},"dependencies":{"three":"0.180.0"},"devDependencies":{"@playwright/test":"1.55.1","vite":"7.3.5"}}
+{
+  "name": "chimpions-ski",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && node scripts/build-version.mjs",
+    "preview": "vite preview",
+    "check:core": "node checks/physics-invariants.mjs && node checks/course-invariants.mjs",
+    "check": "node --check src/main.js && node --check src/skier.js && node --check src/avatar-system.js && node --check src/input.js && node --check src/audio.js && node --check src/ui.js && node --check src/skiPhysics.js && node --check src/course.js && node --check src/environment.js && node --check src/snowMaterial.js && node --check src/skiCamera.js && node --check src/terrainContact.js && npm run check:core"
+  },
+  "dependencies": {
+    "three": "0.180.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.1",
+    "vite": "7.3.5"
+  }
+}
