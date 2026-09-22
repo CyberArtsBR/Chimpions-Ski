@@ -114,7 +114,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
   const place=(kind,x,z,safeX,extra={})=>({
     kind,
-    x:boundedPlacementX(kind,x,safeX,extra),
+    x:clamp(x,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
     z,
     safeX:clamp(safeX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH),
     ...extra
@@ -588,7 +588,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     pruneExcessiveOverlap(placements);
-    for(const placement of placements)placement.section=type;
+
+    // Preserve the exact procedural generation/pruning result, then fit only the
+    // final X coordinate to the flag-safe visual corridor.
+    for(const placement of placements){
+      placement.x=boundedPlacementX(placement.kind,placement.x,placement.safeX,placement);
+      placement.section=type;
+    }
     lastType=type;
     sectionIndex++;
     return {
