@@ -74,6 +74,10 @@ const {
 const tiles=[];
 for(let i=0;i<9;i++){
   const geometry=new THREE.PlaneGeometry(72,28,40,18);
+  // Preserve the original snow texel density after widening the visual snowfield.
+  const uv=geometry.attributes.uv;
+  for(let vertex=0;vertex<uv.count;vertex++)uv.setX(vertex,uv.getX(vertex)*2.25);
+  uv.needsUpdate=true;
   const tile=new THREE.Mesh(geometry,snowMat);
   tile.rotation.x=-Math.PI/2;
   tile.position.set(0,0,-i*28+8);
