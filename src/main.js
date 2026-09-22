@@ -549,6 +549,7 @@ function update(dt){
       if(trickLanding.hadTrick){
         scoreTrickLanding(state,trickLanding);
         if(!trickLanding.success)crash('trick');
+        else tricks.finishLanding();
       }
       if(state.mode==='playing')feedback.onLanding(landing);
     }
