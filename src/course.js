@@ -101,19 +101,24 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(!PHYSICAL_HAZARDS.has(kind)||extra.jumpTarget)return bounded;
 
     const rawX=Number.isFinite(x)?x:0;
-    const diversifyEdge=value=>{
-      if(!extra.routeDecision||limit<9.05||Math.abs(value)<8.9)return value;
-      const serial=Math.max(0,Math.trunc(Number(extra.decisionSerial)||0));
-      const fractions=[.05,.38,.70,.95];
-      const target=9.05+(limit-9.05)*fractions[serial%fractions.length];
-      return Math.sign(value||rawX||1)*Math.min(limit,target);
-    };
 
     // If boundary fitting pulled a hazard toward the protected route, preserve
     // the normal navigable gap or the wider ramp touchdown corridor.
     const minGap=extra.landingProtected
       ?T.LANDING_CORRIDOR_HALF_WIDTH
       :(COURSE_OBJECT_COLLISION_HALF_WIDTH[kind]??0)+.36;
+    const diversifyEdge=value=>{
+      if(!extra.routeDecision||limit<9.05||Math.abs(value)<8.9)return value;
+      const serial=Math.max(0,Math.trunc(Number(extra.decisionSerial)||0));
+      const fractions=[.05,.38,.70,.95];
+      const sign=Math.sign(value||rawX||1);
+      for(let offset=0;offset<fractions.length;offset++){
+        const fraction=fractions[(serial+offset)%fractions.length];
+        const target=sign*Math.min(limit,9.05+(limit-9.05)*fraction);
+        if(Math.abs(target-safeX)>minGap)return target;
+      }
+      return value;
+    };
     if(Math.abs(bounded-safeX)>minGap)return diversifyEdge(bounded);
 
     const preferred=bounded>=safeX?1:-1;
