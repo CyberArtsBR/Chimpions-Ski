@@ -302,7 +302,10 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
   });
   const points=new THREE.Points(geometry,material);
   points.frustumCulled=false;
-  return {count,positions,fall,sway,geometry,points,xSpread,zMin,zMax,ground};
+  return {
+    count,positions,initialPositions:positions.slice(),fall,sway,
+    geometry,points,xSpread,zMin,zMax,ground
+  };
 }
 
 function makeContactShadow(scene){
@@ -617,9 +620,16 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
     trees.entries.forEach((entry,index)=>resetTree(entry,index));
     refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
+    for(const layer of snowLayers){
+      layer.positions.set(layer.initialPositions);
+      layer.geometry.attributes.position.needsUpdate=true;
+    }
     snowParticles.reset();
     surfaceDetail.reset();
     boundaryMarkers.reset();
+    contactShadow.position.y=-100;
+    contactShadow.material.opacity=.16;
+    contactShadow.scale.set(1.45,.52,1);
     dayCycle.apply(0);
   }
   function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time){
