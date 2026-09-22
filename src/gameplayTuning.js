@@ -1,18 +1,18 @@
 export const SKI_TUNING=Object.freeze({
-  // Practical ski corridor: ±11.3 versus the previous ±8.1 (~39.5% wider).
+  // Practical ski corridor. Preserve current integrated width.
   PLAYER_HALF_WIDTH:11.3,
   COURSE_OBJECT_HALF_WIDTH:11.05,
   SAFE_ROUTE_HALF_WIDTH:9.7,
   CONTENT_BAND_HALF_WIDTH:10.7,
 
-  // 120 km/h opening pace, then +10 km/h every 30 seconds to a 210 km/h cap.
+  // Preserve 120 km/h opening pace, +10 km/h every 30 seconds, 210 km/h cap.
   BASE_SPEED:33.3333,
   SPEED_TIER_SECONDS:30,
   SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:58.3333,
   SPEED_RESPONSE:2.2,
 
-  // Responsive arcade carving, deliberately calmer than the previous hyper-reactive pass.
+  // Ground carving.
   INPUT_DEADZONE:.022,
   CONTROLLER_DEADZONE:.14,
   EDGE_RESPONSE:40,
@@ -38,13 +38,34 @@ export const SKI_TUNING=Object.freeze({
   POSE_CARVE_BLEND:.20,
   POSE_REVERSAL_BLEND:.30,
 
-  // Manual jump remains small; ramps produce the requested monster jump.
+  // Explicit airborne steering. Similar authority to ground without planted-ski friction.
+  AIR_TURN_RESPONSE:25,
+  AIR_REVERSAL_RESPONSE:37,
+  AIR_HEADING_RECENTER:4.8,
+  AIR_LATERAL_RESPONSE:23,
+  AIR_LATERAL_REVERSAL_RESPONSE:37,
+  AIR_LATERAL_SCALE_LOW:.48,
+  AIR_LATERAL_SCALE_HIGH:.41,
+  LANDING_REENGAGE_TIME:.18,
+
+  // Shared jump physics. Preserve manual and monster-ramp strength.
+  GRAVITY:17.8,
   MANUAL_JUMP_VELOCITY:5.9,
   RAMP_JUMP_BASE_VELOCITY:13.4,
   RAMP_JUMP_SPEED_FACTOR:.095,
-  RAMP_RETRIGGER_GRACE:.85
-});
+  RAMP_RETRIGGER_GRACE:.85,
 
+  // Course intelligence/rhythm.
+  COURSE_NORMAL_SPACING_MIN:24,
+  COURSE_NORMAL_SPACING_MAX:32,
+  COURSE_INTENSE_SPACING_MIN:18,
+  COURSE_INTENSE_SPACING_MAX:24,
+  SAFE_ROUTE_ACCELERATION_FACTOR:.72,
+  SAFE_ROUTE_BASE_REACH:.75,
+  SAFE_ROUTE_MIN_REACH:1.6,
+  SAFE_ROUTE_MAX_REACH:6.4,
+  LANDING_CORRIDOR_HALF_WIDTH:4.15
+});
 
 export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
   const range=Math.max(.001,SKI_TUNING.MAX_SPEED-SKI_TUNING.BASE_SPEED);
