@@ -156,8 +156,10 @@ export function createTreeLodSystem({world,entries,terrainHeight}){
   farMesh.receiveShadow=false;
 
   const counters=new Uint16Array(5);
-  const NEAR_END=-64;
-  const MID_END=-132;
+  const NEAR_MIN=58;
+  const NEAR_SPREAD=16;
+  const MID_MIN=126;
+  const MID_SPREAD=20;
 
   function update(time,visualTravel){
     counters.fill(0);
@@ -165,12 +167,16 @@ export function createTreeLodSystem({world,entries,terrainHeight}){
     for(let i=0;i<entries.length;i++){
       const entry=entries[i];
       const ground=terrainHeight(entry.x,entry.z-visualTravel);
+      // Stagger each tree's threshold across a band so an entire forest cluster
+      // never changes LOD on the same frame. The farther band sits deep in fog.
+      const nearEnd=-(NEAR_MIN+entry.colorSeed*NEAR_SPREAD);
+      const midEnd=-(MID_MIN+entry.colorSeed*MID_SPREAD);
 
-      if(entry.z>NEAR_END){
+      if(entry.z>nearEnd){
         const variant=entry.variant%3;
         const mesh=nearMeshes[variant];
         applyInstance(mesh,counters[variant]++,entry,ground,time,0);
-      }else if(entry.z>MID_END){
+      }else if(entry.z>midEnd){
         applyInstance(midMesh,counters[3]++,entry,ground,time,1);
       }else{
         applyInstance(farMesh,counters[4]++,entry,ground,time,2);
@@ -198,6 +204,9 @@ export function createTreeLodSystem({world,entries,terrainHeight}){
     nearMeshes,
     midMesh,
     farMesh,
-    thresholds:{near:Math.abs(NEAR_END),mid:Math.abs(MID_END)}
+    thresholds:{
+      near:[NEAR_MIN,NEAR_MIN+NEAR_SPREAD],
+      mid:[MID_MIN,MID_MIN+MID_SPREAD]
+    }
   };
 }
