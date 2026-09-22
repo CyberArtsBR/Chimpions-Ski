@@ -55,6 +55,17 @@ for(const speed of [T.BASE_SPEED,(T.BASE_SPEED+T.MAX_SPEED)/2,T.MAX_SPEED]){
   assert(Math.abs(high.vx)>Math.abs(low.vx)*.78,'high-speed carving response collapsed relative to opening speed');
 }
 
+// Air control should preserve strong lateral authority without ground-only friction.
+{
+  const ground=makeState({speed:T.BASE_SPEED+6,grip:.82,carveLoad:0});
+  const air=makeState({speed:T.BASE_SPEED+6,air:true,grounded:false,grip:0,carveLoad:0});
+  runCarve(ground,1,.65);
+  runCarve(air,1,.65);
+  assert(Math.abs(air.vx)>=Math.abs(ground.vx)*.72,'air steering lost too much lateral authority');
+  assert(Math.abs(air.vx)<=Math.abs(ground.vx)*1.35,'air steering became excessively stronger than ground');
+  assert.equal(air.airControl,true,'air steering path was not activated');
+}
+
 // Speed progression must be monotonic and capped.
 {
   const dt=1/120;
@@ -84,6 +95,7 @@ for(const speed of [T.BASE_SPEED,(T.BASE_SPEED+T.MAX_SPEED)/2,T.MAX_SPEED]){
   assert(landed,'airborne player never landed');
   assert.equal(s.air,false);
   assert(s.landingPulse>0,'landing did not generate an impact pulse');
+  assert(s.landingReengageTime>0,'landing did not start grip re-engagement window');
 }
 
 console.log('Ski physics invariants OK');

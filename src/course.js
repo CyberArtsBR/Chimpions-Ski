@@ -181,22 +181,28 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='OFFSET_GATE'){
       const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type}));
-      placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type}));
+      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type}));
+      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type}));
       if(intensity>.62){
         const outer=lastThreatSide<=0?T.COURSE_OBJECT_HALF_WIDTH-.55:-(T.COURSE_OBJECT_HALF_WIDTH-.55);
-        placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type}));
+        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type}));
       }
       return;
     }
 
-    // EDGE_THREAT: invalidate one edge at a time without blocking the whole course.
+    // EDGE_THREAT: pressure one edge, but never invade the guaranteed safe corridor.
     let side;
     if(lastThreatSide===0)side=random()<.5?-1:1;
     else side=random()<.68?-lastThreatSide:lastThreatSide;
+    let edgeX=side*rand(9.15,10.72);
+    if(!isOutsideSafeCorridor(edgeX,safeX,gap)){
+      side=-side;
+      edgeX=side*rand(9.15,10.72);
+    }
     lastThreatSide=side;
-    const edgeX=side*rand(9.15,10.72);
-    placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type}));
+    if(isOutsideSafeCorridor(edgeX,safeX,gap)){
+      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type}));
+    }
     if(random()<.58){
       const supportX=clamp(side*rand(5.2,7.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       if(isOutsideSafeCorridor(supportX,safeX,gap)){
@@ -213,34 +219,47 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
   function addBananaEvent(placements,startZ,length,safeHint=0,chance=.64){
     if(random()>chance)return {type:'none',count:0};
+    const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+    const bananaClear=(x,z)=>!placements.some(p=>
+      p.kind!=='banana'&&
+      Math.abs(p.z-z)<3.2&&
+      Math.abs(p.x-x)<1.45
+    );
+    const pushClearBanana=(z,preferredX)=>{
+      const preferred=clamp(preferredX,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      if(bananaClear(preferred,z)){placements.push(banana(z,preferred,safe));return true;}
+      if(bananaClear(safe,z)){placements.push(banana(z,safe,safe));return true;}
+      return false;
+    };
+
     const roll=random();
     const usable=Math.max(24,length-28);
     const firstZ=startZ-rand(15,Math.min(32,usable*.44));
 
     if(roll<.55){
-      const x=clamp(contentX(firstZ,pickBand(),.96),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      placements.push(banana(firstZ,x,clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH)));
-      return {type:'single',count:1};
+      const x=contentX(firstZ,pickBand(),.96);
+      const count=pushClearBanana(firstZ,x)?1:0;
+      return {type:'single',count};
     }
 
     if(roll<.90){
       const secondZ=Math.max(startZ-length+12,firstZ-rand(24,34));
       const firstX=clamp(contentX(firstZ,pickBand(),.92),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       const secondTarget=Math.abs(firstX)>5?firstX*.28:contentX(secondZ,pickBand(),.82);
-      const secondX=clamp(secondTarget,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      placements.push(banana(firstZ,firstX,clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH)));
-      placements.push(banana(secondZ,secondX,clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH)));
-      return {type:'pair',count:2};
+      let count=0;
+      if(pushClearBanana(firstZ,firstX))count++;
+      if(pushClearBanana(secondZ,secondTarget))count++;
+      return {type:'pair',count};
     }
 
-    const direction=Math.abs(safeHint)<2?(random()<.5?-1:1):-Math.sign(safeHint);
+    const direction=Math.abs(safe)<2?(random()<.5?-1:1):-Math.sign(safe);
     const baitX=clamp(
-      safeHint+direction*rand(4.0,6.1),
+      safe+direction*rand(4.0,6.1),
       -T.COURSE_OBJECT_HALF_WIDTH,
       T.COURSE_OBJECT_HALF_WIDTH
     );
-    placements.push(banana(firstZ,baitX,clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH)));
-    return {type:'movement-bait',count:1};
+    const count=pushClearBanana(firstZ,baitX)?1:0;
+    return {type:'movement-bait',count};
   }
 
   function chooseType(difficulty){
@@ -379,16 +398,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         -(T.COURSE_OBJECT_HALF_WIDTH-.25),
         T.COURSE_OBJECT_HALF_WIDTH-.25
       );
-      const rampSafe=safeRoute.constrain(
-        clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH),
-        rampZ,
-        currentSpeed
-      );
+      const rampTarget=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
       const envelope=estimateRampFlightEnvelope(currentSpeed);
 
-      // Readable approach with one formation far enough before the ramp.
+      // Track the route in chronological downhill order: approach first, ramp second.
       const approachZ=startZ-12;
-      const approachSafe=safeRoute.constrain(rampSafe,approachZ,currentSpeed);
+      const approachSafe=safeRoute.constrain(rampTarget,approachZ,currentSpeed);
+      const rampSafe=safeRoute.constrain(rampTarget,rampZ,currentSpeed);
       addFormation(placements,'OFFSET_GATE',approachZ,approachSafe,{kinds:['tree','rock'],intensity:.42});
       if(random()<.34)placements.push(banana(startZ-23,rampX,rampSafe));
 
@@ -402,27 +418,51 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         placements.push(place('log',rampX,rampZ-13.5,rampSafe,{jumpTarget:true}));
       }
 
-      // Keep flight visually/gameplay populated outside the protected landing corridor.
+      // Keep flight visibly populated outside the landing corridor.
       populateFlight(placements,rampZ,rampSafe,envelope,type);
 
       const touchdownZ=rampZ-envelope.landingDistance;
       const landingEndZ=rampZ-envelope.protectedEndDistance;
+
+      // Guarantee visible edge pressure at touchdown without invading the protected corridor.
+      addFormation(
+        placements,
+        'EDGE_THREAT',
+        touchdownZ,
+        rampSafe,
+        {kinds:['tree','rock'],intensity:.34,landingProtected:true}
+      );
+
+      // Resume real pressure shortly after the protected touchdown envelope.
+      const postLandingZ=landingEndZ-16;
+      const postLandingSafe=safeRoute.constrain(rampSafe,postLandingZ,currentSpeed);
+      addFormation(
+        placements,
+        'ISOLATED',
+        postLandingZ,
+        postLandingSafe,
+        {kinds:['rock','tree'],intensity:.30}
+      );
+      if(random()<.38)placements.push(banana(postLandingZ-7,postLandingSafe,postLandingSafe));
+
       pendingLanding={
-        safeX:rampSafe,
+        safeX:postLandingSafe,
+        touchdownSafeX:rampSafe,
         touchdownZ,
         landingEndZ,
+        postLandingZ,
         envelope
       };
 
-      // End this section after touchdown protection; RECOVERY begins with landing-aware state.
-      length=Math.max(112,Math.abs(startZ-landingEndZ)+18);
+      // Keep the section only slightly beyond the first post-landing pressure row.
+      length=Math.max(112,Math.abs(startZ-postLandingZ)+12);
     }
 
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
       length=96;
-      let z=startZ-24;
+      let z=startZ-16;
 
       // Keep first recovery decision reachable from the predicted landing route.
       const firstSafe=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
@@ -447,8 +487,10 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       speed:currentSpeed,
       pendingLanding:pendingLanding?{
         safeX:pendingLanding.safeX,
+        touchdownSafeX:pendingLanding.touchdownSafeX,
         touchdownZ:pendingLanding.touchdownZ,
         landingEndZ:pendingLanding.landingEndZ,
+        postLandingZ:pendingLanding.postLandingZ,
         flightTime:pendingLanding.envelope.flightTime,
         landingDistance:pendingLanding.envelope.landingDistance
       }:null
