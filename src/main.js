@@ -19,6 +19,7 @@ import {getCourseLookahead} from './courseStreaming.js';
 import {resetAirborneScoring,resetHazardScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 import {createStartScreen} from './startScreen.js';
 import {createScorePresentation} from './scorePresentation.js';
+import {createCourseRenderBatches} from './courseRenderBatches.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -124,9 +125,10 @@ function makeBanana(){
   decorateCourseObject(g,'banana');
   return g;
 }
+const rampCourseGeometry=new THREE.BoxGeometry(2.4,.22,3.2);
 function makeRamp(){
   const g=new THREE.Group();
-  const m=new THREE.Mesh(new THREE.BoxGeometry(2.4,.22,3.2),rampMat);m.rotation.x=.18;m.position.y=.34;m.castShadow=m.receiveShadow=true;g.add(m);
+  const m=new THREE.Mesh(rampCourseGeometry,rampMat);m.rotation.x=.18;m.position.y=.34;m.castShadow=m.receiveShadow=true;g.add(m);
   g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.58;decorateCourseObject(g,'ramp');return g;
 }
 function makeLog(){
@@ -162,6 +164,21 @@ function makeOil(){
   return g;
 }
 
+const courseRenderBatches=createCourseRenderBatches({
+  world,
+  prototypes:{
+    tree:makeTree(),
+    rock:makeRock(),
+    log:makeLog(),
+    wideLog:makeWideLog(),
+    oil:makeOil()
+  },
+  capacity:512,
+  renderMinZ:-315,
+  renderMaxZ:28
+});
+const courseBatchComponentCounts=courseRenderBatches.getComponentCounts();
+
 const course=[];
 let courseDirector=null;
 let courseFrame=0;
@@ -177,30 +194,43 @@ function clearActiveRamp(){
   if(activeRamp)activeRamp.userData.activated=false;
   activeRamp=null;
 }
+function countCourseMeshes(item){
+  let count=0;
+  item.traverse?.(child=>{if(child.isMesh)count++;});
+  return count;
+}
 function makeCourseItem(kind){
-  if(kind==='tree')return makeTree();
-  if(kind==='rock')return makeRock();
-  if(kind==='log')return makeLog();
-  if(kind==='wideLog')return makeWideLog();
-  if(kind==='oil')return makeOil();
-  if(kind==='banana')return makeBanana();
-  return makeRamp();
+  if(courseRenderBatches.isBatchedKind(kind))return courseRenderBatches.createHandle(kind);
+  const item=kind==='banana'?makeBanana():makeRamp();
+  item.visible=false;
+  item.userData.sceneRegistered=true;
+  item.userData.courseDrawCalls=countCourseMeshes(item);
+  world.add(item);
+  return item;
 }
 function acquireCourseItem(kind){
   const item=coursePool[kind].pop()||makeCourseItem(kind);
   item.visible=true;
   item.userData.activated=false;
+  item.userData.consumed=false;
   item.userData.triggered=false;
   resetHazardScoring(item);
-  world.add(item);
+  courseRenderBatches.activate(item);
   return item;
 }
 function releaseCourseItem(item){
   if(item===activeRamp)clearActiveRamp();
   else item.userData.activated=false;
+  item.userData.consumed=false;
   item.visible=false;
-  world.remove(item);
+  courseRenderBatches.deactivate(item);
   coursePool[item.userData.kind]?.push(item);
+}
+function removeCourseAt(index){
+  const item=course[index];
+  const last=course.pop();
+  if(index<course.length)course[index]=last;
+  releaseCourseItem(item);
 }
 function addCoursePlacement(placement){
   const item=acquireCourseItem(placement.kind);
@@ -531,8 +561,7 @@ function update(dt){
       }
 
       if(item.position.z>17){
-        course.splice(i,1);
-        releaseCourseItem(item);
+        removeCourseAt(i);
         continue;
       }
 
@@ -559,8 +588,7 @@ function update(dt){
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
-        course.splice(i,1);
-        releaseCourseItem(item);
+        removeCourseAt(i);
         state.bananas++;
         audio.play('banana');
         continue;
@@ -568,22 +596,31 @@ function update(dt){
 
       if(item.userData.kind==='ramp'){
         const approachDepth=player.position.z-item.position.z;
+        const previousApproachDepth=player.position.z-previousItemZ;
         const aligned=dx<=radiusX+.30;
 
-        // Downhill travel is toward -Z. Engage on the uphill/low side (+Z end),
-        // then launch only as the skier reaches the downhill/high lip (-Z end).
-        if(!activeRamp&&!item.userData.activated&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
+        // Downhill travel is toward -Z. Engage on the uphill/low side (+Z end).
+        // If the skier leaves the deck before the lip, cancel the engagement instead
+        // of carrying stale ramp state into an off-ramp launch.
+        if(item.userData.activated&&!aligned){
+          item.userData.activated=false;
+          if(activeRamp===item)activeRamp=null;
+        }
+        if(!activeRamp&&!item.userData.activated&&!item.userData.consumed&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
           item.userData.activated=true;
           activeRamp=item;
         }
-        const atLip=item.userData.activated&&approachDepth<=-1.42&&approachDepth>=-1.78;
+
+        // Crossing-based lip detection is robust at 210 km/h while preserving the
+        // same -1.42 lip threshold used by the previous window test.
+        const crossedLip=item.userData.activated&&aligned&&previousApproachDepth>-1.42&&approachDepth<=-1.42;
         if(item.userData.activated&&!state.air){
-          // Match the tilted deck rather than passing through its rising surface.
           state.y=Math.max(state.y,itemGround+.34+.11*Math.cos(.18)-approachDepth*Math.sin(.18));
           player.position.y=state.y;
         }
-        if(atLip&&!state.air){
+        if(crossedLip&&!state.air){
           item.userData.activated=false;
+          item.userData.consumed=true;
           if(activeRamp===item)activeRamp=null;
           if(launchRamp(state,itemGround)){feedback.onRampTakeoff();skiTrails.breakTrail();}
         }
@@ -645,6 +682,7 @@ function update(dt){
       displaceTerrainChunk(tile.geometry,tile.position.z-state.travel);
     }
   }
+  courseRenderBatches.sync(course,worldDistance!==0);
   const worldSpeed=worldDistance/dt;
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
 
@@ -679,10 +717,33 @@ addEventListener('resize',resize);
 
 window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
+  const batch=courseRenderBatches.getDiagnostics();
+  let standaloneCourseObjects=0;
+  let standaloneCourseDrawCalls=0;
+  for(const item of course){
+    if(item.userData.batchedCourseRender)continue;
+    standaloneCourseObjects++;
+    if(item.visible&&item.position.z>=batch.renderMinZ&&item.position.z<=batch.renderMaxZ){
+      standaloneCourseDrawCalls+=item.userData.courseDrawCalls||0;
+    }
+  }
+  const pooledObjects=Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0);
   return {
     ...state,
     physicsSubsteps,
     activeRamp:!!activeRamp,
+    activeRampState:activeRamp?(activeRamp.userData.consumed?'consumed':'engaged'):'none',
+    activeCourseObjects:course.length,
+    pooledObjects,
+    standaloneCourseObjects,
+    batchedCourseObjects:batch.activeLogical,
+    batchedCourseInstances:batch.renderedInstances,
+    courseBatchDrawCalls:batch.batchDrawCalls,
+    courseDrawCallsEstimate:batch.batchDrawCalls+standaloneCourseDrawCalls,
+    courseLegacyDrawCallsEstimate:batch.legacyDrawCalls+standaloneCourseDrawCalls,
+    courseBatchOverflow:batch.overflow,
+    courseBatchCapacity:batch.capacity,
+    courseBatchComponentCounts,
     courseAhead:Math.max(0,player.position.z-courseWorldEndZ),
     courseLookaheadTarget:getCourseLookahead(state.speed),
     courseEndZ,
@@ -706,6 +767,6 @@ window.chimpionsSki=()=>{
     rigReady:!!skier?.userData?.rigReady,
     modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',
     courseObjects:course.length,
-    pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)
+    pooledCourseObjects:pooledObjects
   };
 };

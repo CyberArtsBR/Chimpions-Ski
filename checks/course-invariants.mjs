@@ -225,7 +225,8 @@ const stream60=streamingProbe(0x5151,T.MAX_SPEED,1/60);
 const stream20=streamingProbe(0x6161,T.MAX_SPEED,.05);
 
 const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
-assert(mainSource.includes('course.splice(i,1);')&&mainSource.includes('releaseCourseItem(item);'),'course recycling/pooling path is missing');
+assert(mainSource.includes('removeCourseAt(i);')&&mainSource.includes('releaseCourseItem(item);'),'course swap-remove recycling/pooling path is missing');
+assert(!mainSource.includes('course.splice(i,1);'),'course hot loop regressed to splice-based removal');
 assert(mainSource.includes('getCourseLookahead(state?.speed??SKI_TUNING.BASE_SPEED)'),'adaptive lookahead hook is missing');
 
 console.log(JSON.stringify({
