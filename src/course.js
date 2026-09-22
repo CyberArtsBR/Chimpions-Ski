@@ -1,6 +1,11 @@
 import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {estimateRampFlightEnvelope} from './rampTrajectory.js';
 import {createSafeRouteTracker} from './courseSafety.js';
+import {
+  COURSE_OBJECT_VISUAL_HALF_WIDTH,
+  clampGameplayObjectX,
+  gameplayObjectCenterLimit
+} from './environmentCorridor.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -89,9 +94,27 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return clamp(lane+routeCenter(z)*.14,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
   }
 
+  function boundedPlacementX(kind,x,safeX,extra={}){
+    let bounded=clampGameplayObjectX(kind,x);
+    if(!PHYSICAL_HAZARDS.has(kind)||extra.jumpTarget)return bounded;
+
+    // If boundary fitting pulled an edge hazard inward, preserve a navigable
+    // center line by deterministically moving it to the nearest valid side.
+    const minGap=(COURSE_OBJECT_VISUAL_HALF_WIDTH[kind]??0)+.36;
+    if(Math.abs(bounded-safeX)>minGap)return bounded;
+
+    const limit=gameplayObjectCenterLimit(kind);
+    const preferred=bounded>=safeX?1:-1;
+    for(const side of [preferred,-preferred]){
+      const candidate=clamp(safeX+side*(minGap+.02),-limit,limit);
+      if(Math.abs(candidate-safeX)>minGap)return candidate;
+    }
+    return bounded;
+  }
+
   const place=(kind,x,z,safeX,extra={})=>({
     kind,
-    x:clamp(x,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
+    x:boundedPlacementX(kind,x,safeX,extra),
     z,
     safeX:clamp(safeX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH),
     ...extra

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const _dummy=new THREE.Object3D();
 const _flagGeometry=new THREE.BufferGeometry();
@@ -20,7 +21,7 @@ function setInstance(mesh,index,x,y,z,ry=0,sx=1,sy=1,sz=1){
   mesh.setMatrixAt(index,_dummy.matrix);
 }
 
-export function createBoundaryMarkers({world,terrainHeight,limit=11.3,countPerSide=18,spacing=15.5}){
+export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,countPerSide=18,spacing=15.5}){
   const count=countPerSide*2;
   const poleMaterial=new THREE.MeshStandardMaterial({
     color:0xf4f8fb,roughness:.58,metalness:.12
@@ -97,5 +98,5 @@ export function createBoundaryMarkers({world,terrainHeight,limit=11.3,countPerSi
   }
 
   reset();
-  return {update,reset,blueMaterial,redMaterial};
+  return {update,reset,blueMaterial,redMaterial,limit};
 }
