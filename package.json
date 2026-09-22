@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build && node scripts/build-version.mjs",
     "preview": "vite preview",
-    "check:core": "node checks/physics-invariants.mjs && node checks/course-invariants.mjs && node checks/airborne-scoring-invariants.mjs",
+    "check:core": "node checks/physics-invariants.mjs && node checks/course-invariants.mjs && node checks/airborne-scoring-invariants.mjs && node checks/audio-invariants.mjs",
     "check": "node --check src/main.js && node --check src/skier.js && node --check src/avatar-system.js && node --check src/input.js && node --check src/audio.js && node --check src/ui.js && node --check src/skiPhysics.js && node --check src/course.js && node --check src/courseSafety.js && node --check src/rampTrajectory.js && node --check src/environment.js && node --check src/snowMaterial.js && node --check src/dayCycle.js && node --check src/boundaryMarkers.js && node --check src/snowParticles.js && node --check src/snowSurfaceDetail.js && node --check src/skiCamera.js && node --check src/startScreen.js && node --check src/scorePresentation.js && node --check src/terrainContact.js && node --check src/snowTrails.js && node --check src/collectibleVisuals.js && node --check src/gameFeedback.js && node --check src/startCameraSequence.js && node --check src/gameplayTuning.js && node --check src/airborneScoring.js && node --check src/courseStreaming.js && npm run check:core"
   },
   "dependencies": {
