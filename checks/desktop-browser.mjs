@@ -3,8 +3,49 @@ import {chromium} from '@playwright/test';
 
 const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:1440,height:900}});
+const BASELINE_SHA='9f6707d113e46e03d94510792110ecaf875288f1';
+const BASELINE_URL='https://chimpions-ski.onrender.com';
+const perf=state=>({
+  calls:state?.rendererCalls??0,
+  triangles:state?.rendererTriangles??0,
+  geometries:state?.rendererGeometries??0,
+  textures:state?.rendererTextures??0
+});
+const deterministicRandom=()=>{let x=0x5eed1234;Math.random=()=>((x=(Math.imul(x,1664525)+1013904223)>>>0)/4294967296);};
+
+async function collectBaselinePerf(){
+  const baselinePage=await browser.newPage({viewport:{width:1440,height:900}});
+  await baselinePage.addInitScript(deterministicRandom);
+  try{
+    let live='';
+    for(let attempt=0;attempt<18&&!live;attempt++){
+      try{
+        const response=await baselinePage.request.get(BASELINE_URL+'/version.json?envperf='+Date.now());
+        if(response.ok())live=(await response.json()).commit||'';
+      }catch{}
+      if(!live)await baselinePage.waitForTimeout(5000);
+    }
+    assert.equal(live,BASELINE_SHA,'Production baseline is not the requested exact main SHA');
+    await baselinePage.goto(BASELINE_URL+'/?test=1&envperf=baseline',{waitUntil:'domcontentloaded',timeout:45000});
+    await baselinePage.waitForFunction(()=>window.chimpionsSki?.().ready,{timeout:45000});
+    await baselinePage.waitForTimeout(180);
+    const menu=perf(await baselinePage.evaluate(()=>window.chimpionsSki()));
+    const baselineStart=baselinePage.getByRole('button',{name:'Start Game'});
+    await baselineStart.waitFor({state:'visible'});
+    await baselineStart.click();
+    await baselinePage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:10000});
+    await baselinePage.waitForTimeout(1000);
+    const playing=perf(await baselinePage.evaluate(()=>window.chimpionsSki()));
+    return {menu,playing};
+  }finally{
+    await baselinePage.close();
+  }
+}
+
+await page.addInitScript(deterministicRandom);
 
 try{
+  const baselinePerf=await collectBaselinePerf();
   await page.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});
 
   const start=page.getByRole('button',{name:'Start Game'});
@@ -80,6 +121,25 @@ try{
   assert.equal(Math.round(playing.speed*3.6),160,'Run must begin at 160 km/h');
   assert(playing.courseLookaheadTarget>280,'Course streaming must remain beyond camera far plane');
   assert(playing.courseAhead>280,'Generated course must remain ahead of the visible camera range');
+
+  await page.waitForTimeout(1000);
+  const localPlaying=perf(await page.evaluate(()=>window.chimpionsSki()));
+  const localMenu=perf(state);
+  const delta=(before,after)=>({
+    calls:after.calls-before.calls,
+    triangles:after.triangles-before.triangles,
+    geometries:after.geometries-before.geometries,
+    textures:after.textures-before.textures
+  });
+  console.log('ENV_RENDER_PERF '+JSON.stringify({
+    baselineSha:BASELINE_SHA,
+    baseline:baselinePerf,
+    branch:{menu:localMenu,playing:localPlaying},
+    delta:{
+      menu:delta(baselinePerf.menu,localMenu),
+      playing:delta(baselinePerf.playing,localPlaying)
+    }
+  }));
 
   console.log('PASS desktop browser integrated start screen / gameplay');
 }finally{
