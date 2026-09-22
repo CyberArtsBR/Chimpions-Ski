@@ -93,12 +93,12 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
     for(let i=0;i<moundCount;i++){
       const e=moundData[i];
       e.z+=dz;
-      if(e.z>18){resetEntry(e,i,false);e.z-=225;}
+      if(e.z>18)e.z-=225;
     }
     for(let i=0;i<ridgeCount;i++){
       const e=ridgeData[i];
       e.z+=dz;
-      if(e.z>18){resetEntry(e,i,true);e.z-=225;}
+      if(e.z>18)e.z-=225;
     }
     refresh();
   }
