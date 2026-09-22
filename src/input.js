@@ -1,5 +1,7 @@
+import {SKI_TUNING} from './gameplayTuning.js';
+
 // Standard mapping supports Xbox/PlayStation pads and generic gamepads.
-const DEADZONE=.20;
+const DEADZONE=SKI_TUNING.CONTROLLER_DEADZONE;
 function axisValue(value=0){
   const raw=Math.max(-1,Math.min(1,Number(value)||0));
   const magnitude=Math.abs(raw);

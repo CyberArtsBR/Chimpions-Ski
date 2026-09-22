@@ -66,6 +66,10 @@ export function stepCarving(state,input,dt){
   );
 
   const headingLimit=THREE.MathUtils.lerp(T.HEADING_LIMIT_LOW,T.HEADING_LIMIT_HIGH,speed01);
+  // Unwind the old turn immediately; edge reversal alone leaves stale heading.
+  if(steer!==0&&state.heading*steer<0){
+    state.heading=THREE.MathUtils.damp(state.heading,0,T.COUNTER_HEADING_RESPONSE*Math.abs(steer),dt);
+  }
   state.heading=clamp(state.heading+state.turnRate*dt,-headingLimit,headingLimit);
   if(steer===0){
     state.heading=THREE.MathUtils.damp(state.heading,0,T.HEADING_RECENTER+speed01*.4,dt);

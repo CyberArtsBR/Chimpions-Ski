@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {disposeAvatarObject} from './avatar-system.js';
+import {SKI_TUNING} from './gameplayTuning.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -166,7 +167,7 @@ export function createFallbackSkier(){
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
-    pose.carve=mix(pose.carve,target,reversing?.24:.14);
+    pose.carve=mix(pose.carve,target,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
     pose.air=mix(pose.air,air?1:0,air?.24:.16);
     pose.landing=mix(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
     pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
@@ -320,7 +321,7 @@ function makeRigController(model){
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(targetCarve)!==Math.sign(pose.carve)&&Math.abs(targetCarve)>.035&&Math.abs(pose.carve)>.035;
-    pose.carve=mix(pose.carve,targetCarve,reversing?.22:.12);
+    pose.carve=mix(pose.carve,targetCarve,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
     pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
     pose.air=mix(pose.air,air?1:0,air?.24:.15);
     const landingTarget=THREE.MathUtils.clamp(landing,0,1);

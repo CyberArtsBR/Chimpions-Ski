@@ -391,8 +391,8 @@ function update(dt){
     const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68;
     const terrainRoll=state.air?0:state.groundRoll*.70;
     player.rotation.x=THREE.MathUtils.damp(player.rotation.x,terrainPitch,7.2,dt);
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.29+terrainRoll,7.4,dt);
-    player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,6,dt);
+    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.29+terrainRoll,SKI_TUNING.PLAYER_BANK_RESPONSE,dt);
+    player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,SKI_TUNING.PLAYER_YAW_RESPONSE,dt);
     skier?.userData?.updateSkiPose?.({
       dt,
       steer:state.edge,
