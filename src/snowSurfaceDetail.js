@@ -30,8 +30,11 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
     roughness:.92,
     metalness:0,
     transparent:true,
-    opacity:.52,
-    depthWrite:true
+    opacity:.42,
+    depthWrite:false,
+    polygonOffset:true,
+    polygonOffsetFactor:-1,
+    polygonOffsetUnits:-1
   });
 
   const mounds=new THREE.InstancedMesh(moundGeometry,moundMaterial,moundCount);
