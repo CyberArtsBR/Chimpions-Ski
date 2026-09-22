@@ -159,6 +159,7 @@ export function createFallbackSkier(){
   }
   const pose={carve:0,air:0,landing:0,speed:0};
   root.userData.fallback=true;
+  root.userData.skiTrackSpacing=.22;
   root.userData.updateSkiPose=({steer=0,air=false,landing=0,speed=12,time=0,groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
@@ -285,6 +286,7 @@ function addSkiEquipment(root,rig){
     skis.push(ski);
   }
   root.userData.skis=skis;
+  root.userData.skiTrackSpacing=placement.spacing;
   return skis;
 }
 
