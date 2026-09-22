@@ -6,6 +6,15 @@ import {createDayCycle} from './dayCycle.js';
 import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
+import {
+  COURSE_FLAG_X,
+  MOUNTAIN_FIELD_LAYOUTS,
+  RIDGE_LAYOUTS,
+  SCENERY_SIDE_MIN_CENTER_X,
+  mountainCenterForSide,
+  mountainVisualHalfWidth,
+  sideForIndex
+} from './environmentCorridor.js';
 
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
@@ -82,7 +91,19 @@ function createRidge(width,height,y,z,color,opacity,seed,segments=26){
   return mesh;
 }
 
-function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin,widthMax,color,snowColor,seed,valleyGap=0}){
+function createSideRidgePair({width,height,y,z,color,opacity,seed,segments=26,innerEdge}){
+  const group=new THREE.Group();
+  const center=innerEdge+width*.5;
+  for(const side of [-1,1]){
+    const ridge=createRidge(width,height,y,z,color,opacity,seed+(side>0?17.3:0),segments);
+    ridge.position.x=side*center;
+    ridge.userData.corridorSide=side;
+    group.add(ridge);
+  }
+  return group;
+}
+
+function createMountainField({count,z,outerEdge,exclusionHalfWidth,baseY,heightMin,heightMax,widthMin,widthMax,color,snowColor,seed}){
   const group=new THREE.Group();
   const mountainGeometry=new THREE.ConeGeometry(1,1,6,1);
   mountainGeometry.rotateY(Math.PI/6);
@@ -110,15 +131,19 @@ function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin
   caps.receiveShadow=false;
 
   for(let i=0;i<count;i++){
-    const t=count===1?.5:i/(count-1);
-    let x=(t-.5)*spreadX+(wave(seed+i*2.17)-.5)*spreadX*.13;
-    if(valleyGap>0&&Math.abs(x)<valleyGap){
-      x=(t<.5?-1:1)*(valleyGap+Math.abs(x)*.28);
-    }
+    const side=sideForIndex(i);
     const depth=(wave(seed+i*4.73)-.5)*15;
     const h=heightMin+wave(seed+i*5.91)*(heightMax-heightMin);
     const w=widthMin+wave(seed+i*7.31)*(widthMax-widthMin);
     const ry=(wave(seed+i*3.37)-.5)*.44;
+    const visualHalfWidth=mountainVisualHalfWidth(w,w*.74,ry);
+    const x=mountainCenterForSide({
+      side,
+      visualHalfWidth,
+      exclusionHalfWidth,
+      outerEdge,
+      jitter01:wave(seed+i*2.17)
+    });
     const peakZ=z+depth;
     setInstance(mountains,i,x,baseY+h*.5,peakZ,w,h,w*.74,ry);
     setInstance(caps,i,x,baseY+h*.83,peakZ-.02,w*.62,h*.34,w*.46,ry);
@@ -126,6 +151,8 @@ function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin
 
   mountains.instanceMatrix.needsUpdate=true;
   caps.instanceMatrix.needsUpdate=true;
+  group.userData.exclusionHalfWidth=exclusionHalfWidth;
+  group.userData.outerEdge=outerEdge;
   group.add(mountains,caps);
   return group;
 }
@@ -222,7 +249,8 @@ function createMovingInstances(count,mesh,makeEntry){
 }
 
 function resetBank(entry,i,deep=false){
-  const side=i%2===0?-1:1;
+  const side=entry.side??sideForIndex(i);
+  entry.side=side;
   entry.x=side*((deep?20:15.5)+wave(i*2.7+11)*(deep?34:22));
   entry.z=-12-wave(i*4.1+21)*215;
   entry.sx=(deep?5.2:2.4)+wave(i*3.4+5)*(deep?7.8:3.8);
@@ -235,10 +263,12 @@ function resetBank(entry,i,deep=false){
 function resetTree(entry,i){
   const cluster=Math.floor(i/6);
   const within=i%6;
-  const side=cluster%2===0?-1:1;
+  const side=entry.side??sideForIndex(cluster);
+  entry.side=side;
   const clusterZ=-16-wave(cluster*4.91+8)*224;
-  const clusterX=side*(18.5+wave(cluster*2.7+4)*34);
+  const clusterX=side*(SCENERY_SIDE_MIN_CENTER_X+4+wave(cluster*2.7+4)*30);
   entry.x=clusterX+(wave(i*5.37+1)-.5)*(8.2+within*.42);
+  if(Math.abs(entry.x)<SCENERY_SIDE_MIN_CENTER_X)entry.x=side*SCENERY_SIDE_MIN_CENTER_X;
   entry.z=clusterZ+(wave(i*6.91+8)-.5)*15.5;
   entry.s=.60+wave(i*4.17+3)*1.22;
   entry.width=.80+wave(i*9.13+12)*.38;
@@ -438,29 +468,41 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const distantValley=createDistantValley(snowMaterials.bank);
   scene.add(distantValley);
   atmosphere.add(
-    createRidge(252,43,1.1,-190,0xd3e2e8,.52,1.2,44),
-    createRidge(230,39,-.3,-164,0xbfd4dd,.62,2.4,40),
-    createRidge(194,33,-1.8,-132,0x94b3c0,.74,5.9,36),
-    createRidge(154,25,-3.1,-101,0x6d91a1,.84,9.1,30),
+    createSideRidgePair({
+      ...RIDGE_LAYOUTS.far,height:43,y:1.1,z:-190,
+      color:0xd3e2e8,opacity:.52,seed:1.2,segments:44
+    }),
+    createSideRidgePair({
+      ...RIDGE_LAYOUTS.midFar,height:39,y:-.3,z:-164,
+      color:0xbfd4dd,opacity:.62,seed:2.4,segments:40
+    }),
+    createSideRidgePair({
+      ...RIDGE_LAYOUTS.mid,height:33,y:-1.8,z:-132,
+      color:0x94b3c0,opacity:.74,seed:5.9,segments:36
+    }),
+    createSideRidgePair({
+      ...RIDGE_LAYOUTS.near,height:25,y:-3.1,z:-101,
+      color:0x6d91a1,opacity:.84,seed:9.1,segments:30
+    }),
     createMountainField({
-      count:12,z:-166,spreadX:204,baseY:-5.6,
+      count:12,z:-166,...MOUNTAIN_FIELD_LAYOUTS.far,baseY:-5.6,
       heightMin:30,heightMax:47,widthMin:18,widthMax:30,
-      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4,valleyGap:21
+      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4
     }),
     createMountainField({
-      count:11,z:-132,spreadX:164,baseY:-5.3,
+      count:11,z:-132,...MOUNTAIN_FIELD_LAYOUTS.midFar,baseY:-5.3,
       heightMin:25,heightMax:38,widthMin:16,widthMax:25,
-      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7,valleyGap:16
+      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7
     }),
     createMountainField({
-      count:9,z:-99,spreadX:122,baseY:-5.0,
+      count:9,z:-99,...MOUNTAIN_FIELD_LAYOUTS.mid,baseY:-5.0,
       heightMin:19,heightMax:30,widthMin:13,widthMax:21,
-      color:0x536f7b,snowColor:0xf7fcff,seed:47.2,valleyGap:11
+      color:0x536f7b,snowColor:0xf7fcff,seed:47.2
     }),
     createMountainField({
-      count:7,z:-73,spreadX:96,baseY:-5.6,
+      count:7,z:-73,...MOUNTAIN_FIELD_LAYOUTS.near,baseY:-5.6,
       heightMin:14,heightMax:22,widthMin:11,widthMax:17,
-      color:0x3f606f,snowColor:0xf8fcff,seed:64.8,valleyGap:14
+      color:0x3f606f,snowColor:0xf8fcff,seed:64.8
     }),
     createDistantForest(52,81)
   );
@@ -558,7 +600,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   for(const layer of snowLayers)scene.add(layer.points);
   const snowParticles=createSnowParticles({scene});
   const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank});
-  const boundaryMarkers=createBoundaryMarkers({world,terrainHeight,limit:11.3,countPerSide:18,spacing:15.5});
+  const boundaryMarkers=createBoundaryMarkers({world,terrainHeight,limit:COURSE_FLAG_X,countPerSide:18,spacing:15.5});
   const contactShadow=makeContactShadow(scene);
   const dayCycle=createDayCycle({
     scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
