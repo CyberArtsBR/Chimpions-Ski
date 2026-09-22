@@ -406,9 +406,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       for(let i=placements.length-1;i>=formationStart;i--){
         const placement=placements[i];
         const actualDistance=rampZ-placement.z;
-        const invadesTouchdown=
+        const insideTouchdownWindow=
           actualDistance>=envelope.protectedStartDistance&&
-          actualDistance<=envelope.protectedEndDistance&&
+          actualDistance<=envelope.protectedEndDistance;
+        if(insideTouchdownWindow)placement.landingProtected=true;
+        const invadesTouchdown=
+          insideTouchdownWindow&&
           Math.abs(placement.x-safeX)<envelope.corridorHalfWidth;
         if(invadesTouchdown)placements.splice(i,1);
       }
