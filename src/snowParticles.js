@@ -97,6 +97,8 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
     pool.life[i]=(landing?.56:.31)+r1*(landing?.64:.40);
     pool.maxLife[i]=pool.life[i];
   }
+  pool.sizeAttribute.needsUpdate=true;
+  pool.alphaAttribute.needsUpdate=true;
 }
 
 export function createSnowParticles({scene}){
