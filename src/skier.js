@@ -28,7 +28,7 @@ export function createFallbackSkier(){
   }
   const pose={carve:0,air:0,landing:0,speed:0};
   root.userData.fallback=true;
-  root.userData.updateSkiPose=({steer=0,air=false,landing=0,speed=12,time=0}={})=>{
+  root.userData.updateSkiPose=({steer=0,air=false,landing=0,speed=12,time=0,groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
     pose.carve=THREE.MathUtils.lerp(pose.carve,reversing?0:target,reversing?.24:.14);
@@ -59,9 +59,10 @@ export function createFallbackSkier(){
     skis.forEach((ski,index)=>{
       const side=index===0?-1:1;
       ski.rotation.y=THREE.MathUtils.lerp(ski.rotation.y,-pose.carve*.065+side*.018,.18);
-      ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-pose.carve*.075,.18);
-      ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,pose.air*.055-pose.landing*.025,.18);
-      ski.position.y=THREE.MathUtils.lerp(ski.position.y,.12+pose.air*.025-pose.landing*.012,.18);
+      ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
+      ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,pose.air*.055-pose.landing*.025+groundPitch*.28,.18);
+      const localGround=(side<0?leftGround:rightGround)-centerGround;
+      ski.position.y=THREE.MathUtils.lerp(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
     });
   };
   return root;
@@ -257,20 +258,26 @@ export async function loadSkier(url='/models/default.glb'){
       const landing=pose?.landing??THREE.MathUtils.clamp(state.landing||0,0,1);
       const speed=pose?.speed??THREE.MathUtils.clamp(((state.speed||12)-12)/19,0,1);
 
+      const groundPitch=THREE.MathUtils.clamp(state.groundPitch||0,-.18,.18);
+      const groundRoll=THREE.MathUtils.clamp(state.groundRoll||0,-.18,.18);
+      const leftGround=state.leftGround??state.centerGround??0;
+      const rightGround=state.rightGround??state.centerGround??0;
+      const centerGround=state.centerGround??0;
       skis.forEach((ski,index)=>{
         const side=index===0?-1:1;
         const rest=ski.userData.restPosition;
         const outside=Math.max(0,carve*-side);
         const inside=Math.max(0,carve*side);
+        const localGround=(side<0?leftGround:rightGround)-centerGround;
 
         // Yaw follows the carve, roll provides a visible but restrained edge angle.
         ski.rotation.y=THREE.MathUtils.lerp(ski.rotation.y,-carve*.065+side*.012,.18);
-        ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-carve*.075,.18);
-        ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,air*.055-landing*.026,.18);
+        ski.rotation.z=THREE.MathUtils.lerp(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
+        ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,air*.055-landing*.026+groundPitch*.28,.18);
 
-        // Preserve avatar-specific spacing while allowing a tiny inside/outside stance shift.
+        // Preserve avatar-specific spacing while allowing a tiny terrain-contact correction.
         ski.position.x=THREE.MathUtils.lerp(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);
-        ski.position.y=THREE.MathUtils.lerp(ski.position.y,rest.y+air*.026-landing*.012-speed*.004,.18);
+        ski.position.y=THREE.MathUtils.lerp(ski.position.y,rest.y+air*.026-landing*.012-speed*.004+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
         ski.position.z=THREE.MathUtils.lerp(ski.position.z,rest.z+air*.018,.18);
       });
     };

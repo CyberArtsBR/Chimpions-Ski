@@ -7,6 +7,8 @@ import {createSkiEnvironment,decorateCourseObject} from './environment.js';
 import {loadAvatarCatalog,randomAvatar,createAvatarSelector} from './avatar-system.js';
 import {progressSpeed,stepCarving,stepAir,launchRamp} from './skiPhysics.js';
 import {createCourseDirector,getCourseDifficulty} from './course.js';
+import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
+import {createSkiCamera} from './skiCamera.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -42,6 +44,7 @@ scene.fog=new THREE.FogExp2(0xdff4ff,.021);
 const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,180);
 camera.position.set(0,6.1,10.5);
 camera.lookAt(0,1,-12);
+const skiCamera=createSkiCamera(camera);
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
@@ -71,8 +74,14 @@ const logMat=new THREE.MeshStandardMaterial({color:0x7d5134,roughness:.92});
 
 const tiles=[];
 for(let i=0;i<9;i++){
-  const tile=new THREE.Mesh(new THREE.PlaneGeometry(32,28,1,1),i%2?snowMat:shadowSnow);
-  tile.rotation.x=-Math.PI/2;tile.position.set(0,0,-i*28+8);tile.receiveShadow=true;world.add(tile);tiles.push(tile);
+  const geometry=new THREE.PlaneGeometry(32,28,18,18);
+  const tile=new THREE.Mesh(geometry,i%2?snowMat:shadowSnow);
+  tile.rotation.x=-Math.PI/2;
+  tile.position.set(0,0,-i*28+8);
+  displaceTerrainChunk(geometry,tile.position.z);
+  tile.receiveShadow=true;
+  world.add(tile);
+  tiles.push(tile);
 }
 
 for(let i=0;i<12;i++){
@@ -143,14 +152,7 @@ let courseFrame=0;
 function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 }
-function terrainWave(z){
-  return Math.sin((-z)*.055)*.085+Math.sin((-z)*.019)*.055;
-}
-function terrainHeight(x,z){
-  const broad=terrainWave(z);
-  const cross=Math.sin(x*.34+z*.012)*.018;
-  return broad+cross;
-}
+const coursePool={tree:[],rock:[],log:[],banana:[],ramp:[]};
 function makeCourseItem(kind){
   if(kind==='tree')return makeTree();
   if(kind==='rock')return makeRock();
@@ -158,8 +160,20 @@ function makeCourseItem(kind){
   if(kind==='banana')return makeBanana();
   return makeRamp();
 }
+function acquireCourseItem(kind){
+  const item=coursePool[kind].pop()||makeCourseItem(kind);
+  item.visible=true;
+  item.userData.activated=false;
+  world.add(item);
+  return item;
+}
+function releaseCourseItem(item){
+  item.visible=false;
+  world.remove(item);
+  coursePool[item.userData.kind]?.push(item);
+}
 function addCoursePlacement(placement){
-  const item=makeCourseItem(placement.kind);
+  const item=acquireCourseItem(placement.kind);
   item.position.x=placement.x;
   item.position.z=placement.z;
   item.position.y=terrainHeight(item.position.x,item.position.z)+(item.userData.yOffset||0);
@@ -169,7 +183,6 @@ function addCoursePlacement(placement){
   item.userData.activated=false;
   item.userData.landingZone=!!placement.landingZone;
   item.userData.jumpTarget=!!placement.jumpTarget;
-  world.add(item);
   course.push(item);
 }
 function fillCourse(difficulty=0){
@@ -182,8 +195,7 @@ function fillCourse(difficulty=0){
   }
 }
 function resetCourse(difficulty=0){
-  for(const item of course)world.remove(item);
-  course.length=0;
+  while(course.length)releaseCourseItem(course.pop());
   courseDirector.reset();
   fillCourse(difficulty);
 }
@@ -213,7 +225,9 @@ function emitTrack(x,z,steer){
   for(const side of [-1,1]){
     const mark=trackPool[trackCursor++%trackPool.length];
     mark.visible=true;mark.material.opacity=.42;
-    mark.position.set(x+side*.23,.014,z-.5);
+    const markX=x+side*.23;
+    const markZ=z-.5;
+    mark.position.set(markX,terrainHeight(markX,markZ-state.travel)+.018,markZ);
     mark.rotation.set(0,-steer*.13+side*steer*.018,0);
   }
 }
@@ -256,7 +270,7 @@ async function setAvatar(entry){
   }finally{ready=true;}
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
@@ -270,14 +284,18 @@ function control(){
 }
 function reset(){
   audio.play('menu',.5);
-  Object.assign(state,{mode:'playing',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0});
+  Object.assign(state,{mode:'playing',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.42;}sprayLife.fill(0);
-  courseFrame=0;resetCourse(0);
+  courseFrame=0;resetCourse(0);skiCamera.reset();
   $('overlay').hidden=true;$('crash-copy').innerHTML='';
 }
-function crash(){
+function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
+  state.crashType=['tree','rock','log'].includes(kind)?kind:'tree';
+  state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
+  state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
+  state.crashTime=0;
   state.mode='crashed';audio.play('crash',.9);
   state.best=Math.max(state.best,Math.floor(state.distance));
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
@@ -303,19 +321,30 @@ function update(dt){
 
     stepCarving(state,steer,dt);
     state.rampGrace=Math.max(0,state.rampGrace-dt);
-    const groundY=.12+terrainHeight(state.x,player.position.z-state.travel);
+
+    const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading);
+    dampTerrainContact(contactTarget,state,dt);
+    const groundY=.12+state.centerGround;
     const landing=stepAir(state,dt,groundY);
-    if(landing.landed)audio.play('land',.55);
+    if(landing.landed)audio.play('land',landing.quality==='clean'?.5:.62);
 
     player.position.x=state.x;player.position.y=state.y;
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.30,7,dt);
+    const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68;
+    const terrainRoll=state.air?0:state.groundRoll*.70;
+    player.rotation.x=THREE.MathUtils.damp(player.rotation.x,terrainPitch,7.2,dt);
+    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-state.edge*.29+terrainRoll,7.4,dt);
     player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.heading*.58,6,dt);
     skier?.userData?.updateSkiPose?.({
       steer:state.edge,
       air:state.air,
       landing:state.landingPulse,
       speed:state.speed,
-      time:performance.now()/1000
+      time:performance.now()/1000,
+      groundPitch:state.groundPitch,
+      groundRoll:state.groundRoll,
+      leftGround:state.leftGround,
+      rightGround:state.rightGround,
+      centerGround:state.centerGround
     });
     if(!state.air){
       trackTimer-=dt;
@@ -335,8 +364,8 @@ function update(dt){
       if(item.userData.kind==='banana')item.rotation.y+=dt*2.8;
 
       if(item.position.z>17){
-        world.remove(item);
         course.splice(i,1);
+        releaseCourseItem(item);
         continue;
       }
 
@@ -359,8 +388,10 @@ function update(dt){
       }
 
       if(item.userData.kind==='ramp'){
-        const onDeck=item.position.z>=player.position.z-1.62&&item.position.z<=player.position.z+.52;
-        if(!item.userData.activated&&!state.air&&state.rampGrace<=0&&onDeck&&dx<=radiusX+.18){
+        const approachDepth=player.position.z-item.position.z;
+        const onDeck=approachDepth>=-.20&&approachDepth<=1.72;
+        const aligned=dx<=radiusX+.28;
+        if(!item.userData.activated&&!state.air&&state.rampGrace<=0&&onDeck&&aligned){
           item.userData.activated=true;
           if(launchRamp(state,itemGround))audio.play('ramp');
         }
@@ -371,7 +402,7 @@ function update(dt){
       const requiredClearance=item.userData.clearance??.9;
       if(state.air&&clearance>requiredClearance)continue;
 
-      crash();
+      crash(item.userData.kind,item);
       break;
     }
 
@@ -381,14 +412,15 @@ function update(dt){
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
   }else if(state.mode==='crashed'){
-    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,.95,5,dt);
+    state.crashTime+=dt;
+    player.rotation.z=THREE.MathUtils.damp(player.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
   }
   for(const tile of tiles){
     tile.position.z+=state.mode==='playing'?state.speed*dt:0;
-    const tileWorldZ=tile.position.z-state.travel;
-    tile.position.y=terrainHeight(0,tileWorldZ)*.65;
-    tile.rotation.x=-Math.PI/2+Math.sin((-tileWorldZ)*.045)*.006;
-    if(tile.position.z>22)tile.position.z-=tiles.length*28;
+    if(tile.position.z>22){
+      tile.position.z-=tiles.length*28;
+      displaceTerrainChunk(tile.geometry,tile.position.z-state.travel);
+    }
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
   for(const mark of trackPool){
@@ -434,15 +466,7 @@ function update(dt){
 function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
-  const speed01=THREE.MathUtils.clamp((state.speed-12)/19,0,1);
-  const desiredCameraX=state.x*.26-state.heading*1.05;
-  camera.position.x=THREE.MathUtils.damp(camera.position.x,desiredCameraX,2.55,dt);
-  camera.position.y=THREE.MathUtils.damp(camera.position.y,6.1+speed01*.55+state.y*.12,2.4,dt);
-  camera.position.z=THREE.MathUtils.damp(camera.position.z,10.5+speed01*1.2,2.2,dt);
-  const targetFov=55+speed01*5;
-  camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,2.5,dt);camera.updateProjectionMatrix();
-  camera.lookAt(camera.position.x*.14+state.heading*.42,1.05,-12.8-speed01*1.8);
-  camera.rotation.z=THREE.MathUtils.damp(camera.rotation.z,-state.edge*(.012+speed01*.018),3.5,dt);
+  skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }
@@ -454,4 +478,4 @@ function resize(){
 }
 addEventListener('resize',resize);
 
-window.chimpionsSki=()=>({...state,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,courseObjects:course.length});
+window.chimpionsSki=()=>({...state,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});

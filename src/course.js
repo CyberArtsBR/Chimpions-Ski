@@ -20,6 +20,7 @@ export function getCourseDifficulty(distance=0,speed=12){
 export function createCourseDirector({routeCenter,random=Math.random}){
   let lastType='RECOVERY';
   let sectionIndex=0;
+  const opening=['OPEN CARVE','GATE','BANANA LINE','RAMP','RECOVERY','FOREST','OPEN CARVE','ROCK SLALOM'];
 
   const route=(z,offset=0)=>clamp(routeCenter(z)+offset,-5.7,5.7);
   const place=(kind,x,z,safeX,extra={})=>({
@@ -36,21 +37,28 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   const banana=(z,safeX,offset=0)=>place('banana',safeX+offset,z,safeX);
 
   function chooseType(difficulty){
+    if(sectionIndex<opening.length)return opening[sectionIndex];
     if(lastType==='RAMP'||lastType==='LOG JUMP')return 'RECOVERY';
 
-    let pool;
-    if(difficulty<.24){
-      pool=['OPEN CARVE','BANANA LINE','GATE','OPEN CARVE','RECOVERY'];
-    }else if(difficulty<.58){
-      pool=['OPEN CARVE','GATE','BANANA LINE','FOREST','ROCK SLALOM','RAMP','RECOVERY'];
-    }else{
-      pool=['GATE','FOREST','ROCK SLALOM','RAMP','LOG JUMP','OPEN CARVE','BANANA LINE','RECOVERY'];
-    }
+    const transitions={
+      'RECOVERY':['OPEN CARVE','BANANA LINE','FOREST'],
+      'OPEN CARVE':['GATE','BANANA LINE','ROCK SLALOM','FOREST'],
+      'GATE':['BANANA LINE','OPEN CARVE','RAMP'],
+      'BANANA LINE':['RAMP','OPEN CARVE','GATE'],
+      'FOREST':['OPEN CARVE','BANANA LINE'],
+      'ROCK SLALOM':['OPEN CARVE','RAMP','GATE']
+    };
+    let options=[...(transitions[lastType]||['OPEN CARVE'])];
 
-    let index=Math.floor(random()*pool.length);
-    let type=pool[index];
-    if(type===lastType&&pool.length>1)type=pool[(index+1)%pool.length];
-    return type;
+    if(difficulty<.30){
+      options=options.filter(type=>type!=='ROCK SLALOM');
+    }
+    if(difficulty>.62&&['OPEN CARVE','GATE','ROCK SLALOM'].includes(lastType)){
+      options.push('LOG JUMP');
+    }
+    if(difficulty>.45&&lastType==='OPEN CARVE')options.push('RAMP');
+
+    return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
 
   function next({startZ,difficulty=0}){
@@ -101,26 +109,27 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     if(type==='RAMP'){
-      length=34;
+      length=36;
       const rampZ=startZ-7;
       const safeX=route(rampZ,Math.sin(sectionPhase)*.55);
       placements.push(banana(startZ-3.4,route(startZ-3.4,Math.sin(sectionPhase)*.35)));
       placements.push(place('ramp',safeX,rampZ,safeX,{landingZone:true}));
-      placements.push(banana(rampZ-4.2,route(rampZ-4.2,Math.sin(sectionPhase)*.45)));
-      placements.push(banana(rampZ-8.2,route(rampZ-8.2,Math.sin(sectionPhase)*.52)));
-      placements.push(place('tree',safeX-4.5,rampZ-1.4,safeX));
-      placements.push(place('tree',safeX+4.5,rampZ-1.4,safeX));
+      placements.push(banana(rampZ-4.4,route(rampZ-4.4,Math.sin(sectionPhase)*.40)));
+      placements.push(banana(rampZ-8.6,route(rampZ-8.6,Math.sin(sectionPhase)*.48)));
+      placements.push(banana(rampZ-12.8,route(rampZ-12.8,Math.sin(sectionPhase)*.42)));
+      placements.push(place('tree',safeX-4.6,rampZ-1.4,safeX));
+      placements.push(place('tree',safeX+4.6,rampZ-1.4,safeX));
     }
 
     if(type==='RECOVERY'){
-      length=27;
+      length=29;
       for(let i=0;i<4;i++){
-        const z=startZ-4-i*5.1;
-        const safeX=route(z,Math.sin(sectionPhase+i*.5)*.75);
+        const z=startZ-4-i*5.3;
+        const safeX=route(z,Math.sin(sectionPhase+i*.5)*.72);
         placements.push(banana(z,safeX));
       }
-      const safeX=route(startZ-23);
-      placements.push(place('rock',safeX+(sectionIndex%2?-4.2:4.2),startZ-23,safeX));
+      const safeX=route(startZ-25);
+      placements.push(place('rock',safeX+(sectionIndex%2?-4.3:4.3),startZ-25,safeX));
     }
 
     if(type==='FOREST'){
@@ -129,40 +138,40 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const spacing=5.5-difficulty*.45;
       for(let i=0;i<rows;i++){
         const z=startZ-3.8-i*spacing;
-        const safeX=route(z,Math.sin(sectionPhase+i*.66)*1.25);
-        placements.push(...sidePair('tree',z,safeX,3.05-difficulty*.12));
+        const safeX=route(z,Math.sin(sectionPhase+i*.66)*1.22);
+        placements.push(...sidePair('tree',z,safeX,3.10-difficulty*.10));
         if(i%2===1){
           const outerSide=i%4===1?-1:1;
-          placements.push(place('tree',safeX+outerSide*5.15,z-1.4,safeX));
+          placements.push(place('tree',safeX+outerSide*5.2,z-1.4,safeX));
         }
-        if(i<rows-1)placements.push(banana(z-2.2,route(z-2.2,Math.sin(sectionPhase+(i+.4)*.66)*1.25)));
+        if(i<rows-1)placements.push(banana(z-2.2,route(z-2.2,Math.sin(sectionPhase+(i+.4)*.66)*1.22)));
       }
     }
 
     if(type==='ROCK SLALOM'){
       length=34;
       const rows=5+Math.round(difficulty*2);
-      const spacing=5.25-difficulty*.45;
+      const spacing=5.25-difficulty*.42;
       for(let i=0;i<rows;i++){
         const z=startZ-3.5-i*spacing;
-        const pathOffset=Math.sin(sectionPhase+i*.72)*1.15;
+        const pathOffset=Math.sin(sectionPhase+i*.72)*1.12;
         const safeX=route(z,pathOffset);
         const side=i%2?-1:1;
-        placements.push(place('rock',safeX+side*(2.25-difficulty*.12),z,safeX));
-        placements.push(banana(z-1.9,route(z-1.9,pathOffset-side*.55)));
+        placements.push(place('rock',safeX+side*(2.30-difficulty*.10),z,safeX));
+        placements.push(banana(z-1.9,route(z-1.9,pathOffset-side*.52)));
       }
     }
 
     if(type==='LOG JUMP'){
-      length=36;
+      length=38;
       const rampZ=startZ-6.2;
-      const safeX=route(rampZ,Math.sin(sectionPhase)*.5);
+      const safeX=route(rampZ,Math.sin(sectionPhase)*.46);
       placements.push(place('ramp',safeX,rampZ,safeX,{landingZone:true}));
-      placements.push(banana(rampZ-2.8,safeX));
-      placements.push(place('log',route(rampZ-7.2,Math.sin(sectionPhase)*.48),rampZ-7.2,safeX,{jumpTarget:true}));
-      placements.push(banana(rampZ-11.2,route(rampZ-11.2,Math.sin(sectionPhase)*.4)));
-      placements.push(place('tree',safeX-4.45,rampZ-1.1,safeX));
-      placements.push(place('tree',safeX+4.45,rampZ-1.1,safeX));
+      placements.push(banana(rampZ-2.7,safeX));
+      placements.push(place('log',route(rampZ-7.4,Math.sin(sectionPhase)*.44),rampZ-7.4,safeX,{jumpTarget:true}));
+      placements.push(banana(rampZ-11.8,route(rampZ-11.8,Math.sin(sectionPhase)*.36)));
+      placements.push(place('tree',safeX-4.55,rampZ-1.1,safeX));
+      placements.push(place('tree',safeX+4.55,rampZ-1.1,safeX));
     }
 
     for(const placement of placements)placement.section=type;
