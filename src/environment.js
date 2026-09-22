@@ -137,6 +137,31 @@ function setInstance(mesh,index,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0){
   mesh.setMatrixAt(index,_dummy.matrix);
 }
 
+function createDistantForest(count,seed=81){
+  const geometry=new THREE.ConeGeometry(1,2.8,7);
+  const material=new THREE.MeshStandardMaterial({
+    color:0x315861,
+    roughness:1,
+    metalness:0,
+    flatShading:true
+  });
+  material.userData.atmosphereRole='mountain';
+  const mesh=new THREE.InstancedMesh(geometry,material,count);
+  mesh.frustumCulled=false;
+
+  for(let i=0;i<count;i++){
+    const side=i%2===0?-1:1;
+    const rank=Math.floor(i/2);
+    const x=side*(15+wave(i*2.91+seed)*43+rank*.18);
+    const z=-64-wave(i*4.77+seed)*42;
+    const h=1.0+wave(i*6.13+seed)*1.6;
+    const w=.72+wave(i*8.21+seed)*.70;
+    setInstance(mesh,i,x,-3.2+h*.55,z,w,h,w,wave(i*3.31+seed)*Math.PI);
+  }
+  mesh.instanceMatrix.needsUpdate=true;
+  return mesh;
+}
+
 function createMovingInstances(count,mesh,makeEntry){
   const entries=new Array(count);
   for(let i=0;i<count;i++)entries[i]=makeEntry(i);
@@ -378,7 +403,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       count:7,z:-73,spreadX:96,baseY:-5.6,
       heightMin:14,heightMax:22,widthMin:11,widthMax:17,
       color:0x3f606f,snowColor:0xf8fcff,seed:64.8,valleyGap:14
-    })
+    }),
+    createDistantForest(52,81)
   );
 
   const ambient=new THREE.HemisphereLight(0xe8f8ff,0x6d879a,1.36);
@@ -519,6 +545,10 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
     surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
+    _snowDetailMaterial.color.copy(snowMaterials.bank.color);
+    _rockSnowMaterial.color.copy(snowMaterials.bank.color);
+    _logSnowMaterial.color.copy(snowMaterials.bank.color);
+    for(const layer of snowLayers)layer.points.material.color.copy(snowMaterials.terrain.color);
 
     for(let i=0;i<banks.entries.length;i++){
       const e=banks.entries[i];e.z+=worldSpeed*dt;
@@ -548,7 +578,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
           if(p[k+2]>13){
             p[k+2]=layer.zMin+wave(i*3.2+time)*9;
             p[k]=(wave(i*4.9+time)-.5)*layer.xSpread*2;
-            p[k+1]=.06+wave(i*2.8+time)*(.65+speed01*.65);
+            p[k+1]=groundY-.06+wave(i*2.8+time)*(.65+speed01*.65);
           }
         }else{
           p[k+1]-=dt*(layer.fall[i]+speed*.018);
