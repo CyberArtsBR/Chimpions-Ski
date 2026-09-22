@@ -12,6 +12,7 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
+import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 
@@ -179,6 +180,7 @@ let trailTimer=0;
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
+const startCamera=createStartCameraSequence({camera,skiCamera,player});
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 const audio=createSkiAudio();
 const ui=createGameUI({
@@ -248,7 +250,7 @@ function resetRunState(mode='countdown'){
   Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trailTimer=0;skiTrails.reset();
-  courseFrame=0;resetCourse(0);skiCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
+  courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
   if(!ready)return;
@@ -256,10 +258,13 @@ function beginRun(){
   audio.play('menu',.38);
   resetRunState('countdown');
   ui.prepareRun({best:state.best});
+  startCamera.begin(state,performance.now());
   ui.startCountdown({
     entry:selectedAvatar,
+    durationMs:START_CAMERA_SEQUENCE_MS,
     onGo:()=>{
       if(state.mode!=='countdown')return;
+      startCamera.finish(state);
       state.mode='playing';
       ui.setMode('playing');
       last=performance.now();
@@ -297,7 +302,10 @@ function crash(kind='tree',item=null){
 }
 addEventListener('keydown',e=>{
   keys.add(e.code);
-  if(e.code==='Space'&&!e.repeat){jumpKeyPressed=true;e.preventDefault();}
+  if(e.code==='Space'&&!e.repeat){
+    if(state.mode==='playing')jumpKeyPressed=true;
+    e.preventDefault();
+  }
 });
 addEventListener('keyup',e=>keys.delete(e.code));
 
@@ -432,6 +440,19 @@ function update(dt){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
+  }else if(state.mode==='countdown'){
+    skier?.userData?.updateSkiPose?.({
+      steer:0,
+      air:false,
+      landing:0,
+      speed:state.speed,
+      time:performance.now()/1000,
+      groundPitch:state.groundPitch,
+      groundRoll:state.groundRoll,
+      leftGround:state.leftGround,
+      rightGround:state.rightGround,
+      centerGround:state.centerGround
+    });
   }else if(state.mode==='crashed'){
     state.crashTime+=dt;
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
@@ -455,7 +476,8 @@ function update(dt){
 function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
-  skiCamera.update(state,dt);
+  if(state.mode==='countdown')startCamera.update(state,now);
+  else skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }

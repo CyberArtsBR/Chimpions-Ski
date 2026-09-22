@@ -36,12 +36,19 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   hud?.append(landingCallout);
   let landingTimer=0;
 
+  const speedUpCallout=document.createElement('div');
+  speedUpCallout.className='speed-up-callout';
+  speedUpCallout.hidden=true;
+  speedUpCallout.textContent='SPEED UP';
+  hud?.append(speedUpCallout);
+  let speedUpTimer=0;
+
   const countdown=document.createElement('div');
   countdown.id='run-countdown';
   countdown.className='run-countdown';
   countdown.hidden=true;
   countdown.setAttribute('aria-live','assertive');
-  countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div><div class="countdown-control">SPACE / A · JUMP</div>';
+  countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div><div class="countdown-control">GET READY · SPACE / A · JUMP AFTER GO</div>';
   document.body.append(countdown);
 
   const pause=document.createElement('div');
@@ -123,6 +130,10 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     clearTimeout(resultTimer);
     resultTimer=0;
     countdownToken++;
+    clearTimeout(landingTimer);
+    clearTimeout(speedUpTimer);
+    landingCallout.hidden=true;
+    speedUpCallout.hidden=true;
     previousBananas=0;
     previousSpeedBucket=0;
     bestDistance=Math.max(0,Number(best)||0);
@@ -136,7 +147,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     setMode('countdown');
     updateHud({distance:0,bananas:0,speed:12,best:bestDistance});
   }
-  function startCountdown({entry,onGo}={}){
+  function startCountdown({entry,onGo,durationMs=3200}={}){
     const token=++countdownToken;
     const image=byId('countdown-avatar-image');
     const name=byId('countdown-avatar-name');
@@ -148,32 +159,42 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       }else image.textContent='🐵';
     }
     const number=byId('countdown-number');
-    const frames=[['3',0],['2',430],['1',860],['GO',1290]];
+    const step=durationMs/4;
+    const frames=[
+      ['3',0,'countTick'],
+      ['2',step,'countTick'],
+      ['1',step*2,'countTickStrong'],
+      ['0',step*3,'countTickStrong'],
+      ['GO',durationMs,'go']
+    ];
     countdown.hidden=false;
     countdown.classList.add('is-active');
-    for(const [label,delay] of frames){
+    for(const [label,delay,sound] of frames){
       setTimeout(()=>{
         if(token!==countdownToken)return;
         number.textContent=label;
+        number.classList.toggle('is-go',label==='GO');
         number.classList.remove('tick');
         void number.offsetWidth;
         number.classList.add('tick');
-        if(label!=='GO')audio.play('menu',.30);
-        else audio.play('go',.62);
+        audio.play(sound,label==='GO'?.58:label==='1'?.34:label==='0'?.38:.27);
+        if(label==='GO'){
+          countdown.classList.add('is-launching');
+          setMode('playing');
+          onGo?.();
+          setTimeout(()=>{
+            if(token!==countdownToken)return;
+            countdown.classList.remove('is-active','is-launching');
+            countdown.hidden=true;
+          },260);
+        }
       },delay);
     }
-    setTimeout(()=>{
-      if(token!==countdownToken)return;
-      countdown.classList.remove('is-active');
-      countdown.hidden=true;
-      setMode('playing');
-      onGo?.();
-    },1690);
   }
   function cancelCountdown(){
     countdownToken++;
     countdown.hidden=true;
-    countdown.classList.remove('is-active');
+    countdown.classList.remove('is-active','is-launching');
   }
   function showPause(){
     cancelCountdown();
@@ -251,6 +272,14 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     landingCallout.hidden=false;
     landingTimer=setTimeout(()=>{landingCallout.hidden=true;},hard?850:650);
   }
+  function showSpeedUp(){
+    clearTimeout(speedUpTimer);
+    speedUpCallout.hidden=false;
+    speedUpCallout.classList.remove('pulse');
+    void speedUpCallout.offsetWidth;
+    speedUpCallout.classList.add('pulse');
+    speedUpTimer=setTimeout(()=>{speedUpCallout.hidden=true;speedUpCallout.classList.remove('pulse');},900);
+  }
   function showJumpFeedback(source='JUMP'){
     if(hudJumpHint){
       hudJumpHint.textContent=source==='RAMP'?'RAMP LAUNCH':'JUMP';
@@ -290,6 +319,11 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       return;
     }
     const buttons=pad.buttons||[];
+    if(mode==='countdown'){
+      padButtons=buttons.slice();
+      axisLatchX=0;axisLatchY=0;
+      return;
+    }
     const pressed=index=>!!buttons[index]&&!padButtons[index];
     if(pressed(9)){
       if(mode==='playing')onPause?.();
@@ -343,5 +377,5 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback};
+  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
 }

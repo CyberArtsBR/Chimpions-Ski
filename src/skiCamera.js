@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 
+function speedFeel(speed=12){
+  return 1-Math.exp(-Math.max(0,speed-11.5)/24);
+}
+
 export function createSkiCamera(camera){
+  const chasePosition=new THREE.Vector3();
   const lookTarget=new THREE.Vector3();
   let roll=0;
   let landingKick=0;
@@ -18,61 +23,87 @@ export function createSkiCamera(camera){
     crashSettle=0;
   }
 
+  function getChaseFrame(state,positionOut=chasePosition,lookOut=lookTarget){
+    const speed01=speedFeel(state.speed);
+    const air=!!state.air;
+    const rampAir=air&&state.jumpSource==='ramp';
+    const manualAir=air&&state.jumpSource==='manual';
+    const ground=state.centerGround||0;
+    const airHeight=air?THREE.MathUtils.clamp(state.y-ground-.12,0,8):0;
+    const lateralVelocity=THREE.MathUtils.clamp(state.vx||0,-14,14);
+    const verticalVelocity=state.vy||0;
+    const apex=rampAir?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/8,0,1):0;
+    const descent=rampAir?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
+
+    const steerLead=state.heading*(1.20+speed01*.58)+lateralVelocity*.030;
+    positionOut.set(
+      state.x*.38-steerLead,
+      5.92+speed01*.74+state.y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
+      10.28+speed01*1.92+(rampAir?1.05+airHeight*.14+apex*.42:manualAir?airHeight*.07:0)
+    );
+
+    const lookAhead=1.28+speed01*1.42;
+    const lateralLook=state.heading*lookAhead+lateralVelocity*.040;
+    lookOut.set(
+      state.x*.17+lateralLook,
+      1.02+state.y*.09+airHeight*(rampAir?.012:.025)-descent*.10,
+      -13.15-speed01*4.25-(rampAir?2.15+descent*1.75:air?.70:0)
+    );
+
+    const fov=54.5+speed01*7.4+(rampAir?1.35+apex*.75:manualAir?.42:0);
+    return THREE.MathUtils.clamp(fov,54.5,64.2);
+  }
+
   function update(state,dt){
-    const speed01=THREE.MathUtils.clamp((state.speed-12)/19,0,1);
     const crash=state.mode==='crashed';
     const air=!!state.air;
-    const ground=state.centerGround||0;
-    const airHeight=air?THREE.MathUtils.clamp(state.y-ground-.12,0,3.4):0;
-    const lateralVelocity=THREE.MathUtils.clamp(state.vx||0,-8,8);
-
     const landingEdge=!air&&previousAir;
     if(landingEdge||(!air&&state.landingPulse>previousLanding+.10)){
       const hard=state.landingQuality==='hard';
       const rough=state.landingQuality==='rough';
-      landingKick=-(hard?.22:rough?.15:.09);
-      landingOpen=hard?.62:rough?.42:.24;
+      landingKick=-(hard?.20:rough?.14:.075);
+      landingOpen=hard?.52:rough?.34:.18;
     }
     previousAir=air;
     previousLanding=state.landingPulse;
-    landingKick=THREE.MathUtils.damp(landingKick,0,7.2,dt);
-    landingOpen=THREE.MathUtils.damp(landingOpen,0,4.8,dt);
+    landingKick=THREE.MathUtils.damp(landingKick,0,8.2,dt);
+    landingOpen=THREE.MathUtils.damp(landingOpen,0,5.6,dt);
 
+    const baseFov=getChaseFrame(state,chasePosition,lookTarget);
     const crashTime=state.crashTime||0;
     const crashDir=state.crashDirection||0;
-    crashSettle=THREE.MathUtils.damp(crashSettle,crash?1:0,crash?3.4:6.0,dt);
+    crashSettle=THREE.MathUtils.damp(crashSettle,crash?1:0,crash?3.8:7.0,dt);
 
-    const steerLead=state.heading*(1.18+speed01*.52)+lateralVelocity*.025;
-    const desiredX=state.x*.31-steerLead+(crash?crashDir*.52:0);
-    const desiredY=5.98+speed01*.58+state.y*.14+airHeight*.16+landingKick+(crash?Math.min(.48,crashTime*.20):0);
-    const desiredZ=10.35+speed01*1.48+airHeight*.16+landingOpen+(crash?Math.min(1.72,crashTime*.78):0);
+    if(crash){
+      chasePosition.x+=crashDir*.48;
+      chasePosition.y+=Math.min(.42,crashTime*.18);
+      chasePosition.z+=Math.min(1.6,crashTime*.72);
+      lookTarget.x+=crashDir*.20;
+      lookTarget.z+=1.05;
+    }else{
+      chasePosition.y+=landingKick;
+      chasePosition.z+=landingOpen;
+    }
 
-    const lateralResponse=crash?2.25:(air?4.35:5.15);
-    camera.position.x=THREE.MathUtils.damp(camera.position.x,desiredX,lateralResponse,dt);
-    camera.position.y=THREE.MathUtils.damp(camera.position.y,desiredY,crash?2.1:(air?3.6:3.25),dt);
-    camera.position.z=THREE.MathUtils.damp(camera.position.z,desiredZ,crash?2.05:(air?3.4:2.9),dt);
+    const rampAir=air&&state.jumpSource==='ramp';
+    const lateralResponse=crash?2.4:rampAir?6.0:air?7.0:8.4;
+    camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,dt);
+    camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,dt);
+    camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,dt);
 
-    const targetFov=54.5+speed01*6.9+(air?Math.min(1.15,.35+airHeight*.28):0)+landingOpen*.45-(crash?1.0*crashSettle:0);
-    camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,crash?2.8:4.1,dt);
+    const targetFov=baseFov+landingOpen*.32-(crash?.9*crashSettle:0);
+    camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,crash?3.0:5.0,dt);
     camera.updateProjectionMatrix();
-
-    const lookAhead=1.14+speed01*.95;
-    const lateralLook=state.heading*lookAhead+lateralVelocity*.035;
-    const airLookDepth=air?Math.min(1.25,.35+airHeight*.30):0;
-    lookTarget.set(
-      state.x*.15+lateralLook+(crash?crashDir*.22:0),
-      1.02+state.y*.10+airHeight*.028-(air?.04:0),
-      -12.9-speed01*2.85-airLookDepth+(crash?1.05:0)
-    );
     camera.lookAt(lookTarget);
 
-    const carveRoll=-state.edge*(.013+speed01*.018);
-    const terrainRoll=-(state.groundRoll||0)*.055;
-    const crashRoll=THREE.MathUtils.clamp(-crashDir*.042,-.045,.045)*crashSettle;
-    const targetRoll=crash?crashRoll:THREE.MathUtils.clamp(carveRoll+terrainRoll,-.038,.038);
-    roll=THREE.MathUtils.damp(roll,targetRoll,crash?3.0:5.0,dt);
+    const speed01=speedFeel(state.speed);
+    const carveRoll=-state.edge*(.010+speed01*.016);
+    const terrainRoll=-(state.groundRoll||0)*.045;
+    const crashRoll=THREE.MathUtils.clamp(-crashDir*.038,-.040,.040)*crashSettle;
+    const targetRoll=crash?crashRoll:THREE.MathUtils.clamp(carveRoll+terrainRoll,-.032,.032);
+    roll=THREE.MathUtils.damp(roll,targetRoll,crash?3.2:6.2,dt);
     camera.rotateZ(roll);
   }
 
-  return {update,reset};
+  return {update,reset,getChaseFrame};
 }
