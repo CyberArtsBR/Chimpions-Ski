@@ -2,11 +2,13 @@ export function createGameFeedback({audio,ui}){
   let previousAir=false;
   let rampSuppress=0;
   let wasPlaying=false;
+  let speedTier=0;
 
   function reset(){
     previousAir=false;
     rampSuppress=0;
     wasPlaying=false;
+    speedTier=0;
   }
 
   function onRampTakeoff(){
@@ -34,6 +36,16 @@ export function createGameFeedback({audio,ui}){
     if(playing&&wasPlaying&&!previousAir&&state.air&&rampSuppress<=0){
       audio.play('jump',.66);
       ui?.showJumpFeedback?.('JUMP');
+    }
+    if(playing){
+      const nextTier=Math.floor((state.time||0)/30);
+      if(nextTier>speedTier&&nextTier>0){
+        speedTier=nextTier;
+        audio.play('speedUp',.40);
+        ui?.showSpeedUp?.();
+      }else if(nextTier>speedTier){
+        speedTier=nextTier;
+      }
     }
     previousAir=!!state.air;
     wasPlaying=playing;

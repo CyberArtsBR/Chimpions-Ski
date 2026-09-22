@@ -7,7 +7,7 @@ export function createSkiAudio(){
   let pendingState={mode:'menu',speed:12,carve:0,air:false,intensity:0};
   const buffers=new Map();
   const eventLast=new Map();
-  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,crash:.34,menu:.025,button:.025,go:.14};
+  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,crash:.34,menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14};
 
   const settings={
     master:readNumber('chimpions-ski-master',.82),
@@ -49,7 +49,7 @@ export function createSkiAudio(){
   }
   function eventBuffer(type){
     if(buffers.has(type))return buffers.get(type);
-    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,crash:.72,menu:.09,button:.075,go:.32}[type]||.18;
+    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,crash:.72,menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34}[type]||.18;
     const length=Math.ceil(context.sampleRate*duration);
     const buffer=context.createBuffer(1,length,context.sampleRate);
     const data=buffer.getChannelData(0);
@@ -99,12 +99,25 @@ export function createSkiAudio(){
         tone=Math.sin(phase)*.42;
         noise=smoothNoise*1.18;
         env=Math.pow(1-u,1.25)*Math.min(1,t/.003);
+      }else if(type==='countTick'||type==='countTickStrong'){
+        hz=type==='countTickStrong'?560:485;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*1.51)/context.sampleRate;
+        tone=Math.sin(phase)*.72+Math.sin(phase2)*.10;
+        env=Math.pow(1-u,type==='countTickStrong'?2.8:3.4)*Math.min(1,t/.002);
+      }else if(type==='speedUp'){
+        hz=360+420*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*1.5)/context.sampleRate;
+        tone=Math.sin(phase)*.50+Math.sin(phase2)*.12;
+        env=Math.pow(1-u,2.1)*Math.min(1,t/.004);
       }else if(type==='go'){
-        hz=540+520*u;
+        hz=500+640*u;
         phase+=Math.PI*2*hz/context.sampleRate;
         phase2+=Math.PI*2*(hz*2)/context.sampleRate;
-        tone=Math.sin(phase)*.72+Math.sin(phase2)*.12;
-        env=Math.pow(1-u,1.45)*Math.min(1,t/.006);
+        tone=Math.sin(phase)*.68+Math.sin(phase2)*.14;
+        noise=smoothNoise*.08;
+        env=Math.pow(1-u,1.55)*Math.min(1,t/.006);
       }else{
         hz=type==='button'?620+130*u:470+90*u;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -250,7 +263,7 @@ export function createSkiAudio(){
   function applyState(state,instant=false){
     pendingState={...pendingState,...state};
     if(!graph||!context)return;
-    const speed01=clamp(((pendingState.speed||12)-12)/19);
+    const speed01=1-Math.exp(-Math.max(0,(pendingState.speed||12)-11.5)/24);
     const carve=clamp(Math.abs(pendingState.carve||0));
     const air=!!pendingState.air;
     const mode=pendingState.mode||'menu';
@@ -258,9 +271,9 @@ export function createSkiAudio(){
     const countdown=mode==='countdown';
     const response=instant?.01:.09;
 
-    const contact=(running?(0.024+speed01*.060+carve*.030):0)*(air?.045:1);
-    const edge=(running?carve*(.014+speed01*.076):0)*(air?.025:1);
-    const wind=running?(0.015+speed01*.086+(air?.034:0)):countdown?.010:0;
+    const contact=(running?(0.024+speed01*.058+carve*.032):0)*(air?.045:1);
+    const edge=(running?carve*(.014+speed01*.072):0)*(air?.025:1);
+    const wind=running?(0.014+speed01*.078+(air?.030:0)):countdown?.006:0;
     const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
 
@@ -269,7 +282,7 @@ export function createSkiAudio(){
     setTarget(graph.windGain.gain,wind,response);
     setTarget(graph.contactFilter.frequency,560+speed01*720+carve*300,.12);
     setTarget(graph.carveFilter.frequency,980+carve*1280+speed01*520,.10);
-    setTarget(graph.windFilter.frequency,650+speed01*1760+(air?300:0),.18);
+    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?260:0),.20);
     setTarget(graph.musicFilter.frequency,1250+intensity*1100,.28);
     setTarget(graph.musicGain.gain,musicBase*(.86+intensity*.14),.35);
   }

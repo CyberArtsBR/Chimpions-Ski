@@ -1,92 +1,101 @@
 import * as THREE from 'three';
+import {SKI_TUNING as T} from './gameplayTuning.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export function progressSpeed(state,dt){
-  const speed01=clamp((state.speed-12)/19,0,1);
-  const acceleration=THREE.MathUtils.lerp(.42,.20,speed01);
-  const carveDrag=(state.carveLoad||0)*THREE.MathUtils.lerp(.045,.11,speed01);
-  const landingDrag=(state.landingGripLoss||0)*.22;
-  state.speed=clamp(state.speed+(acceleration-carveDrag-landingDrag)*dt,11.5,31);
-  return speed01;
+  const tier=Math.max(0,Math.floor((state.time||0)/T.SPEED_TIER_SECONDS));
+  const tierTime=(state.time||0)-tier*T.SPEED_TIER_SECONDS;
+  const targetSpeed=Math.min(T.MAX_SPEED,T.BASE_SPEED+tier*T.SPEED_TIER_INCREMENT);
+
+  state.speedTier=tier;
+  state.speedTierTime=tierTime;
+  state.targetSpeed=targetSpeed;
+  state.maxSpeed=T.MAX_SPEED;
+
+  const carveDrag=(state.carveLoad||0)*.09;
+  const landingDrag=(state.landingGripLoss||0)*.18;
+  state.speed=THREE.MathUtils.damp(state.speed,targetSpeed,T.SPEED_RESPONSE,dt);
+  state.speed=clamp(state.speed-(carveDrag+landingDrag)*dt,T.BASE_SPEED*.90,T.MAX_SPEED);
+  return clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
 }
 
 export function stepCarving(state,input,dt){
-  const steer=Math.abs(input)<.025?0:clamp(input,-1,1);
-  const speed01=clamp((state.speed-12)/19,0,1);
-  state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.1);
+  const steer=Math.abs(input)<T.INPUT_DEADZONE?0:clamp(input,-1,1);
+  const speed01=clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
+  state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.25);
 
   if(state.air){
-    state.x=clamp(state.x+state.vx*dt,-8.1,8.1);
-    state.vx=THREE.MathUtils.damp(state.vx,state.vx*.994,.35,dt);
-    state.edge=THREE.MathUtils.damp(state.edge,0,2.8,dt);
-    state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,0,4.2,dt);
+    state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
+    state.vx=THREE.MathUtils.damp(state.vx,state.vx*.995,.32,dt);
+    state.edge=THREE.MathUtils.damp(state.edge,0,3.2,dt);
+    state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,0,4.8,dt);
     state.grip=.12;
     state.counterSteer=false;
     return;
   }
 
-  const reversing=steer!==0&&state.edge*steer<-.015;
-  const neutralizing=reversing&&Math.abs(state.edge)>.03;
+  const reversing=steer!==0&&state.edge*steer<-.01;
+  const neutralizing=reversing&&Math.abs(state.edge)>.018;
   const targetEdge=neutralizing?0:steer;
-  const edgeResponse=neutralizing?24:steer===0?10:16.5+speed01*1.5;
+  const edgeResponse=neutralizing?T.EDGE_REVERSAL:steer===0?T.EDGE_RELEASE:T.EDGE_RESPONSE;
   state.edge=THREE.MathUtils.damp(state.edge,targetEdge,edgeResponse,dt);
 
   const edgeAmount=Math.abs(state.edge);
-  const loadTarget=Math.pow(edgeAmount,1.05)*(.82+speed01*.18);
-  state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,loadTarget,12,dt);
+  const loadTarget=Math.pow(edgeAmount,1.02)*(.84+speed01*.16);
+  state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,loadTarget,T.CARVE_LOAD_RESPONSE,dt);
 
-  const maxTurnRate=2.30+speed01*.30;
-  const edgeTurn=Math.sign(state.edge)*Math.pow(edgeAmount,.98)*maxTurnRate;
+  const maxTurnRate=T.TURN_RATE_BASE+speed01*T.TURN_RATE_SPEED_BONUS;
+  const edgeTurn=Math.sign(state.edge)*Math.pow(edgeAmount,.94)*maxTurnRate;
   let desiredTurnRate=edgeTurn;
   if(steer===0){
-    desiredTurnRate-=state.heading*(2.8+speed01*.35);
+    desiredTurnRate-=state.heading*(3.2+speed01*.35);
   }else if(neutralizing){
-    desiredTurnRate-=state.heading*(6.2+speed01*.5);
+    desiredTurnRate-=state.heading*(8.2+speed01*.8);
   }else{
-    desiredTurnRate-=state.heading*.18;
+    desiredTurnRate+=steer*T.TURN_INPUT_ASSIST;
+    desiredTurnRate-=state.heading*.16;
   }
 
   state.turnRate=THREE.MathUtils.damp(
     state.turnRate,
     desiredTurnRate,
-    neutralizing?17:11.5+speed01*1.5,
+    neutralizing?T.TURN_REVERSAL_RESPONSE:T.TURN_RESPONSE,
     dt
   );
 
-  const headingLimit=.58-speed01*.055;
+  const headingLimit=THREE.MathUtils.lerp(T.HEADING_LIMIT_LOW,T.HEADING_LIMIT_HIGH,speed01);
   state.heading=clamp(state.heading+state.turnRate*dt,-headingLimit,headingLimit);
   if(steer===0){
-    state.heading=THREE.MathUtils.damp(state.heading,0,2.55+speed01*.35,dt);
-    state.turnRate=THREE.MathUtils.damp(state.turnRate,0,4.4,dt);
+    state.heading=THREE.MathUtils.damp(state.heading,0,T.HEADING_RECENTER+speed01*.4,dt);
+    state.turnRate=THREE.MathUtils.damp(state.turnRate,0,T.TURN_RECENTER,dt);
   }
 
   const roughLoss=state.landingGripLoss||0;
-  state.grip=clamp(.78+speed01*.06+(state.carveLoad||0)*.15-roughLoss*.40,.34,1);
+  state.grip=clamp(.80+speed01*.05+(state.carveLoad||0)*.14-roughLoss*.38,.36,1);
 
-  const lateralScale=THREE.MathUtils.lerp(.80,.58,speed01);
+  const lateralScale=THREE.MathUtils.lerp(T.LATERAL_SCALE_LOW,T.LATERAL_SCALE_HIGH,speed01);
   let carveVelocity=Math.sin(state.heading)*state.speed*lateralScale;
-  let gripResponse=9.2+state.grip*2.1+(state.carveLoad||0)*1.7;
+  let gripResponse=T.LATERAL_RESPONSE+state.grip*1.9+(state.carveLoad||0)*1.4;
 
   if(neutralizing){
-    // Counter-steering unloads the old edge and kills stale sideways momentum
-    // before the new edge engages, so reversal is quick without snapping.
-    carveVelocity*=.18;
-    gripResponse=16.5;
+    carveVelocity*=.08;
+    gripResponse=T.LATERAL_REVERSAL_RESPONSE;
+    state.vx=THREE.MathUtils.damp(state.vx,0,T.LATERAL_REVERSAL_RESPONSE,dt);
   }
 
   state.vx=THREE.MathUtils.damp(state.vx,carveVelocity,gripResponse,dt);
 
-  if(state.carveLoad>.58){
-    const plantedScrub=1-(state.carveLoad-.58)*.075*dt;
-    state.vx*=Math.max(.982,plantedScrub);
+  if(state.carveLoad>.62){
+    const plantedScrub=1-(state.carveLoad-.62)*.06*dt;
+    state.vx*=Math.max(.984,plantedScrub);
   }
 
-  state.x=clamp(state.x+state.vx*dt,-8.1,8.1);
-  if(Math.abs(state.x)>=8.08){
-    state.vx*=.36;
-    state.heading*=.64;
-    state.turnRate*=.56;
+  state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
+  if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH-.03){
+    state.vx*=.32;
+    state.heading*=.60;
+    state.turnRate*=.52;
   }
 
   state.counterSteer=neutralizing;
@@ -113,7 +122,7 @@ export function tryManualJump(state,groundY){
   state.grounded=false;
   state.jumping=true;
   state.jumpSource='manual';
-  state.vy=5.9;
+  state.vy=T.MANUAL_JUMP_VELOCITY;
   state.jumpVelocity=state.vy;
   state.y=Math.max(state.y,groundY+.045);
   state.jumpBufferTime=0;
@@ -140,9 +149,12 @@ export function stepAir(state,dt,groundY){
   if(state.y>groundY||state.vy>0)return {landed:false,impact:0,quality:'air'};
 
   const impact=Math.abs(state.vy);
+  const rampLanding=state.jumpSource==='ramp';
+  const roughThreshold=rampLanding?17.2:7.6;
+  const hardThreshold=rampLanding?20.5:10.8;
   let quality='clean';
-  if(impact>=7.6)quality='rough';
-  if(impact>=10.8)quality='hard';
+  if(impact>=roughThreshold)quality='rough';
+  if(impact>=hardThreshold)quality='hard';
 
   state.y=groundY;
   state.vy=0;
@@ -152,26 +164,26 @@ export function stepAir(state,dt,groundY){
   state.jumping=false;
   state.jumpSource='';
   state.landingQuality=quality;
-  state.landingPulse=Math.min(1,impact/9);
+  state.landingPulse=Math.min(1,impact/(rampLanding?18:9));
 
   if(quality==='clean'){
-    state.vx*=.985;
-    state.turnRate*=.92;
+    state.vx*=.99;
+    state.turnRate*=.93;
     state.heading*=.98;
-    state.speed=Math.min(31,state.speed+.18);
-    state.landingGripLoss=.04;
+    state.speed=Math.min(T.MAX_SPEED,state.speed+.22);
+    state.landingGripLoss=.03;
   }else if(quality==='rough'){
-    state.vx*=.92;
-    state.turnRate*=.76;
-    state.heading*=.92;
-    state.speed=Math.max(11.5,state.speed*.955);
-    state.landingGripLoss=.48;
+    state.vx*=.93;
+    state.turnRate*=.78;
+    state.heading*=.93;
+    state.speed=Math.max(T.BASE_SPEED*.90,state.speed*.965);
+    state.landingGripLoss=.42;
   }else{
-    state.vx*=.84;
-    state.turnRate*=.62;
-    state.heading*=.86;
-    state.speed=Math.max(11.5,state.speed*.90);
-    state.landingGripLoss=.78;
+    state.vx*=.85;
+    state.turnRate*=.64;
+    state.heading*=.87;
+    state.speed=Math.max(T.BASE_SPEED*.90,state.speed*.91);
+    state.landingGripLoss=.72;
   }
 
   return {landed:true,impact,quality};
@@ -183,10 +195,10 @@ export function launchRamp(state,rampGroundY){
   state.grounded=false;
   state.jumping=false;
   state.jumpSource='ramp';
-  state.vy=6.55+state.speed*.075;
+  state.vy=T.RAMP_JUMP_BASE_VELOCITY+state.speed*T.RAMP_JUMP_SPEED_FACTOR;
   state.jumpVelocity=state.vy;
   state.y=Math.max(state.y,rampGroundY+.34);
-  state.rampGrace=.42;
+  state.rampGrace=T.RAMP_RETRIGGER_GRACE;
   state.jumpBufferTime=0;
   state.jumpBuffered=false;
   state.coyoteTime=0;

@@ -12,6 +12,9 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
+import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
+import {createSkiTrails} from './snowTrails.js';
+import {SKI_TUNING} from './gameplayTuning.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -159,7 +162,7 @@ function addCoursePlacement(placement){
 function fillCourse(difficulty=0){
   let farthest=course.length?Math.min(...course.map(item=>item.position.z)):-12;
   let guard=0;
-  while(farthest>-166&&guard++<10){
+  while(farthest>-260&&guard++<10){
     const section=courseDirector.next({startZ:farthest-5.5,difficulty});
     for(const placement of section.placements)addCoursePlacement(placement);
     farthest=section.endZ;
@@ -171,42 +174,13 @@ function resetCourse(difficulty=0){
   fillCourse(difficulty);
 }
 
-// Twin ski tracks and snow spray are pooled for the desktop high-quality build.
-const trackGroup=new THREE.Group();world.add(trackGroup);
-const trackMat=new THREE.MeshBasicMaterial({
-  color:0x7faabd,
-  transparent:true,
-  opacity:.30,
-  depthWrite:false,
-  polygonOffset:true,
-  polygonOffsetFactor:-1,
-  polygonOffsetUnits:-1
-});
-const trackGeometry=new THREE.PlaneGeometry(.078,.94);
-const trackPool=[];
-for(let i=0;i<128;i++){
-  const mark=new THREE.Mesh(trackGeometry,trackMat.clone());
-  mark.rotation.x=-Math.PI/2;
-  mark.position.set(0,-10,0);
-  mark.visible=false;
-  trackGroup.add(mark);
-  trackPool.push(mark);
-}
-let trackCursor=0,trackTimer=0;
-function emitTrack(x,z,steer){
-  for(const side of [-1,1]){
-    const mark=trackPool[trackCursor++%trackPool.length];
-    mark.visible=true;
-    mark.material.opacity=.30;
-    const markX=x+side*.24;
-    const markZ=z-.5;
-    mark.position.set(markX,terrainHeight(markX,markZ-state.travel)+.010,markZ);
-    mark.rotation.set(-Math.PI/2,-steer*.18+side*steer*.02,0);
-  }
-}
+// Continuous twin grooves use one bounded dynamic mesh instead of disconnected decals.
+const skiTrails=createSkiTrails({world,terrainHeight,capacity:192});
+let trailTimer=0;
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
+const startCamera=createStartCameraSequence({camera,skiCamera,player});
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 const audio=createSkiAudio();
 const ui=createGameUI({
@@ -260,7 +234,7 @@ async function setAvatar(entry){
   }
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
@@ -273,10 +247,10 @@ function control(pad){
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function resetRunState(mode='countdown'){
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
-  trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.30;}
-  courseFrame=0;resetCourse(0);skiCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
+  trailTimer=0;skiTrails.reset();
+  courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
   if(!ready)return;
@@ -284,10 +258,13 @@ function beginRun(){
   audio.play('menu',.38);
   resetRunState('countdown');
   ui.prepareRun({best:state.best});
+  startCamera.begin(state,performance.now());
   ui.startCountdown({
     entry:selectedAvatar,
+    durationMs:START_CAMERA_SEQUENCE_MS,
     onGo:()=>{
       if(state.mode!=='countdown')return;
+      startCamera.finish(state);
       state.mode='playing';
       ui.setMode('playing');
       last=performance.now();
@@ -325,7 +302,10 @@ function crash(kind='tree',item=null){
 }
 addEventListener('keydown',e=>{
   keys.add(e.code);
-  if(e.code==='Space'&&!e.repeat){jumpKeyPressed=true;e.preventDefault();}
+  if(e.code==='Space'&&!e.repeat){
+    if(state.mode==='playing')jumpKeyPressed=true;
+    e.preventDefault();
+  }
 });
 addEventListener('keyup',e=>keys.delete(e.code));
 
@@ -377,11 +357,21 @@ function update(dt){
       centerGround:state.centerGround
     });
     if(!state.air){
-      trackTimer-=dt;
-      if(trackTimer<=0){
-        emitTrack(state.x,player.position.z,state.edge);
-        trackTimer=Math.max(.045,.09-state.speed*.0013);
+      trailTimer-=dt;
+      if(trailTimer<=0){
+        skiTrails.emit({
+          x:state.x,
+          z:player.position.z,
+          travel:state.travel,
+          heading:state.heading,
+          edge:state.edge,
+          spacing:skier?.userData?.skiTrackSpacing??.245
+        });
+        trailTimer=Math.max(.018,.038-state.speed*.00028);
       }
+    }else{
+      trailTimer=0;
+      skiTrails.breakTrail();
     }
 
     let nearestSectionItem=null;
@@ -450,6 +440,19 @@ function update(dt){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
+  }else if(state.mode==='countdown'){
+    skier?.userData?.updateSkiPose?.({
+      steer:0,
+      air:false,
+      landing:0,
+      speed:state.speed,
+      time:performance.now()/1000,
+      groundPitch:state.groundPitch,
+      groundRoll:state.groundRoll,
+      leftGround:state.leftGround,
+      rightGround:state.rightGround,
+      centerGround:state.centerGround
+    });
   }else if(state.mode==='crashed'){
     state.crashTime+=dt;
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
@@ -462,12 +465,7 @@ function update(dt){
     }
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
-  for(const mark of trackPool){
-    if(!mark.visible)continue;
-    mark.position.z+=worldSpeed*dt;
-    mark.material.opacity=Math.max(0,mark.material.opacity-dt*.105);
-    if(mark.position.z>16||mark.material.opacity<=.02)mark.visible=false;
-  }
+  skiTrails.update(dt,worldSpeed);
   environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
@@ -478,7 +476,8 @@ function update(dt){
 function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
-  skiCamera.update(state,dt);
+  if(state.mode==='countdown')startCamera.update(state,now);
+  else skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }
@@ -490,4 +489,4 @@ function resize(){
 }
 addEventListener('resize',resize);
 
-window.chimpionsSki=()=>({...state,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});
+window.chimpionsSki=()=>({...state,playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});
