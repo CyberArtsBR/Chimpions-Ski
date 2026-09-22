@@ -431,6 +431,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
   const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
+  bankMesh.castShadow=true;
   bankMesh.receiveShadow=true;
   bankMesh.frustumCulled=false;
   world.add(bankMesh);
