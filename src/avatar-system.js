@@ -1,5 +1,16 @@
+import {
+  AVATAR_SELECTOR_INITIAL_RENDER,
+  AVATAR_SELECTOR_RENDER_CHUNK,
+  buildAvatarSearchIndex,
+  filterAvatarSearchIndex,
+  getAvatarRenderTarget
+} from './avatar-selector-model.js';
+
 export async function loadAvatarCatalog(){
-  const response=await fetch('/avatars.json',{cache:'no-store'});
+  // Use the browser's normal HTTP cache/revalidation rules. Deployment/versioned
+  // responses can still revalidate via ETag/Last-Modified without forcing a full
+  // avatars.json transfer on every load.
+  const response=await fetch('/avatars.json');
   if(!response.ok)throw new Error('Could not load Chimpion catalog');
   const entries=(await response.json()).filter(entry=>entry?.url&&entry.id!=='steamboat-willie'&&entry.id!=='chimpion');
   if(!entries.length)throw new Error('No playable Chimpions in catalog');
@@ -38,6 +49,19 @@ export function disposeAvatarObject(root){
   for(const geometry of geometries)geometry.dispose();
 }
 
+
+function createFallback(){
+  const fallback=document.createElement('span');
+  fallback.className='portrait-fallback';
+  fallback.textContent='🐵';
+  return fallback;
+}
+
+function replaceFailedPortrait(image){
+  if(!image?.isConnected)return;
+  image.replaceWith(createFallback());
+}
+
 function createPortrait(entry,className=''){
   const wrap=document.createElement('span');
   wrap.className=('portrait '+className).trim();
@@ -47,12 +71,11 @@ function createPortrait(entry,className=''){
     image.alt='';
     image.loading='lazy';
     image.decoding='async';
+    image.fetchPriority='low';
+    image.draggable=false;
     wrap.append(image);
   }else{
-    const fallback=document.createElement('span');
-    fallback.className='portrait-fallback';
-    fallback.textContent='🐵';
-    wrap.append(fallback);
+    wrap.append(createFallback());
   }
   return wrap;
 }
@@ -70,40 +93,74 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
   const previewPortrait=dialog.querySelector('#selector-preview-portrait');
   const previewName=dialog.querySelector('#selector-preview-name');
   const previewTribe=dialog.querySelector('#selector-preview-tribe');
-  let currentSelectedId=selectedId||'';
+  const closeButton=dialog.querySelector('.selector-close');
+
+  const searchIndex=buildAvatarSearchIndex(catalog);
+  const entryById=new Map(searchIndex.map(record=>[record.id,record.entry]));
+  let currentSelectedId=String(selectedId||'');
   let loading=false;
-  let visibleEntries=[];
+  let visibleRecords=searchIndex;
+  let renderedCount=0;
+  let previewId='';
   let prevButtons=[];
   let axisLatchX=0,axisLatchY=0,padArmed=false;
 
-  function entryById(id){return catalog.find(entry=>String(entry.id)===String(id));}
+  const metrics={
+    catalogSize:catalog.length,
+    filteredCount:catalog.length,
+    renderedCardCount:0,
+    initialRenderLimit:AVATAR_SELECTOR_INITIAL_RENDER,
+    renderChunkSize:AVATAR_SELECTOR_RENDER_CHUNK,
+    cardNodesCreated:0,
+    lastOpenRenderMs:0,
+    lastSearchRenderMs:0
+  };
+
+  function getEntry(id){
+    return entryById.get(String(id));
+  }
+
   function updatePreview(entry){
     if(!entry)return;
+    const id=String(entry.id??'');
+    if(id===previewId)return;
+    previewId=id;
     previewPortrait.replaceChildren();
+
     if(entry.image){
       const image=document.createElement('img');
-      image.src=entry.image;image.alt='';image.decoding='async';
+      image.src=entry.image;
+      image.alt='';
+      image.loading='eager';
+      image.decoding='async';
+      image.fetchPriority='high';
+      image.draggable=false;
+      image.onerror=()=>replaceFailedPortrait(image);
       previewPortrait.append(image);
-    }else previewPortrait.textContent='🐵';
+    }else{
+      previewPortrait.append(createFallback());
+    }
+
     previewName.textContent=entry.name||'Chimpion';
     previewTribe.textContent=entry.tribe||'Chimpion';
   }
+
   function setLoading(value){
     loading=!!value;
     dialog.classList.toggle('is-loading',loading);
     dialog.setAttribute('aria-busy',String(loading));
     search.disabled=loading;
     for(const button of grid.querySelectorAll('button'))button.disabled=loading;
-    const close=dialog.querySelector('.selector-close');
-    if(close)close.disabled=loading;
+    closeButton.disabled=loading;
   }
+
   async function choose(entry,button){
     if(loading||!entry)return;
     setLoading(true);
     button?.classList.add('is-loading-card');
     try{
       await onSelect(entry);
-      currentSelectedId=entry.id;
+      currentSelectedId=String(entry.id);
       updatePreview(entry);
       dialog.close();
     }catch(error){
@@ -113,44 +170,103 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
       setLoading(false);
     }
   }
-  function cardFor(entry){
+
+  function cardFor(record,filteredIndex){
+    const {entry}=record;
     const button=document.createElement('button');
     button.type='button';
     button.className='chimpion-card';
     button.dataset.avatarId=entry.id;
+    button.dataset.filterIndex=String(filteredIndex);
     button.setAttribute('role','listitem');
-    button.setAttribute('aria-pressed',String(String(entry.id)===String(currentSelectedId)));
-    if(String(entry.id)===String(currentSelectedId))button.classList.add('is-selected');
+
+    const selected=String(entry.id)===currentSelectedId;
+    button.setAttribute('aria-pressed',String(selected));
+    if(selected)button.classList.add('is-selected');
+    if(loading)button.disabled=true;
+
     button.append(createPortrait(entry));
-    const name=document.createElement('strong');name.textContent=entry.name;
-    const tribe=document.createElement('small');tribe.textContent=entry.tribe||'Chimpion';
+    const name=document.createElement('strong');
+    name.textContent=entry.name;
+    const tribe=document.createElement('small');
+    tribe.textContent=entry.tribe||'Chimpion';
     button.append(name,tribe);
-    button.addEventListener('focus',()=>updatePreview(entry));
-    button.addEventListener('pointerenter',()=>updatePreview(entry));
-    button.addEventListener('click',()=>choose(entry,button));
+    metrics.cardNodesCreated++;
     return button;
   }
-  function render(){
-    const query=search.value.trim().toLowerCase();
-    visibleEntries=catalog.filter(entry=>(entry.name+' '+(entry.tribe||'')).toLowerCase().includes(query));
-    grid.replaceChildren();
+
+  function appendUntil(targetCount){
+    const target=Math.min(targetCount,visibleRecords.length);
+    if(target<=renderedCount)return;
+
     const fragment=document.createDocumentFragment();
-    for(const entry of visibleEntries)fragment.append(cardFor(entry));
+    for(let index=renderedCount;index<target;index++){
+      fragment.append(cardFor(visibleRecords[index],index));
+    }
     grid.append(fragment);
-    const selected=entryById(currentSelectedId)||visibleEntries[0];
+    renderedCount=target;
+    metrics.renderedCardCount=renderedCount;
+  }
+
+  function appendNextChunk(){
+    appendUntil(getAvatarRenderTarget(
+      visibleRecords.length,
+      renderedCount,
+      AVATAR_SELECTOR_RENDER_CHUNK
+    ));
+  }
+
+  function applyFilter(reason='search'){
+    const started=performance.now();
+    visibleRecords=filterAvatarSearchIndex(searchIndex,search.value);
+    renderedCount=0;
+    grid.replaceChildren();
+    grid.scrollTop=0;
+    appendUntil(getAvatarRenderTarget(visibleRecords.length,0,AVATAR_SELECTOR_RENDER_CHUNK));
+
+    metrics.filteredCount=visibleRecords.length;
+    metrics.renderedCardCount=renderedCount;
+    const elapsed=performance.now()-started;
+    if(reason==='open')metrics.lastOpenRenderMs=elapsed;
+    else metrics.lastSearchRenderMs=elapsed;
+
+    const selected=getEntry(currentSelectedId)||visibleRecords[0]?.entry;
     if(selected)updatePreview(selected);
   }
-  function cards(){return Array.from(grid.querySelectorAll('.chimpion-card:not([disabled])'));}
-  function focusCard(index){
-    const list=cards();
-    if(!list.length)return;
-    const clamped=Math.max(0,Math.min(list.length-1,index));
-    list[clamped].focus({preventScroll:true});
-    list[clamped].scrollIntoView({block:'nearest',inline:'nearest'});
+
+  function ensureRenderedThrough(index){
+    if(index<0)return;
+    while(renderedCount<=index&&renderedCount<visibleRecords.length)appendNextChunk();
   }
+
+  function cardAt(index){
+    if(index<0||index>=visibleRecords.length)return null;
+    ensureRenderedThrough(index);
+    return grid.querySelector('.chimpion-card[data-filter-index="'+index+'"]');
+  }
+
+  function focusCard(index){
+    if(!visibleRecords.length)return;
+    const clamped=Math.max(0,Math.min(visibleRecords.length-1,index));
+    const card=cardAt(clamped);
+    if(!card)return;
+    card.focus({preventScroll:true});
+    card.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+
+  function activeCardIndex(){
+    const active=document.activeElement;
+    if(!active?.classList?.contains('chimpion-card'))return -1;
+    const index=Number(active.dataset.filterIndex);
+    return Number.isFinite(index)?index:-1;
+  }
+
+  function columns(){
+    return Math.max(1,Math.floor(grid.clientWidth/155));
+  }
+
   function keyboardMove(event){
-    const list=cards();
-    if(!list.length)return;
+    if(!visibleRecords.length)return;
     const active=document.activeElement;
     if(active===search){
       if(event.key==='ArrowDown'){
@@ -159,20 +275,27 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
       }
       return;
     }
-    const index=list.indexOf(active);
+
+    const index=activeCardIndex();
     if(index<0)return;
-    const columns=Math.max(1,Math.floor(grid.clientWidth/155));
+    const columnCount=columns();
     let next=index;
     if(event.key==='ArrowRight')next=index+1;
     else if(event.key==='ArrowLeft')next=index-1;
-    else if(event.key==='ArrowDown')next=index+columns;
+    else if(event.key==='ArrowDown')next=index+columnCount;
     else if(event.key==='ArrowUp'){
-      if(index<columns){event.preventDefault();search.focus();return;}
-      next=index-columns;
+      if(index<columnCount){
+        event.preventDefault();
+        search.focus();
+        return;
+      }
+      next=index-columnCount;
     }else return;
+
     event.preventDefault();
     focusCard(next);
   }
+
   function updateGamepad(pad){
     if(!dialog.open)return;
     const buttons=pad?.buttons||[];
@@ -182,70 +305,126 @@ export function createAvatarSelector({catalog,onSelect,selectedId=''}) {
       prevButtons=buttons.slice();
       return;
     }
+
     const pressed=index=>!!buttons[index]&&!prevButtons[index];
     if(pressed(1)){
       if(!loading)dialog.close();
       prevButtons=buttons.slice();
       return;
     }
+
     if(pressed(0)){
       const active=document.activeElement;
       if(active===search){
-        const first=cards()[0];
-        if(first)first.focus();
-      }else if(active?.classList?.contains('chimpion-card'))active.click();
-      else{
-        const selected=grid.querySelector('.chimpion-card.is-selected')||cards()[0];
-        selected?.focus();
+        focusCard(0);
+      }else if(active?.classList?.contains('chimpion-card')){
+        active.click();
+      }else{
+        const selectedIndex=visibleRecords.findIndex(record=>record.id===currentSelectedId);
+        focusCard(selectedIndex>=0?selectedIndex:0);
       }
     }
+
     const x=pad?.axis||0,y=pad?.axisY||0;
     if(Math.abs(x)<.35)axisLatchX=0;
     if(Math.abs(y)<.35)axisLatchY=0;
+
     if(Math.abs(y)>.62&&!axisLatchY){
       axisLatchY=Math.sign(y);
-      const list=cards(),active=document.activeElement,index=list.indexOf(active);
-      const columns=Math.max(1,Math.floor(grid.clientWidth/155));
-      if(active===search&&y>0)focusCard(0);
+      const index=activeCardIndex();
+      const columnCount=columns();
+      if(document.activeElement===search&&y>0)focusCard(0);
       else if(index>=0){
-        if(y<0&&index<columns)search.focus();
-        else focusCard(index+Math.sign(y)*columns);
+        if(y<0&&index<columnCount)search.focus();
+        else focusCard(index+Math.sign(y)*columnCount);
       }else focusCard(0);
     }else if(Math.abs(x)>.62&&!axisLatchX){
       axisLatchX=Math.sign(x);
-      const list=cards(),index=list.indexOf(document.activeElement);
+      const index=activeCardIndex();
       focusCard(index<0?0:index+Math.sign(x));
     }
+
     prevButtons=buttons.slice();
   }
+
   function open(){
     if(loading)return;
     search.value='';
-    render();
+    applyFilter('open');
     dialog.showModal();
     padArmed=false;
     prevButtons=[];
     axisLatchX=axisLatchY=0;
-    const selected=grid.querySelector('.chimpion-card.is-selected');
-    if(selected)selected.scrollIntoView({block:'center'});
     search.focus();
   }
+
   function setSelected(entryOrId){
-    currentSelectedId=typeof entryOrId==='object'?entryOrId?.id:entryOrId;
-    const entry=typeof entryOrId==='object'?entryOrId:entryById(currentSelectedId);
-    if(entry)updatePreview(entry);
+    currentSelectedId=String(typeof entryOrId==='object'?entryOrId?.id:entryOrId??'');
+    const entry=typeof entryOrId==='object'?entryOrId:getEntry(currentSelectedId);
+    if(entry){
+      previewId='';
+      updatePreview(entry);
+    }
+
     for(const card of grid.querySelectorAll('.chimpion-card')){
-      const selected=String(card.dataset.avatarId)===String(currentSelectedId);
+      const selected=String(card.dataset.avatarId)===currentSelectedId;
       card.classList.toggle('is-selected',selected);
       card.setAttribute('aria-pressed',String(selected));
     }
   }
 
-  search.addEventListener('input',render);
+  function getDiagnostics(){
+    return {...metrics};
+  }
+
+  search.addEventListener('input',()=>applyFilter('search'));
   dialog.addEventListener('keydown',keyboardMove);
   dialog.addEventListener('cancel',event=>{if(loading)event.preventDefault();});
-  dialog.addEventListener('close',()=>{padArmed=false;prevButtons=[];axisLatchX=axisLatchY=0;});
-  render();
+  dialog.addEventListener('close',()=>{
+    padArmed=false;
+    prevButtons=[];
+    axisLatchX=axisLatchY=0;
+  });
 
-  return {open,close:()=>dialog.close(),dialog,updateGamepad,setSelected,setLoading};
+  // One delegated listener per interaction type instead of three listeners per card.
+  grid.addEventListener('focusin',event=>{
+    const button=event.target.closest?.('.chimpion-card');
+    if(!button)return;
+    const record=visibleRecords[Number(button.dataset.filterIndex)];
+    if(record)updatePreview(record.entry);
+  });
+  grid.addEventListener('pointerover',event=>{
+    const button=event.target.closest?.('.chimpion-card');
+    if(!button||button.contains(event.relatedTarget))return;
+    const record=visibleRecords[Number(button.dataset.filterIndex)];
+    if(record)updatePreview(record.entry);
+  });
+  grid.addEventListener('click',event=>{
+    const button=event.target.closest?.('.chimpion-card');
+    if(!button||!grid.contains(button))return;
+    const record=visibleRecords[Number(button.dataset.filterIndex)];
+    if(record)choose(record.entry,button);
+  });
+  grid.addEventListener('error',event=>{
+    const image=event.target;
+    if(image?.tagName==='IMG'&&image.closest('.portrait'))replaceFailedPortrait(image);
+  },true);
+  grid.addEventListener('scroll',()=>{
+    if(renderedCount>=visibleRecords.length)return;
+    if(grid.scrollTop+grid.clientHeight>=grid.scrollHeight-240)appendNextChunk();
+  },{passive:true});
+
+  // Closed selector owns zero card/image nodes. Cards are materialized only on open.
+  metrics.filteredCount=visibleRecords.length;
+  metrics.renderedCardCount=0;
+
+  return {
+    open,
+    close:()=>dialog.close(),
+    dialog,
+    updateGamepad,
+    setSelected,
+    setLoading,
+    getDiagnostics
+  };
 }
