@@ -5,8 +5,8 @@ export const SKI_TUNING=Object.freeze({
   SAFE_ROUTE_HALF_WIDTH:9.7,
   CONTENT_BAND_HALF_WIDTH:10.7,
 
-  // 150 km/h opening pace, then +10 km/h every 30 seconds to a 210 km/h cap.
-  BASE_SPEED:41.6667,
+  // 120 km/h opening pace, then +10 km/h every 30 seconds to a 210 km/h cap.
+  BASE_SPEED:33.3333,
   SPEED_TIER_SECONDS:30,
   SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:58.3333,
@@ -52,6 +52,6 @@ export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
 }
 
 export function getSpeedFeel(speed=SKI_TUNING.BASE_SPEED){
-  // 150 km/h should already feel fast; later tiers add the remaining intensity.
-  return .64+getSpeedProgress(speed)*.36;
+  // 120 km/h already feels fast, while later tiers still have room to build intensity.
+  return .56+getSpeedProgress(speed)*.44;
 }

@@ -3,8 +3,12 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const AudioContextClass=globalThis.AudioContext||globalThis.webkitAudioContext;
 
 export function createSkiAudio(){
+  const JUMP_MUSIC_URL='https://chimp-jump.onrender.com/audio/music-full.mp3';
   let context=null;
   let graph=null;
+  let jumpMusic=null;
+  let jumpMusicReady=false;
+  let jumpMusicFailed=false;
   let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0};
   const buffers=new Map();
   const eventLast=new Map();
@@ -35,6 +39,29 @@ export function createSkiAudio(){
   function write(key,value){
     try{localStorage.setItem(key,String(value));}catch{}
   }
+  function ensureJumpMusic(){
+    if(jumpMusic||typeof Audio==='undefined')return jumpMusic;
+    try{
+      jumpMusic=new Audio(JUMP_MUSIC_URL);
+      jumpMusic.loop=true;
+      jumpMusic.preload='auto';
+      jumpMusic.volume=0;
+      jumpMusic.addEventListener('canplay',()=>{jumpMusicReady=true;jumpMusicFailed=false;applyState(pendingState,true);},{once:true});
+      jumpMusic.addEventListener('error',()=>{jumpMusicFailed=true;jumpMusicReady=false;applyState(pendingState,true);});
+    }catch{jumpMusicFailed=true;}
+    return jumpMusic;
+  }
+  function syncJumpMusic(mode){
+    const media=ensureJumpMusic();
+    if(!media)return false;
+    const playing=settings.musicEnabled&&jumpMusicReady&&!jumpMusicFailed;
+    const level=mode==='playing'?.38:mode==='countdown'?.22:mode==='paused'?.08:mode==='crashed'?.07:.16;
+    media.volume=playing?clamp(settings.master*settings.music*level):0;
+    if(playing&&media.paused)media.play().catch(()=>{});
+    if(!playing&&!media.paused)media.pause();
+    return playing;
+  }
+
   function noiseBuffer(duration=2,seed=92821){
     const length=Math.ceil(context.sampleRate*duration);
     const buffer=context.createBuffer(1,length,context.sampleRate);
@@ -259,6 +286,8 @@ export function createSkiAudio(){
       context??=new AudioContextClass();
       ensureGraph();
       if(context.state==='suspended')context.resume().catch(()=>{});
+      const media=ensureJumpMusic();
+      if(media&&settings.musicEnabled)media.play().catch(()=>{});
     }catch{}
   }
   function applyState(state,instant=false){
@@ -277,6 +306,7 @@ export function createSkiAudio(){
     const wind=running?(0.014+speed01*.078+(air?.030:0)):countdown?.006:0;
     const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
+    const usingJumpMusic=syncJumpMusic(mode);
 
     setTarget(graph.contactGain.gain,contact,response);
     setTarget(graph.carveGain.gain,edge,response);
@@ -285,7 +315,8 @@ export function createSkiAudio(){
     setTarget(graph.carveFilter.frequency,980+carve*1280+speed01*520,.10);
     setTarget(graph.windFilter.frequency,620+speed01*1640+(air?260:0),.20);
     setTarget(graph.musicFilter.frequency,1250+intensity*1100,.28);
-    setTarget(graph.musicGain.gain,musicBase*(.86+intensity*.14),.35);
+    // Keep the procedural bed only as a fallback while the exact Chimp Jump track is unavailable.
+    setTarget(graph.musicGain.gain,usingJumpMusic?0:musicBase*(.86+intensity*.14),.35);
   }
   function update(state){applyState(state,false);}
   function play(type,gain=1){
@@ -312,6 +343,7 @@ export function createSkiAudio(){
     setTarget(graph.master.gain,settings.master,.04);
     setTarget(graph.sfxBus.gain,settings.sfxEnabled?settings.sfx:0,.04);
     setTarget(graph.musicBus.gain,settings.musicEnabled?settings.music:0,.08);
+    syncJumpMusic(pendingState.mode||'menu');
   }
   function setMasterVolume(value){
     settings.master=clamp(Number(value)||0);write('chimpions-ski-master',settings.master);refreshBuses();
@@ -327,6 +359,7 @@ export function createSkiAudio(){
   }
   function setMusicEnabled(value){
     settings.musicEnabled=!!value;write('chimpions-ski-music-enabled',settings.musicEnabled?1:0);refreshBuses();
+    if(settings.musicEnabled)unlock();
   }
   function getSettings(){return {...settings};}
 

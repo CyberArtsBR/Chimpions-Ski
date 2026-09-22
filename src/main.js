@@ -44,7 +44,7 @@ app.innerHTML=`
 const $=id=>document.getElementById(id);
 const scene=new THREE.Scene();
 
-const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,180);
+const camera=new THREE.PerspectiveCamera(55,innerWidth/innerHeight,.1,280);
 camera.position.set(0,6.1,10.5);
 camera.lookAt(0,1,-12);
 const skiCamera=createSkiCamera(camera);
@@ -167,7 +167,7 @@ function addCoursePlacement(placement){
 }
 function fillCourse(difficulty=0){
   let guard=0;
-  while(courseEndZ+courseTravel>-260&&guard++<10){
+  while(courseEndZ+courseTravel>-520&&guard++<18){
     const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty});
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
@@ -361,7 +361,7 @@ function update(dt){
   jumpKeyPressed=false;
   let worldDistance=0;
   if(state.mode==='playing'){
-    // 150–210 km/h needs tighter collision sampling so dense hazards cannot be skipped.
+    // 120–210 km/h uses tight collision sampling so fast hazards cannot be skipped.
     const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){

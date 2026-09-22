@@ -25,17 +25,6 @@ export function stepCarving(state,input,dt){
   const speed01=clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
   state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.25);
 
-  if(state.air){
-    state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
-    if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH&&state.x*state.vx>0)state.vx=0;
-    state.vx=THREE.MathUtils.damp(state.vx,state.vx*.995,.32,dt);
-    state.edge=THREE.MathUtils.damp(state.edge,0,3.2,dt);
-    state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,0,4.8,dt);
-    state.grip=.12;
-    state.counterSteer=false;
-    return;
-  }
-
   const reversing=steer!==0&&state.edge*steer<-.01;
   const neutralizing=reversing&&Math.abs(state.edge)>.018;
   const targetEdge=steer;
@@ -91,7 +80,7 @@ export function stepCarving(state,input,dt){
 
   state.vx=THREE.MathUtils.damp(state.vx,carveVelocity,gripResponse,dt);
 
-  if(state.carveLoad>.62){
+  if(!state.air&&state.carveLoad>.62){
     const plantedScrub=1-(state.carveLoad-.62)*.06*dt;
     state.vx*=Math.max(.984,plantedScrub);
   }

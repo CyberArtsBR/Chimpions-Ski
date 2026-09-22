@@ -43,8 +43,8 @@ export function createSkiCamera(camera){
     const lateralLook=state.heading*lookAhead+lateralVelocity*.040;
     lookOut.set(
       state.x*.17+lateralLook,
-      1.02+state.y*.09+airHeight*(rampAir?.012:.025)-descent*.10,
-      -13.15-speed01*4.25-(rampAir?2.15+descent*1.75:air?.70:0)
+      .30+state.y*.075+airHeight*(rampAir?.012:.025)-descent*.12,
+      -15.40-speed01*5.10-(rampAir?2.35+descent*1.95:air?.85:0)
     );
 
     const fov=54.5+speed01*7.4+(rampAir?1.35+apex*.75:manualAir?.42:0);
