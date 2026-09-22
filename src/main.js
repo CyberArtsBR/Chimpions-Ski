@@ -15,6 +15,8 @@ import {createGameFeedback} from './gameFeedback.js';
 import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
+import {createStartScreen} from './startScreen.js';
+import {createScorePresentation} from './scorePresentation.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -250,6 +252,13 @@ const ui=createGameUI({
   }
 });
 const feedback=createGameFeedback({audio,ui});
+const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
+const startScreen=createStartScreen({
+  audio,
+  onStart:()=>beginRun(),
+  assetUrl:'/start/chimpions-ski-start.webp'
+});
+startScreen.setReady(false);
 ui.setAvatarLoading(true);
 
 let avatarRequest=0;
@@ -258,6 +267,7 @@ async function setAvatar(entry){
   if(selectedAvatar?.id===entry.id&&skier)return;
   const request=++avatarRequest;
   ready=false;
+  startScreen.setReady(false);
   ui.setAvatarLoading(true);
   try{
   const nextSkier=await loadSkier('/'+entry.url);
@@ -273,7 +283,11 @@ async function setAvatar(entry){
   ui.setAvatar(entry);
   selector?.setSelected(entry);
   }finally{
-    if(request===avatarRequest){ready=!!skier;ui.setAvatarLoading(!ready);}
+    if(request===avatarRequest){
+      ready=!!skier;
+      startScreen.setReady(ready);
+      ui.setAvatarLoading(!ready);
+    }
   }
 }
 (async()=>{
@@ -296,6 +310,7 @@ async function setAvatar(entry){
     ui.setAvatar(selectedAvatar);
   }finally{
     ready=true;
+    startScreen.setReady(true);
     ui.setAvatarLoading(false);
   }
 })();
@@ -325,7 +340,9 @@ function resetRunState(mode='countdown'){
   environment.reset();
   Object.assign(state,sampleSkiGround(terrainHeight,0,player.position.z,0,skier?.userData?.skiTrackSpacing));
   state.y=.12+state.centerGround;player.position.y=state.y;
-  courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
+  courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();
+  scorePresentation.reset(state.clearEvent??null);
+  jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden)return;
@@ -401,6 +418,11 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInpu
 function update(dt){
   physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
+  if(startScreen.isActive){
+    startScreen.updateController(pad);
+    lastPadJump=!!pad.jump;
+    return;
+  }
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
@@ -603,6 +625,12 @@ function update(dt){
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
+  scorePresentation.update({
+    score:state.score??0,
+    combo:state.combo??0,
+    lastClearPoints:state.lastClearPoints??0,
+    clearEvent:state.clearEvent??null
+  });
   audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
   feedback.update(state,dt);
 }

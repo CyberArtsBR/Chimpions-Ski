@@ -271,11 +271,14 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   }
   function showLandingFeedback(quality='clean'){
     clearTimeout(landingTimer);
-    const hard=quality==='hard'||quality==='rough';
-    landingCallout.textContent=quality==='hard'?'HARD LANDING':quality==='rough'?'ROUGH LANDING':'CLEAN LANDING';
-    landingCallout.className='landing-callout '+(hard?'is-hard':'is-clean');
+    if(quality==='clean'){
+      landingCallout.hidden=true;
+      return;
+    }
+    landingCallout.textContent=quality==='hard'?'HARD LANDING':'ROUGH LANDING';
+    landingCallout.className='landing-callout is-hard';
     landingCallout.hidden=false;
-    landingTimer=setTimeout(()=>{landingCallout.hidden=true;},hard?850:650);
+    landingTimer=setTimeout(()=>{landingCallout.hidden=true;},850);
   }
   function showSpeedUp(){
     clearTimeout(speedUpTimer);
@@ -317,6 +320,11 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     active?.click();
   }
   function updateController(pad,selector){
+    if(document.body.classList.contains('start-screen-active')){
+      padButtons=pad.buttons?.slice?.()||[];
+      axisLatchX=0;axisLatchY=0;
+      return;
+    }
     if(selector?.dialog?.open){
       selector.updateGamepad?.(pad);
       padButtons=pad.buttons?.slice?.()||[];
@@ -370,6 +378,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   },true);
   document.addEventListener('keydown',event=>{
     if(event.repeat)return;
+    if(document.body.classList.contains('start-screen-active'))return;
     if(document.querySelector('.selector-dialog[open]'))return;
     if(event.code==='Escape'){
       if(mode==='playing'){event.preventDefault();onPause?.();}
