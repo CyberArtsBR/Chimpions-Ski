@@ -63,9 +63,10 @@ export function createCourseRenderBatches({
   renderMaxZ=28
 }){
   const kinds={};
+  const kindCounts={};
   let serial=0;
   let dirty=true;
-  let lastDiagnostics={
+  const lastDiagnostics={
     activeLogical:0,
     renderedInstances:0,
     batchDrawCalls:0,
@@ -74,13 +75,14 @@ export function createCourseRenderBatches({
     capacity,
     renderMinZ,
     renderMaxZ,
-    kindCounts:{}
+    kindCounts
   };
 
   for(const kind of BATCHED_COURSE_KINDS){
     const prototype=prototypes[kind];
     if(!prototype)throw new Error('Missing course batch prototype for '+kind);
     kinds[kind]=collectComponents(world,kind,prototype,capacity);
+    kindCounts[kind]=0;
   }
 
   function isBatchedKind(kind){
@@ -122,7 +124,7 @@ export function createCourseRenderBatches({
   function sync(course,force=false){
     if(!dirty&&!force)return lastDiagnostics;
 
-    for(const info of Object.values(kinds))info.count=0;
+    for(const kind of BATCHED_COURSE_KINDS)kinds[kind].count=0;
     let activeLogical=0;
     let renderedInstances=0;
     let overflow=0;
@@ -159,8 +161,8 @@ export function createCourseRenderBatches({
 
     let batchDrawCalls=0;
     let legacyDrawCalls=0;
-    const kindCounts={};
-    for(const [kind,info] of Object.entries(kinds)){
+    for(const kind of BATCHED_COURSE_KINDS){
+      const info=kinds[kind];
       const drawCount=Math.min(info.count,capacity);
       kindCounts[kind]=drawCount;
       for(const component of info.components){
@@ -168,20 +170,14 @@ export function createCourseRenderBatches({
         component.mesh.instanceMatrix.needsUpdate=true;
       }
       if(drawCount>0)batchDrawCalls+=info.components.length;
-      legacyDrawCalls+=drawCount*info.components.length;
+      legacyDrawCalls+=info.count*info.components.length;
     }
 
-    lastDiagnostics={
-      activeLogical,
-      renderedInstances,
-      batchDrawCalls,
-      legacyDrawCalls,
-      overflow,
-      capacity,
-      renderMinZ,
-      renderMaxZ,
-      kindCounts
-    };
+    lastDiagnostics.activeLogical=activeLogical;
+    lastDiagnostics.renderedInstances=renderedInstances;
+    lastDiagnostics.batchDrawCalls=batchDrawCalls;
+    lastDiagnostics.legacyDrawCalls=legacyDrawCalls;
+    lastDiagnostics.overflow=overflow;
     dirty=false;
     return lastDiagnostics;
   }
@@ -192,7 +188,7 @@ export function createCourseRenderBatches({
 
   function getComponentCounts(){
     const result={};
-    for(const [kind,info] of Object.entries(kinds))result[kind]=info.components.length;
+    for(const kind of BATCHED_COURSE_KINDS)result[kind]=kinds[kind].components.length;
     return result;
   }
 
