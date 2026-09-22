@@ -439,7 +439,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   scene.add(atmosphere);
   const distantValley=createDistantValley(snowMaterials.bank);
   scene.add(distantValley);
-  const backgroundVariety=createAlpineBackgroundVariety({scene});
+  const backgroundVariety=createAlpineBackgroundVariety({scene,terrainHeight});
   atmosphere.add(
     createRidge(252,43,1.1,-190,0xd3e2e8,.52,1.2,44),
     createRidge(230,39,-.3,-164,0xbfd4dd,.62,2.4,40),
