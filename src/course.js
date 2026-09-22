@@ -95,20 +95,34 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   }
 
   function boundedPlacementX(kind,x,safeX,extra={}){
+    const limit=gameplayObjectCenterLimit(kind);
     let bounded=clampGameplayObjectX(kind,x);
     if(!PHYSICAL_HAZARDS.has(kind)||extra.jumpTarget)return bounded;
 
-    // If boundary fitting pulled an edge hazard inward, preserve a navigable
-    // center line by deterministically moving it to the nearest valid side.
+    // Avoid collapsing many edge hazards onto the exact same legal X after
+    // visual-boundary fitting. Fold overflow slightly inward using stable
+    // authored coordinates, while remaining inside the flag-safe limit.
+    const rawX=Number.isFinite(x)?x:0;
+    if(Math.abs(rawX)>limit&&extra.routeDecision){
+      const overflow=Math.abs(rawX)-limit;
+      const phase=Math.abs(Number(extra.decisionZ)||0)*.019+Math.abs(rawX)*.113;
+      const inset=.06+((overflow*.71+phase)% .46);
+      bounded=Math.sign(rawX||1)*Math.max(0,limit-inset);
+    }
+
+    // If boundary fitting pulled a hazard toward the protected route, preserve
+    // the normal navigable gap or the wider ramp touchdown corridor.
     const minGap=extra.landingProtected
       ?T.LANDING_CORRIDOR_HALF_WIDTH
       :(COURSE_OBJECT_COLLISION_HALF_WIDTH[kind]??0)+.36;
     if(Math.abs(bounded-safeX)>minGap)return bounded;
 
-    const limit=gameplayObjectCenterLimit(kind);
     const preferred=bounded>=safeX?1:-1;
+    const spread=extra.routeDecision
+      ?.04+((Math.abs(Number(extra.decisionZ)||0)*.031+Math.abs(rawX)*.107)% .42)
+      :.02;
     for(const side of [preferred,-preferred]){
-      const candidate=clamp(safeX+side*(minGap+.02),-limit,limit);
+      const candidate=clamp(safeX+side*(minGap+spread),-limit,limit);
       if(Math.abs(candidate-safeX)>minGap)return candidate;
     }
     return bounded;
