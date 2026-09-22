@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
-import {loadSkier} from './skier.js';
+import {loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
 import {createSkiAudio} from './audio.js';
 import {createSkiEnvironment,decorateCourseObject} from './environment.js';
@@ -372,7 +372,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   startScreen.setReady(false);
   ui.setAvatarLoading(true);
   try{
-    const nextSkier=await loadSkier('/'+entry.url,{rideMode:nextRideMode});
+    const nextSkier=await loadRiderAsset('/'+entry.url,{rideMode:nextRideMode});
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     const previousSkier=skier;
     skier=nextSkier;
@@ -412,7 +412,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   }catch(error){
     console.warn(error);
     const previousSkier=skier;
-    skier=await loadSkier('/models/default.glb',{rideMode:selectedRideMode});
+    skier=await loadRiderAsset('/models/default.glb',{rideMode:selectedRideMode});
     trickVisualPivot.add(skier);
     if(previousSkier){
       trickVisualPivot.remove(previousSkier);

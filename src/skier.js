@@ -557,3 +557,10 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     return createFallbackSkier({rideMode});
   }
 }
+
+// Runtime integration entry point: main owns selection state while this module
+// owns GLB acquisition. Ride-only switches can therefore update the existing
+// rider without coupling selector logic to a direct model load.
+export async function loadRiderAsset(url='/models/default.glb',options={}){
+  return loadSkier(url,options);
+}
