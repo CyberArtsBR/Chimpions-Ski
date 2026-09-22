@@ -651,13 +651,6 @@
     "url": "model/characters/The%20Instrument.glb"
   },
   {
-    "id": "110",
-    "name": "The Inverted",
-    "image": "https://cdn.helius-rpc.com/cdn-cgi/image//https://arweave.net/w0Jw-1NzLjR2ydZowLnM-wzt03Z410rACtCWWJX9aDc",
-    "tribe": "Planeswalkers",
-    "unavailable": "Rig needs correction: only one bone in GLB"
-  },
-  {
     "id": "111",
     "name": "The Irate",
     "image": "https://cdn.helius-rpc.com/cdn-cgi/image//https://arweave.net/9ViSAGnYu_CxJkwC6LvWKL1MFynU_F-gqGbcM769LPM",
@@ -873,13 +866,6 @@
     "image": "https://cdn.helius-rpc.com/cdn-cgi/image//https://arweave.net/_kKgN01_XvV6bNsz-jhTsmneFBF4hUdQGYPQ74oOPig",
     "tribe": "Proletariat",
     "url": "model/characters/The%20Operative.glb"
-  },
-  {
-    "id": "144",
-    "name": "The Ordained",
-    "image": "https://cdn.helius-rpc.com/cdn-cgi/image//https://arweave.net/UGtBOkXyygm_JH7_HOmARoVVPqVUDzPgyPVXwLW6Doo",
-    "tribe": "Proletariat",
-    "unavailable": "Rig needs correction: no skeleton in GLB"
   },
   {
     "id": "145",
