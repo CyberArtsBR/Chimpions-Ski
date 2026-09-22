@@ -72,16 +72,22 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
   }
 
   function refresh(){
+    let moundVisible=0;
+    let ridgeVisible=0;
     for(let i=0;i<moundCount;i++){
       const e=moundData[i];
+      if(e.z<-132)continue;
       const ground=terrainHeight(e.x,e.z-travel);
-      setInstance(mounds,i,e.x,ground-e.sy*.45,e.z,e.sx,e.sy,e.sz,e.ry);
+      setInstance(mounds,moundVisible++,e.x,ground-e.sy*.45,e.z,e.sx,e.sy,e.sz,e.ry);
     }
     for(let i=0;i<ridgeCount;i++){
       const e=ridgeData[i];
+      if(e.z<-146)continue;
       const ground=terrainHeight(e.x,e.z-travel);
-      setInstance(ridges,i,e.x,ground+.010,e.z,e.sx,1,e.sz,e.ry);
+      setInstance(ridges,ridgeVisible++,e.x,ground+.010,e.z,e.sx,1,e.sz,e.ry);
     }
+    mounds.count=moundVisible;
+    ridges.count=ridgeVisible;
     mounds.instanceMatrix.needsUpdate=true;
     ridges.instanceMatrix.needsUpdate=true;
   }
