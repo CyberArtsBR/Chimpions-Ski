@@ -7,7 +7,7 @@ export function terrainHeight(x,z){
   const broad=Math.sin(downhill*.045)*.105+Math.sin(downhill*.017+.65)*.068;
   const crest=Math.sin(downhill*.086+Math.sin(downhill*.012)*.8)*.028;
   const gentleBank=x*.006*Math.sin(downhill*.014+.4);
-  const edge01=clamp((Math.abs(x)-5.0)/5.5,0,1);
+  const edge01=clamp((Math.abs(x)-8.0)/4.8,0,1);
   const edgeRelief=edge01*edge01*(
     Math.sin(downhill*.027+x*.19)*.14+
     Math.cos(downhill*.014-x*.11)*.07

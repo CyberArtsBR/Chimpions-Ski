@@ -1,0 +1,40 @@
+export const SKI_TUNING=Object.freeze({
+  // Practical ski corridor: ±11.3 versus the previous ±8.1 (~39.5% wider).
+  PLAYER_HALF_WIDTH:11.3,
+  COURSE_OBJECT_HALF_WIDTH:10.2,
+  SAFE_ROUTE_HALF_WIDTH:8.4,
+  CONTENT_BAND_HALF_WIDTH:8.8,
+
+  // Speed progression: ~60% faster opening pace, then modest 30-second tiers.
+  BASE_SPEED:19.2,
+  SPEED_TIER_SECONDS:30,
+  SPEED_TIER_INCREMENT:1.9,
+  MAX_SPEED:32.5,
+  SPEED_RESPONSE:2.4,
+
+  // Fast arcade carve response while retaining edge -> turn -> heading -> vx.
+  INPUT_DEADZONE:.018,
+  EDGE_RESPONSE:30,
+  EDGE_RELEASE:13.5,
+  EDGE_REVERSAL:44,
+  CARVE_LOAD_RESPONSE:16,
+  TURN_RATE_BASE:3.35,
+  TURN_RATE_SPEED_BONUS:.35,
+  TURN_INPUT_ASSIST:.42,
+  TURN_RESPONSE:18,
+  TURN_REVERSAL_RESPONSE:28,
+  HEADING_LIMIT_LOW:.60,
+  HEADING_LIMIT_HIGH:.53,
+  HEADING_RECENTER:4.2,
+  TURN_RECENTER:7.0,
+  LATERAL_SCALE_LOW:1.02,
+  LATERAL_SCALE_HIGH:.74,
+  LATERAL_RESPONSE:17,
+  LATERAL_REVERSAL_RESPONSE:30,
+
+  // Manual jump remains small; ramps produce the requested monster jump.
+  MANUAL_JUMP_VELOCITY:5.9,
+  RAMP_JUMP_BASE_VELOCITY:13.4,
+  RAMP_JUMP_SPEED_FACTOR:.095,
+  RAMP_RETRIGGER_GRACE:.85
+});
