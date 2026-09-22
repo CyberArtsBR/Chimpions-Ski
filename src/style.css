@@ -24,3 +24,21 @@ button{font:inherit;border:0;cursor:pointer}
 .badge{display:inline-flex;gap:7px;align-items:center;padding:7px 11px;border-radius:999px;background:#eaf6fb;color:#42657d;font-size:12px;font-weight:700;margin-bottom:18px}
 @media (pointer:fine){.touch{display:none}}
 @media (max-width:520px){.hud{top:10px;gap:7px}.stat{min-width:92px;padding:8px}.stat strong{font-size:19px}.card{padding:26px 20px}}
+
+.menu-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.secondary{min-height:52px;padding:0 22px;border-radius:16px;background:#e2f2f8;color:#173b58;font-weight:800;letter-spacing:.04em;border:1px solid rgba(23,59,88,.15)}
+.selected-avatar{display:flex;align-items:center;gap:12px;width:min(100%,390px);margin:0 auto 18px;padding:10px 14px;border-radius:17px;background:rgba(223,244,255,.78);text-align:left}
+.selected-avatar-image{width:48px;height:48px;border-radius:12px;display:grid;place-items:center;overflow:hidden;background:white;font-size:25px}
+.selected-avatar-image img{width:100%;height:100%;object-fit:cover}
+.selected-avatar small{display:block;font-size:9px;letter-spacing:.14em;color:#628199}.selected-avatar strong{display:block;color:#173b58}
+.selector-dialog{width:min(1100px,92vw);height:min(760px,88vh);border:0;border-radius:26px;padding:0;background:#f4fbff;box-shadow:0 32px 100px rgba(7,35,54,.38)}
+.selector-dialog::backdrop{background:rgba(5,20,31,.66);backdrop-filter:blur(7px)}
+.selector-shell{height:100%;padding:24px;display:flex;flex-direction:column}
+.selector-head{display:flex;align-items:center;justify-content:space-between;gap:18px}.selector-head small{letter-spacing:.15em;color:#6a8799}.selector-head h2{margin:2px 0 0;font-size:30px;color:#173b58}
+.selector-close{width:44px;height:44px;border-radius:50%;font-size:30px;background:#e2f2f8;color:#173b58}
+.selector-search{margin:18px 0;padding:14px 16px;border-radius:14px;border:1px solid #cbdfe8;font:inherit;outline:none;background:white}
+.selector-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px;overflow:auto;padding:2px 4px 12px}
+.chimpion-card{padding:10px;border-radius:16px;background:white;border:1px solid #dbeaf0;text-align:left;transition:.15s transform,.15s box-shadow}
+.chimpion-card:hover{transform:translateY(-2px);box-shadow:0 10px 25px rgba(20,63,86,.13)}
+.portrait{display:block;aspect-ratio:1;border-radius:12px;overflow:hidden;background:#e9f4f8;margin-bottom:9px}.portrait img{width:100%;height:100%;object-fit:cover}.portrait-fallback{height:100%;display:grid;place-items:center;font-size:44px}
+.chimpion-card strong,.chimpion-card small{display:block}.chimpion-card strong{color:#173b58}.chimpion-card small{color:#78909e;margin-top:3px}

@@ -1,17 +1,14 @@
-name: Chimpions Ski build
-
+name: Chimpions Ski desktop build and checks
 on:
   push:
     branches: [main]
   pull_request:
-
 permissions:
   contents: read
-
 jobs:
-  build:
+  check:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -20,3 +17,15 @@ jobs:
       - run: npm install
       - run: npm run check
       - run: npm run build
+      - run: node checks/assets.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Run desktop browser audit
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-ski-vite.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4173/?test=1 >/dev/null; then break; fi
+            sleep 1
+          done
+          node checks/desktop-browser.mjs

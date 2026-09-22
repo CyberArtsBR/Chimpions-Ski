@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import './style.css';
 import {loadSkier} from './skier.js';
+import {readPad} from './input.js';
+import {createSkiAudio} from './audio.js';
+import {loadAvatarCatalog,randomAvatar,createAvatarSelector} from './avatar-system.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -15,12 +18,17 @@ app.innerHTML=`
       <h1 class="logo">CHIMPIONS <span>SKI</span></h1>
       <p class="tagline">Carve through an endless mountain. Dodge trees and rocks, collect bananas and hit ramps as the slope gets faster.</p>
       <div id="crash-copy"></div>
-      <button class="primary" id="start">START SKIING</button>
-      <div class="tip">← → / A D · controller stick · touch controls</div>
+      <div class="selected-avatar" id="selected-avatar">
+        <span class="selected-avatar-image" id="selected-avatar-image">🐵</span>
+        <span><small>YOUR SKIER</small><strong id="selected-avatar-name">Loading Chimpions…</strong></span>
+      </div>
+      <div class="menu-actions">
+        <button class="secondary" id="choose">CHOOSE CHIMPION</button>
+        <button class="primary" id="start">START SKIING</button>
+      </div>
+      <div class="tip">← → / A D · Xbox / PlayStation controller</div>
     </section>
   </div>
-  <button class="touch" id="left" aria-label="Carve left">←</button>
-  <button class="touch" id="right" aria-label="Carve right">→</button>
 `;
 
 const $=id=>document.getElementById(id);
@@ -100,19 +108,38 @@ for(let i=0;i<34;i++)spawn(-12-i*5.3-Math.random()*2);
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
-let skier=null;
-loadSkier().then(model=>{skier=model;player.add(model);});
+let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
+const audio=createSkiAudio();
+
+async function setAvatar(entry){
+  selectedAvatar=entry;
+  $('selected-avatar-name').textContent=entry.name;
+  $('selected-avatar-image').innerHTML=entry.image?`<img src="${entry.image}" alt="">`:'🐵';
+  if(skier)player.remove(skier);
+  skier=await loadSkier('/'+entry.url);
+  player.add(skier);
+}
+(async()=>{
+  try{
+    catalog=await loadAvatarCatalog();
+    selector=createAvatarSelector({catalog,onSelect:setAvatar});
+    await setAvatar(randomAvatar(catalog));
+  }catch(error){
+    console.warn(error);
+    skier=await loadSkier();player.add(skier);
+    $('selected-avatar-name').textContent='Fallback skier';
+  }finally{ready=true;}
+})();
 
 const state={mode:'menu',distance:0,bananas:0,speed:12,x:0,vx:0,y:.12,vy:0,air:false,best:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
-const keys=new Set(),touch=new Map();
+const keys=new Set();
 let last=performance.now();
 
 function control(){
-  let v=Number(keys.has('ArrowRight')||keys.has('KeyD')||[...touch.values()].includes(1))-Number(keys.has('ArrowLeft')||keys.has('KeyA')||[...touch.values()].includes(-1));
-  const pad=navigator.getGamepads?.()[0];
-  if(!v&&pad&&Math.abs(pad.axes?.[0]||0)>.12)v=pad.axes[0];
-  return THREE.MathUtils.clamp(v,-1,1);
+  const keyboard=Number(keys.has('ArrowRight')||keys.has('KeyD'))-Number(keys.has('ArrowLeft')||keys.has('KeyA'));
+  const pad=readPad(navigator.getGamepads?.()||[]);
+  return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function recycle(item){
   item.position.z=-105-Math.random()*32;
@@ -120,6 +147,7 @@ function recycle(item){
   if(item.userData.kind==='banana')item.visible=true;
 }
 function reset(){
+  audio.play('menu',.5);
   state.mode='playing';state.distance=0;state.bananas=0;state.speed=12;state.x=0;state.vx=0;state.y=.12;state.vy=0;state.air=false;
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   course.forEach((o,i)=>{o.visible=true;o.position.z=-12-i*5.3-Math.random()*2;o.position.x=THREE.MathUtils.randFloat(-7.2,7.2);});
@@ -127,7 +155,7 @@ function reset(){
 }
 function crash(){
   if(state.mode!=='playing')return;
-  state.mode='crashed';
+  state.mode='crashed';audio.play('crash',.9);
   state.best=Math.max(state.best,Math.floor(state.distance));
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
   $('crash-copy').innerHTML='<div class="crash">WIPEOUT · '+Math.floor(state.distance)+' m</div>';
@@ -135,13 +163,9 @@ function crash(){
   $('overlay').hidden=false;
 }
 $('start').onclick=reset;
+$('choose').onclick=()=>selector?.open();
 addEventListener('keydown',e=>{keys.add(e.code);if(e.code==='Enter'&&state.mode!=='playing')reset();});
 addEventListener('keyup',e=>keys.delete(e.code));
-for(const [id,dir] of [['left',-1],['right',1]]){
-  const b=$(id);
-  b.onpointerdown=e=>{b.setPointerCapture(e.pointerId);touch.set(e.pointerId,dir)};
-  b.onpointerup=b.onpointercancel=b.onlostpointercapture=e=>touch.delete(e.pointerId);
-}
 
 function update(dt){
   const steer=control();
@@ -167,10 +191,10 @@ function update(dt){
       const dx=Math.abs(item.position.x-state.x);
       if(dz<1.05&&dx<item.userData.radius+.38){
         if(item.userData.kind==='banana'&&item.visible){
-          item.visible=false;state.bananas++;continue;
+          item.visible=false;state.bananas++;audio.play('banana');continue;
         }
         if(item.userData.kind==='ramp'&&!state.air){
-          state.air=true;state.vy=7.2+state.speed*.045;continue;
+          state.air=true;state.vy=7.2+state.speed*.045;audio.play('ramp');continue;
         }
         if(!state.air||state.y<.85)crash();
       }
@@ -204,4 +228,4 @@ function resize(){
 }
 addEventListener('resize',resize);
 
-window.chimpionsSki=()=>({...state,skierFallback:!!skier?.userData?.fallback});
+window.chimpionsSki=()=>({...state,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback});
