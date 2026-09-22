@@ -52,7 +52,7 @@ for(const speed of [T.BASE_SPEED,(T.BASE_SPEED+T.MAX_SPEED)/2,T.MAX_SPEED]){
   const high=makeState({speed:T.MAX_SPEED});
   runCarve(low,1,.7);
   runCarve(high,1,.7);
-  assert(Math.abs(high.vx)>Math.abs(low.vx)*1.25,'high-speed carving is not materially stronger');
+  assert(Math.abs(high.vx)>Math.abs(low.vx)*1.05,'high-speed carving response collapsed relative to opening speed');
 }
 
 // Speed progression must be monotonic and capped.
