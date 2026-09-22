@@ -21,7 +21,9 @@ function makeSnowTextures(renderer){
   const size=128;
   const albedoData=new Uint8Array(size*size*4);
   const microData=new Uint8Array(size*size*4);
+  const normalData=new Uint8Array(size*size*4);
   const roughnessData=new Uint8Array(size*size*4);
+  const heightField=new Float32Array(size*size);
 
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
@@ -30,13 +32,16 @@ function makeSnowTextures(renderer){
         Math.sin(x*.095+y*.024)*.58+
         Math.sin(x*.028-y*.073+1.9)*.32+
         Math.sin((x+y)*.019+4.2)*.22;
-      const wind=Math.sin(x*.18+y*.036+Math.sin(y*.04)*1.3);
+      const wind=
+        Math.sin(x*.18+y*.036+Math.sin(y*.04)*1.3)*.72+
+        Math.sin(x*.36+y*.058+2.4)*.28;
+      const drift=Math.sin(y*.041+Math.sin(x*.024)*1.7);
       const grain=(hash2(x,y)-.5);
-      const sparkle=hash2(x*2.37+17,y*2.11+31)>.994?1:0;
+      const sparkle=hash2(x*2.37+17,y*2.11+31)>.992?1:0;
 
       const tone=THREE.MathUtils.clamp(
-        244+broad*3.1+wind*1.25+grain*1.7+sparkle*4.5,
-        231,
+        243+broad*4.0+wind*2.0+drift*1.2+grain*1.3+sparkle*5.0,
+        228,
         255
       );
       albedoData[i]=THREE.MathUtils.clamp(tone-6,0,255);
@@ -45,14 +50,15 @@ function makeSnowTextures(renderer){
       albedoData[i+3]=255;
 
       const micro=THREE.MathUtils.clamp(
-        128+broad*17+wind*11+grain*8+sparkle*15,
-        82,
-        176
+        128+broad*18+wind*15+drift*9+grain*6+sparkle*13,
+        76,
+        184
       );
       microData[i]=micro;
       microData[i+1]=micro;
       microData[i+2]=micro;
       microData[i+3]=255;
+      heightField[y*size+x]=micro/255;
 
       const rough=THREE.MathUtils.clamp(
         222-broad*9-wind*5-grain*5-sparkle*12,
@@ -63,6 +69,22 @@ function makeSnowTextures(renderer){
       roughnessData[i+1]=rough;
       roughnessData[i+2]=rough;
       roughnessData[i+3]=255;
+    }
+  }
+
+  for(let y=0;y<size;y++){
+    for(let x=0;x<size;x++){
+      const xm=(x-1+size)%size,xp=(x+1)%size;
+      const ym=(y-1+size)%size,yp=(y+1)%size;
+      const dx=(heightField[y*size+xp]-heightField[y*size+xm])*2.2;
+      const dy=(heightField[yp*size+x]-heightField[ym*size+x])*2.2;
+      const inv=1/Math.sqrt(dx*dx+dy*dy+1);
+      const nx=-dx*inv,ny=-dy*inv,nz=inv;
+      const i=(y*size+x)*4;
+      normalData[i]=(nx*.5+.5)*255;
+      normalData[i+1]=(ny*.5+.5)*255;
+      normalData[i+2]=(nz*.5+.5)*255;
+      normalData[i+3]=255;
     }
   }
 
@@ -79,13 +101,19 @@ function makeSnowTextures(renderer){
     8.4,
     12.2
   );
+  const normal=configureTexture(
+    new THREE.DataTexture(normalData,size,size,THREE.RGBAFormat),
+    renderer,
+    9.2,
+    13.4
+  );
   const roughness=configureTexture(
     new THREE.DataTexture(roughnessData,size,size,THREE.RGBAFormat),
     renderer,
     6.7,
     10.1
   );
-  return {albedo,micro,roughness};
+  return {albedo,micro,normal,roughness};
 }
 
 export function createSnowMaterials(renderer){
@@ -96,11 +124,13 @@ export function createSnowMaterials(renderer){
     roughness:.79,
     roughnessMap:textures.roughness,
     metalness:0,
+    normalMap:textures.normal,
+    normalScale:new THREE.Vector2(.36,.58),
     bumpMap:textures.micro,
-    bumpScale:.038,
-    clearcoat:.075,
-    clearcoatRoughness:.68,
-    sheen:.08,
+    bumpScale:.022,
+    clearcoat:.10,
+    clearcoatRoughness:.64,
+    sheen:.11,
     sheenColor:new THREE.Color(0xc6e9f8),
     sheenRoughness:.82
   });
@@ -109,8 +139,10 @@ export function createSnowMaterials(renderer){
     color:0xf9fdff,
     roughness:.90,
     metalness:0,
+    normalMap:textures.normal,
+    normalScale:new THREE.Vector2(.18,.28),
     bumpMap:textures.micro,
-    bumpScale:.018,
+    bumpScale:.012,
     clearcoat:.035,
     clearcoatRoughness:.78
   });
