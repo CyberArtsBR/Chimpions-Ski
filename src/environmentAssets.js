@@ -48,7 +48,7 @@ function createChaletGeometry(){
   return geometry;
 }
 
-export function createAlpineBackgroundVariety({scene}){
+export function createAlpineBackgroundVariety({scene,terrainHeight}){
   const group=new THREE.Group();
   group.renderOrder=-6;
   scene.add(group);
@@ -70,7 +70,8 @@ export function createAlpineBackgroundVariety({scene}){
     const x=side*(31+hash(i*3.1+9)*28+band*.55);
     const z=-76-hash(i*5.7+2)*88;
     const scale=.65+hash(i*7.9+4)*.55;
-    setInstance(chalets,i,x,-2.7,z,scale,scale,scale,side<0?.12:-.16);
+    const ground=terrainHeight?terrainHeight(x,z):0;
+    setInstance(chalets,i,x,ground+.02,z,scale,scale,scale,side<0?.12:-.16);
   }
   chalets.instanceMatrix.needsUpdate=true;
   group.add(chalets);
@@ -90,19 +91,20 @@ export function createAlpineBackgroundVariety({scene}){
 
   const cablePositions=[];
   const towerX=43;
-  for(let i=0;i<towerCount;i++){
-    const side=i<4?-1:1;
-    const local=i%4;
-    const x=side*(towerX+local*4.2);
-    const z=-66-local*34-(side>0?12:0);
-    const y=-.7+local*.24;
-    setInstance(towers,i,x,y,z,1,1,1,side*.03);
-    cablePositions.push(x,y+2.18,z);
-    if(local<3){
-      const nx=side*(towerX+(local+1)*4.2);
-      const nz=-66-(local+1)*34-(side>0?12:0);
-      const ny=-.7+(local+1)*.24+2.18;
-      cablePositions.push(nx,ny,nz);
+  let towerIndex=0;
+  for(const side of [-1,1]){
+    let previousX=0,previousY=0,previousZ=0;
+    for(let local=0;local<4;local++){
+      const x=side*(towerX+local*4.2);
+      const z=-66-local*34-(side>0?12:0);
+      const ground=terrainHeight?terrainHeight(x,z):0;
+      const y=ground+2.30;
+      setInstance(towers,towerIndex++,x,y,z,1,1,1,side*.03);
+      const topY=y+2.18;
+      if(local>0){
+        cablePositions.push(previousX,previousY,previousZ,x,topY,z);
+      }
+      previousX=x;previousY=topY;previousZ=z;
     }
   }
   towers.instanceMatrix.needsUpdate=true;
