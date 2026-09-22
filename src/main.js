@@ -73,7 +73,7 @@ const {
 
 const tiles=[];
 for(let i=0;i<9;i++){
-  const geometry=new THREE.PlaneGeometry(54,28,30,18);
+  const geometry=new THREE.PlaneGeometry(72,28,40,18);
   const tile=new THREE.Mesh(geometry,snowMat);
   tile.rotation.x=-Math.PI/2;
   tile.position.set(0,0,-i*28+8);
