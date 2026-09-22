@@ -600,7 +600,7 @@ function update(dt){
     }
   }
   const worldSpeed=worldDistance/dt;
-  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround);
+  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
