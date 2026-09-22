@@ -133,7 +133,7 @@ function createMovingInstances(count,mesh,makeEntry){
 
 function resetBank(entry,i,deep=false){
   const side=i%2===0?-1:1;
-  entry.x=side*(11.8+wave(i*2.7+11)*7.2);
+  entry.x=side*(18.0+wave(i*2.7+11)*9.0);
   entry.z=-12-wave(i*4.1+21)*205;
   entry.sx=(deep?2.8:2.1)+wave(i*3.4+5)*(deep?3.3:2.6);
   entry.sy=(deep?.34:.18)+wave(i*7.1+9)*(deep?.42:.22);
@@ -146,7 +146,7 @@ function resetTree(entry,i){
   const within=i%6;
   const side=cluster%2===0?-1:1;
   const clusterZ=-16-wave(cluster*4.91+8)*224;
-  const clusterX=side*(13.4+wave(cluster*2.7+4)*8.3);
+  const clusterX=side*(17.5+wave(cluster*2.7+4)*9.2);
   entry.x=clusterX+(wave(i*5.37+1)-.5)*(4.8+within*.28);
   entry.z=clusterZ+(wave(i*6.91+8)-.5)*15.5;
   entry.s=.60+wave(i*4.17+3)*1.22;
@@ -409,7 +409,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   sun.shadow.bias=-.00032;
   sun.shadow.normalBias=.022;
   sun.shadow.radius=2.1;
-  Object.assign(sun.shadow.camera,{left:-19,right:19,top:20,bottom:-9,near:.5,far:50});
+  Object.assign(sun.shadow.camera,{left:-23,right:23,top:20,bottom:-9,near:.5,far:52});
   scene.add(sun);
 
   const rim=new THREE.DirectionalLight(0xb8e5fb,.50);
@@ -421,16 +421,16 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   scene.add(fill);
 
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
-  const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,42);
+  const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
   bankMesh.receiveShadow=true;
   world.add(bankMesh);
-  const windMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.shadowBank,30);
+  const windMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.shadowBank,38);
   windMesh.receiveShadow=true;
   world.add(windMesh);
-  const banks=createMovingInstances(42,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
-  const windBanks=createMovingInstances(30,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
+  const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
+  const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
 
-  const treeCount=118;
+  const treeCount=152;
   const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.15,.30,2.05,8),_barkMaterial,treeCount);
   const branchGeo=new THREE.ConeGeometry(1.04,1.05,9);
   const crownGeo=new THREE.ConeGeometry(.70,1.40,9);
@@ -451,10 +451,10 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
 
   const snowLayers=[
-    makeSnowLayer(170,.042,.34,28,-62,10,.90,false),
-    makeSnowLayer(260,.070,.50,25,-50,12,1.38,false),
-    makeSnowLayer(210,.105,.58,22,-38,13,1.86,false),
-    makeSnowLayer(280,.050,.52,18,-31,11,.42,true)
+    makeSnowLayer(190,.042,.34,35,-62,10,.90,false),
+    makeSnowLayer(290,.070,.50,32,-50,12,1.38,false),
+    makeSnowLayer(235,.105,.58,29,-38,13,1.86,false),
+    makeSnowLayer(310,.050,.52,25,-31,11,.42,true)
   ];
   for(const layer of snowLayers)scene.add(layer.points);
   const powder=makePowderPool(scene);

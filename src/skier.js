@@ -163,7 +163,7 @@ export function createFallbackSkier(){
   root.userData.fallback=true;
   root.userData.skiTrackSpacing=.22;
   root.userData.skis=skis;
-  root.userData.updateSkiPose=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
+  root.userData.updateSkiPose=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
@@ -171,32 +171,37 @@ export function createFallbackSkier(){
     pose.air=mix(pose.air,air?1:0,air?.24:.16);
     pose.landing=mix(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
     pose.speed=mix(pose.speed,THREE.MathUtils.clamp((speed-12)/19,0,1),.08);
+    const ascent=air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
+    const descent=air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
+    const apex=air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
+    const rampAir=air&&jumpSource==='ramp';
+    const airScale=rampAir?1:.72;
 
-    const crouch=pose.speed*.06+pose.landing*.12+pose.air*.035;
+    const crouch=pose.speed*.06+pose.landing*.12+pose.air*.025+descent*.045*airScale;
     root.rotation.z=mix(root.rotation.z,-pose.carve*.11,.18);
-    root.rotation.x=mix(root.rotation.x,.035-pose.air*.05+pose.speed*.025,.14);
+    root.rotation.x=mix(root.rotation.x,.035+pose.speed*.025-ascent*.070*airScale+descent*.052*airScale,.14);
     root.position.y=-crouch+pose.air*.055+Math.sin(time*5)*.006;
 
-    torso.rotation.x=mix(torso.rotation.x,.05+pose.speed*.035-pose.air*.025,.16);
+    torso.rotation.x=mix(torso.rotation.x,.05+pose.speed*.035-ascent*.055*airScale+descent*.040*airScale,.16);
     hip.position.y=mix(hip.position.y,1.08-crouch,.18);
     head.rotation.z=mix(head.rotation.z,pose.carve*.018,.14);
     arms.forEach((arm,index)=>{
       const side=index===0?-1:1;
       arm.rotation.z=mix(arm.rotation.z,side*(.48-pose.speed*.04)+pose.carve*.035,.16);
-      arm.rotation.x=mix(arm.rotation.x,-.08-pose.air*.08,.16);
+      arm.rotation.x=mix(arm.rotation.x,-.08-ascent*.14*airScale+apex*.035+descent*.075*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
       const outside=Math.max(0,pose.carve*-side);
       const inside=Math.max(0,pose.carve*side);
       leg.rotation.z=mix(leg.rotation.z,side*(.16+inside*.045-outside*.025),.18);
-      leg.rotation.x=mix(leg.rotation.x,-.10-pose.speed*.04-pose.air*.08-pose.landing*.12,.18);
+      leg.rotation.x=mix(leg.rotation.x,-.10-pose.speed*.04-ascent*.055*airScale-apex*.085*airScale-descent*.15*airScale-pose.landing*.12,.18);
     });
     skis.forEach((ski,index)=>{
       const side=index===0?-1:1;
       ski.rotation.y=mix(ski.rotation.y,-pose.carve*.065+side*.018,.18);
       ski.rotation.z=mix(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
-      ski.rotation.x=mix(ski.rotation.x,pose.air*.055-pose.landing*.025+groundPitch*.28,.18);
+      ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-pose.landing*.025+groundPitch*.28,.18);
       const localGround=(side<0?leftGround:rightGround)-centerGround;
       ski.position.y=mix(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
     });
@@ -316,7 +321,7 @@ function makeRigController(model){
     b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
   }
 
-  const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0}={})=>{
+  const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource=''}={})=>{
     poseDt=dt;
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
@@ -331,14 +336,19 @@ function makeRigController(model){
     const speedCrouch=pose.speed;
     const airBlend=pose.air;
     const landingBlend=pose.landing;
+    const ascent=air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
+    const descent=air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
+    const apex=air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
+    const rampAir=air&&jumpSource==='ramp';
+    const airScale=rampAir?1:.72;
     const stance=1-airBlend;
 
     // Neutral stance: light knee flex, low hips, gentle forward body angle.
-    const hipFlex=.08+speedCrouch*.045+landingBlend*.11-airBlend*.04;
+    const hipFlex=.08+speedCrouch*.045+landingBlend*.11-ascent*.045*airScale+descent*.075*airScale;
     const hipLean=-carve*.10*stance;
     rotate('hips',hipFlex,0,hipLean,.22);
-    rotate('spine',-.055-speedCrouch*.03+airBlend*.025,carve*.016,carve*.055*stance,.18);
-    rotate('chest',-.028-speedCrouch*.018+airBlend*.015,carve*.018,carve*.038*stance,.18);
+    rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
+    rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale,carve*.018,carve*.038*stance,.18);
     rotate('neck',.022+speedCrouch*.01,0,-carve*.012,.16);
     rotate('head',.012,0,-carve*.014,.14);
 
@@ -347,9 +357,9 @@ function makeRigController(model){
       const inside=Math.max(0,carve*sideSign);
 
       // Outside leg lengthens slightly; inside leg compresses while both retain a safe base flex.
-      const thigh=-.30-speedCrouch*.07-landingBlend*.12-airBlend*.08+outside*.045-inside*.055;
-      const shin=.54+speedCrouch*.08+landingBlend*.20+airBlend*.13-outside*.065+inside*.075;
-      const foot=-.20+speedCrouch*.025+airBlend*.035-carve*.025;
+      const thigh=-.30-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.045-inside*.055;
+      const shin=.54+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
+      const foot=-.20+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
 
       rotate(side+'Thigh',thigh,0,sideSign*(.025+inside*.018),.22);
       rotate(side+'Shin',shin,0,0,.22);
@@ -358,13 +368,13 @@ function makeRigController(model){
       // Arms stay compact and controlled; airborne pose opens only enough for balance.
       const armPull=speedCrouch*.055;
       rotate(side+'Shoulder',0,0,sideSign*(.10-armPull)+carve*.014,.17);
-      rotate(side+'UpperArm',-.27-armPull-airBlend*.12+outside*.035,0,sideSign*.085+carve*.018,.18);
-      rotate(side+'Forearm',-.46-speedCrouch*.045+airBlend*.10-inside*.055,0,0,.18);
+      rotate(side+'UpperArm',-.27-armPull-ascent*.15*airScale+apex*.045+descent*.060*airScale+outside*.035,0,sideSign*.085+carve*.018,.18);
+      rotate(side+'Forearm',-.46-speedCrouch*.045+ascent*.055*airScale+apex*.095*airScale+descent*.075*airScale-inside*.055,0,0,.18);
       rotate(side+'Hand',.045,0,sideSign*carve*.01,.16);
     }
 
     // Keep vertical movement subtle: landing compresses, airtime lifts the tucked pose.
-    model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.014;
+    model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.010+apex*.010*airScale;
   };
   update.rig=rig;
   update.pose=pose;
@@ -399,6 +409,11 @@ export async function loadSkier(url='/models/default.glb'){
       const air=pose?.air??Number(!!state.air);
       const landing=pose?.landing??THREE.MathUtils.clamp(state.landing||0,0,1);
       const speed=pose?.speed??THREE.MathUtils.clamp(((state.speed||12)-12)/19,0,1);
+      const verticalVelocity=state.verticalVelocity||0;
+      const ascent=state.air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
+      const descent=state.air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
+      const apex=state.air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
+      const airScale=state.jumpSource==='ramp'?1:.72;
 
       const groundPitch=THREE.MathUtils.clamp(state.groundPitch||0,-.18,.18);
       const groundRoll=THREE.MathUtils.clamp(state.groundRoll||0,-.18,.18);
@@ -415,7 +430,7 @@ export async function loadSkier(url='/models/default.glb'){
         // Yaw follows the carve, roll provides a visible but restrained edge angle.
         ski.rotation.y=mix(ski.rotation.y,-carve*.065+side*.012,.18);
         ski.rotation.z=mix(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
-        ski.rotation.x=mix(ski.rotation.x,air*.055-landing*.026+groundPitch*.28,.18);
+        ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-landing*.026+groundPitch*.28,.18);
 
         // Preserve avatar-specific spacing while allowing a tiny terrain-contact correction.
         ski.position.x=mix(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);

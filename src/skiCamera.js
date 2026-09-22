@@ -86,7 +86,7 @@ export function createSkiCamera(camera){
     }
 
     const rampAir=air&&state.jumpSource==='ramp';
-    const lateralResponse=crash?2.4:rampAir?6.0:air?7.0:8.4;
+    const lateralResponse=crash?2.4:rampAir?7.2:air?8.4:10.8;
     camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,dt);
     camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,dt);
     camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,dt);
