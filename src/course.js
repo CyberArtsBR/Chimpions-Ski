@@ -2,7 +2,7 @@ import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {estimateRampFlightEnvelope} from './rampTrajectory.js';
 import {createSafeRouteTracker} from './courseSafety.js';
 import {
-  COURSE_OBJECT_VISUAL_HALF_WIDTH,
+  COURSE_OBJECT_COLLISION_HALF_WIDTH,
   clampGameplayObjectX,
   gameplayObjectCenterLimit
 } from './environmentCorridor.js';
@@ -100,7 +100,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     // If boundary fitting pulled an edge hazard inward, preserve a navigable
     // center line by deterministically moving it to the nearest valid side.
-    const minGap=(COURSE_OBJECT_VISUAL_HALF_WIDTH[kind]??0)+.36;
+    const minGap=(COURSE_OBJECT_COLLISION_HALF_WIDTH[kind]??0)+.36;
     if(Math.abs(bounded-safeX)>minGap)return bounded;
 
     const limit=gameplayObjectCenterLimit(kind);
