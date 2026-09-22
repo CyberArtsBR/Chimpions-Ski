@@ -182,6 +182,13 @@ function update(dt){
     player.position.x=state.x;player.position.y=state.y;
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-steer*.28,7,dt);
     player.rotation.y=THREE.MathUtils.damp(player.rotation.y,-state.vx*.045,7,dt);
+    skier?.userData?.updateSkiPose?.({
+      steer,
+      air:state.air,
+      landing:!state.air&&state.y<=.12?Math.max(0,Math.min(1,Math.abs(state.vy)/8)):0,
+      speed:state.speed,
+      time:performance.now()/1000
+    });
 
     for(const item of course){
       item.position.z+=state.speed*dt;
