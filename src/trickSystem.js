@@ -103,9 +103,12 @@ export function createTrickSystem({visualTarget=null}={}){
   function clearRampArm(){pendingRampType=null;}
 
   function startSecondPress360(physicsState,{startTime=physicsState?.time||0}={}){
-    if(!physicsState?.air||!canStart())return false;
+    if(!physicsState?.air)return false;
+    // Any airborne jump press is consumed here so it can never become a buffered
+    // landing bounce/double-jump. Only the first press with no active trick starts 360.
     physicsState.jumpBufferTime=0;
     physicsState.jumpBuffered=false;
+    if(!canStart())return false;
     return start(TRICK_TYPE.SPIN_360,{source:physicsState.jumpSource||'manual',startTime});
   }
 
@@ -145,6 +148,20 @@ export function createTrickSystem({visualTarget=null}={}){
     return landingResult;
   }
 
+  function finishLanding(){
+    if(snapshot.state!==TRICK_STATE.COMPLETED)return false;
+    snapshot.state=TRICK_STATE.NONE;
+    snapshot.type='';
+    snapshot.progress=0;
+    snapshot.rotation=0;
+    snapshot.startTime=0;
+    snapshot.source='';
+    snapshot.completed=false;
+    snapshot.landingValid=true;
+    normalizeVisual();
+    return true;
+  }
+
   function reset(){
     normalizeVisual();
     snapshot.state=TRICK_STATE.NONE;
@@ -159,5 +176,5 @@ export function createTrickSystem({visualTarget=null}={}){
   }
 
   if(visualTarget)setVisualTarget(visualTarget);
-  return {state:snapshot,setVisualTarget,start,armRamp,consumeRampArm,clearRampArm,startSecondPress360,step,land,reset};
+  return {state:snapshot,setVisualTarget,start,armRamp,consumeRampArm,clearRampArm,startSecondPress360,step,land,finishLanding,reset};
 }
