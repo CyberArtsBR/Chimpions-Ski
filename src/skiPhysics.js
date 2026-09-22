@@ -1,23 +1,26 @@
 import * as THREE from 'three';
 import {SKI_TUNING as T} from './gameplayTuning.js';
+import {getRideProfile} from './rideMode.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export function progressSpeed(state,dt){
-  const tier=Math.max(0,Math.floor((state.time||0)/T.SPEED_TIER_SECONDS));
-  const tierTime=(state.time||0)-tier*T.SPEED_TIER_SECONDS;
-  const targetSpeed=Math.min(T.MAX_SPEED,T.BASE_SPEED+tier*T.SPEED_TIER_INCREMENT);
+  const profile=getRideProfile(state.rideMode);
+  const tier=Math.max(0,Math.floor((state.time||0)/profile.tierSeconds));
+  const tierTime=(state.time||0)-tier*profile.tierSeconds;
+  const targetSpeed=Math.min(profile.maxSpeed,profile.baseSpeed+tier*profile.tierIncrement);
 
   state.speedTier=tier;
   state.speedTierTime=tierTime;
   state.targetSpeed=targetSpeed;
-  state.maxSpeed=T.MAX_SPEED;
+  state.baseSpeed=profile.baseSpeed;
+  state.maxSpeed=profile.maxSpeed;
 
   const carveDrag=(state.carveLoad||0)*.09;
   const landingDrag=(state.landingGripLoss||0)*.18;
   state.speed=THREE.MathUtils.damp(state.speed,targetSpeed,T.SPEED_RESPONSE,dt);
-  state.speed=clamp(state.speed-(carveDrag+landingDrag)*dt,T.BASE_SPEED*.90,T.MAX_SPEED);
-  return clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
+  state.speed=clamp(state.speed-(carveDrag+landingDrag)*dt,profile.baseSpeed*.90,profile.maxSpeed);
+  return clamp((state.speed-profile.baseSpeed)/(profile.maxSpeed-profile.baseSpeed),0,1);
 }
 
 function stepAirControl(state,steer,neutralizing,speed01,dt){
@@ -78,7 +81,8 @@ function stepAirControl(state,steer,neutralizing,speed01,dt){
 
 export function stepCarving(state,input,dt){
   const steer=Math.abs(input)<T.INPUT_DEADZONE?0:clamp(input,-1,1);
-  const speed01=clamp((state.speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
+  const rideProfile=getRideProfile(state.rideMode);
+  const speed01=clamp((state.speed-rideProfile.baseSpeed)/(rideProfile.maxSpeed-rideProfile.baseSpeed),0,1);
   state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.25);
   state.landingReengageTime=Math.max(0,(state.landingReengageTime||0)-dt);
   state.oilSlipTime=Math.max(0,(state.oilSlipTime||0)-dt);
@@ -238,25 +242,26 @@ export function stepAir(state,dt,groundY){
   state.landingQuality=quality;
   state.landingPulse=Math.min(1,impact/(rampLanding?18:9));
   state.landingReengageTime=T.LANDING_REENGAGE_TIME;
+  const rideProfile=getRideProfile(state.rideMode);
 
   // Preserve most airborne lateral momentum. Ground grip fades back in via stepCarving().
   if(quality==='clean'){
     state.vx*=.995;
     state.turnRate*=.95;
     state.heading*=.99;
-    state.speed=Math.min(T.MAX_SPEED,state.speed+.22);
+    state.speed=Math.min(rideProfile.maxSpeed,state.speed+.22);
     state.landingGripLoss=.03;
   }else if(quality==='rough'){
     state.vx*=.96;
     state.turnRate*=.84;
     state.heading*=.96;
-    state.speed=Math.max(T.BASE_SPEED*.90,state.speed*.965);
+    state.speed=Math.max(rideProfile.baseSpeed*.90,state.speed*.965);
     state.landingGripLoss=.42;
   }else{
     state.vx*=.90;
     state.turnRate*=.72;
     state.heading*=.91;
-    state.speed=Math.max(T.BASE_SPEED*.90,state.speed*.91);
+    state.speed=Math.max(rideProfile.baseSpeed*.90,state.speed*.91);
     state.landingGripLoss=.72;
   }
 
