@@ -1,0 +1,58 @@
+name: Temporary avatar asset audit
+
+on:
+  push:
+    branches: [feature/ski-avatar-asset-audit]
+    paths:
+      - scripts/audit-avatar-assets.mjs
+      - .github/workflows/avatar-asset-audit-temp.yml
+
+permissions:
+  contents: write
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Validate audit script
+        run: node --check scripts/audit-avatar-assets.mjs
+      - name: Run complete GLB audit
+        run: |
+          node scripts/audit-avatar-assets.mjs \
+            --source-sha 9f6707d113e46e03d94510792110ecaf875288f1 \
+            --json docs/avatar-asset-audit.json \
+            --markdown docs/avatar-asset-audit.md
+      - name: Validate generated report
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const report=JSON.parse(fs.readFileSync('docs/avatar-asset-audit.json','utf8'));
+          if(report.summary.invalidGlbs!==0)throw new Error('Invalid GLBs: '+report.summary.invalidGlbs);
+          if(report.summary.totalGlbs<190)throw new Error('Unexpected GLB inventory count: '+report.summary.totalGlbs);
+          console.log(JSON.stringify({
+            totalGlbs:report.summary.totalGlbs,
+            totalMiB:Number(report.summary.totalMiB.toFixed(2)),
+            medianMiB:Number(report.summary.medianMiB.toFixed(3)),
+            largest:report.largest20.slice(0,5).map(x=>[x.filename,x.mb]),
+            duplicateImageSavingsMiB:Number(report.duplicates.images.theoreticalSavingsMiB.toFixed(2)),
+            duplicateGeometrySavingsMiB:Number(report.duplicates.geometry.theoreticalSavingsMiB.toFixed(2))
+          },null,2));
+          NODE
+      - name: Commit generated audit reports
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/avatar-asset-audit.json docs/avatar-asset-audit.md
+          if git diff --cached --quiet; then
+            echo "Audit report already current."
+          else
+            git commit -m "Generate Chimpion avatar asset audit report"
+            git push
+          fi
