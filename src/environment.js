@@ -598,9 +598,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       layer.geometry.attributes.position.needsUpdate=true;
     }
 
-    snowParticles.spray({
-      dt,x:playerX,y:playerY,z:playerZ,speed,edge,air,landingPulse,running
-    });
+    snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running);
     snowParticles.update(dt,worldSpeed);
     surfaceDetail.update(dt,worldSpeed);
     boundaryMarkers.update(dt,worldSpeed);
