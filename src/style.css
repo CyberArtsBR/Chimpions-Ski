@@ -351,3 +351,45 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
 
 .start-screen:not(.is-art-ready) .start-screen-art{opacity:0}
 .start-screen-art{transition:opacity .18s ease}
+
+
+/* Two-step Chimpion -> ride selector. Reuses the existing selector dialog. */
+.selected-ride-mode{
+  display:block;margin-top:3px;font-size:9px;font-style:normal;font-weight:900;letter-spacing:.11em;color:#2b8caf;
+}
+.ride-mode-step{
+  flex:1;min-height:0;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:18px;
+  padding:18px 4px 12px;
+}
+.ride-mode-step[hidden]{display:none}
+.ride-mode-copy{text-align:center}
+.ride-mode-copy small,.ride-mode-copy strong,.ride-mode-copy span{display:block}
+.ride-mode-copy small{font-size:9px;font-weight:900;letter-spacing:.17em;color:#7190a1}
+.ride-mode-copy strong{margin-top:5px;font-size:31px;color:#123b55;letter-spacing:-.035em}
+.ride-mode-copy span{margin-top:5px;font-size:11px;color:#6f8998}
+.ride-mode-options{
+  width:min(620px,100%);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;
+}
+.ride-mode-card{
+  min-height:190px;padding:24px 18px;border-radius:20px;background:white;color:#173b58;
+  border:1px solid #d3e6ee;box-shadow:0 9px 26px rgba(20,63,86,.08);text-align:center;
+}
+.ride-mode-card b,.ride-mode-card strong,.ride-mode-card span{display:block}
+.ride-mode-card b{font-size:48px;line-height:1;margin-bottom:10px}
+.ride-mode-card strong{font-size:20px;letter-spacing:.035em}
+.ride-mode-card span{margin-top:6px;font-size:11px;font-weight:800;color:#6f8998}
+.ride-mode-card:hover,.ride-mode-card:focus-visible{
+  border-color:#40bee8;box-shadow:0 12px 30px rgba(20,108,145,.16);
+}
+.ride-mode-card.is-selected{
+  border-color:#24b8e8;box-shadow:inset 0 0 0 2px rgba(36,184,232,.18),0 12px 30px rgba(20,108,145,.14);
+  background:linear-gradient(160deg,#fff,#eaf9ff);
+}
+.ride-mode-back{
+  min-height:40px;padding:0 18px;border-radius:12px;background:#deeff6;color:#31556d;font-size:10px;font-weight:900;letter-spacing:.10em;
+}
+@media (max-width:640px){
+  .ride-mode-options{grid-template-columns:1fr}
+  .ride-mode-card{min-height:118px;padding:16px}
+  .ride-mode-card b{font-size:34px}
+}

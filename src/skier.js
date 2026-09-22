@@ -1,7 +1,9 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {disposeAvatarObject} from './avatar-system.js';
-import {SKI_TUNING,getSpeedFeel} from './gameplayTuning.js';
+import {SKI_TUNING} from './gameplayTuning.js';
+import {RIDE_MODE,getRideSpeedFeel,normalizeRideMode} from './rideMode.js';
+import {createSnowboardEquipment} from './snowboardEquipment.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -143,69 +145,117 @@ function createStyledSki(assets){
   return ski;
 }
 
-export function createFallbackSkier(){
+export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
   const root=new THREE.Group();
   root.name='procedural-chimpion';
-  const fur=material(0x5a3623), skin=material(0xb98155), gear=material(0x235a83,.5), dark=material(0x172533,.42);
-  const torso=mesh(new THREE.CapsuleGeometry(.36,.72,6,12),fur,root);torso.position.y=1.55;torso.rotation.z=.08;
-  const head=mesh(new THREE.SphereGeometry(.38,20,16),fur,root);head.position.set(0,2.25,-.03);
-  const muzzle=mesh(new THREE.SphereGeometry(.23,18,12),skin,root);muzzle.scale.set(1,.62,.78);muzzle.position.set(0,2.16,.31);
-  const hip=mesh(new THREE.SphereGeometry(.34,16,12),fur,root);hip.scale.y=.7;hip.position.y=1.08;
-  const arms=[],legs=[],skis=[];
-  const fallbackSkiAssets=createSkiAssets(0x235f88);
+  const riderVisual=new THREE.Group();
+  riderVisual.name='rider-visual';
+  root.add(riderVisual);
+
+  const body=new THREE.Group();
+  riderVisual.add(body);
+  const fur=material(0x5a3623), skin=material(0xb98155), dark=material(0x172533,.42);
+  const torso=mesh(new THREE.CapsuleGeometry(.36,.72,6,12),fur,body);torso.position.y=1.55;torso.rotation.z=.08;
+  const headPivot=new THREE.Group();headPivot.position.set(0,2.25,-.03);body.add(headPivot);
+  const head=mesh(new THREE.SphereGeometry(.38,20,16),fur,headPivot);
+  const muzzle=mesh(new THREE.SphereGeometry(.23,18,12),skin,headPivot);muzzle.scale.set(1,.62,.78);muzzle.position.set(0,-.09,.34);
+  const hip=mesh(new THREE.SphereGeometry(.34,16,12),fur,body);hip.scale.y=.7;hip.position.y=1.08;
+  const arms=[],legs=[];
   for(const side of [-1,1]){
-    const arm=mesh(new THREE.CapsuleGeometry(.10,.55,5,8),fur,root);arm.position.set(side*.39,1.52,.02);arm.rotation.z=side*(.5);arms.push(arm);
-    const leg=mesh(new THREE.CapsuleGeometry(.12,.62,5,8),fur,root);leg.position.set(side*.2,.62,0);leg.rotation.z=side*.16;legs.push(leg);
-    const ski=createStyledSki(fallbackSkiAssets);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;root.add(ski);skis.push(ski);
-    const pole=mesh(new THREE.CylinderGeometry(.018,.018,1.65,8),dark,root);pole.position.set(side*.58,.86,.15);pole.rotation.z=side*.18;pole.rotation.x=.18;
+    const arm=mesh(new THREE.CapsuleGeometry(.10,.55,5,8),fur,body);arm.position.set(side*.39,1.43,.02);arm.rotation.z=side*.68;arms.push(arm);
+    const leg=mesh(new THREE.CapsuleGeometry(.12,.62,5,8),fur,body);leg.position.set(side*.2,.62,0);leg.rotation.z=side*.16;legs.push(leg);
   }
+
+  const equipmentRoot=new THREE.Group();
+  riderVisual.add(equipmentRoot);
+  const fallbackSkiAssets=createSkiAssets(0x235f88);
+  const skis=[];
+  const poles=[];
+  for(const side of [-1,1]){
+    const ski=createStyledSki(fallbackSkiAssets);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;ski.userData.restPosition=ski.position.clone();equipmentRoot.add(ski);skis.push(ski);
+    const pole=mesh(new THREE.CylinderGeometry(.018,.018,1.65,8),dark,equipmentRoot);pole.position.set(side*.58,.86,.15);pole.rotation.z=side*.18;pole.rotation.x=.18;poles.push(pole);
+  }
+  const snowboard=createSnowboardEquipment({centerX:0,z:.04,topColor:0x7a3ec5});
+  riderVisual.add(snowboard.root);
+
   const pose={carve:0,air:0,landing:0,speed:0};
+  let currentRideMode=normalizeRideMode(rideMode);
+
+  function setRideMode(mode){
+    currentRideMode=normalizeRideMode(mode);
+    const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
+    equipmentRoot.visible=!snowboardMode;
+    snowboard.root.visible=snowboardMode;
+    root.userData.rideMode=currentRideMode;
+    root.userData.equipmentType=snowboardMode?'snowboard':'skis';
+    root.userData.poseMode=snowboardMode?'snowboard-side-stance':'ski-a-pose';
+    root.userData.trailContacts=snowboardMode?snowboard.trailContacts:skis;
+    body.rotation.y=snowboardMode?1.22:0;
+    headPivot.rotation.y=snowboardMode?-1.08:0;
+  }
+
   root.userData.fallback=true;
+  root.userData.rigReady=false;
+  root.userData.riderVisual=riderVisual;
   root.userData.skiTrackSpacing=.22;
   root.userData.skis=skis;
-  root.userData.updateSkiPose=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0}={})=>{
+  root.userData.setRideMode=setRideMode;
+  root.userData.updateSkiPose=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0,rideMode:nextRideMode=currentRideMode}={})=>{
+    if(normalizeRideMode(nextRideMode)!==currentRideMode)setRideMode(nextRideMode);
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const target=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(target)!==Math.sign(pose.carve)&&Math.abs(target)>.04&&Math.abs(pose.carve)>.04;
     pose.carve=mix(pose.carve,target,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
     pose.air=mix(pose.air,air?1:0,air?.24:.16);
     pose.landing=mix(pose.landing,THREE.MathUtils.clamp(landing,0,1),landing>pose.landing?.48:.18);
-    pose.speed=mix(pose.speed,getSpeedFeel(speed),.08);
+    pose.speed=mix(pose.speed,getRideSpeedFeel(currentRideMode,speed),.08);
     const ascent=air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
     const descent=air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
     const apex=air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
     const rampAir=air&&jumpSource==='ramp';
     const airScale=rampAir?1:.72;
+    const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
 
     const crouch=pose.speed*.06+pose.landing*.12+pose.air*.025+descent*.045*airScale;
-    root.rotation.z=mix(root.rotation.z,-pose.carve*.11,.18);
-    root.rotation.x=mix(root.rotation.x,.035+pose.speed*.025-ascent*.070*airScale+descent*.052*airScale,.14);
-    root.position.y=-crouch+pose.air*.055+Math.sin(time*5)*.006;
+    riderVisual.rotation.z=mix(riderVisual.rotation.z,-pose.carve*.11,.18);
+    riderVisual.rotation.x=mix(riderVisual.rotation.x,.035+pose.speed*.025-ascent*.070*airScale+descent*.052*airScale,.14);
+    riderVisual.position.y=-crouch+pose.air*.055+Math.sin(time*5)*.006;
 
     torso.rotation.x=mix(torso.rotation.x,.05+pose.speed*.035-ascent*.055*airScale+descent*.040*airScale,.16);
     hip.position.y=mix(hip.position.y,1.08-crouch,.18);
-    head.rotation.z=mix(head.rotation.z,pose.carve*.018,.14);
+    headPivot.rotation.z=mix(headPivot.rotation.z,pose.carve*.018,.14);
     arms.forEach((arm,index)=>{
       const side=index===0?-1:1;
-      arm.rotation.z=mix(arm.rotation.z,side*(.48-pose.speed*.04)+pose.carve*.035,.16);
-      arm.rotation.x=mix(arm.rotation.x,-.08-ascent*.14*airScale+apex*.035+descent*.075*airScale,.16);
+      const baseAngle=snowboardMode?.62:.70;
+      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.035)+pose.carve*.025,.16);
+      arm.rotation.x=mix(arm.rotation.x,-.08-ascent*.10*airScale+apex*.025+descent*.055*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
       const outside=Math.max(0,pose.carve*-side);
       const inside=Math.max(0,pose.carve*side);
-      leg.rotation.z=mix(leg.rotation.z,side*(.16+inside*.045-outside*.025),.18);
+      leg.rotation.z=mix(leg.rotation.z,side*((snowboardMode?.23:.16)+inside*.045-outside*.025),.18);
       leg.rotation.x=mix(leg.rotation.x,-.10-pose.speed*.04-ascent*.055*airScale-apex*.085*airScale-descent*.15*airScale-pose.landing*.12,.18);
     });
-    skis.forEach((ski,index)=>{
-      const side=index===0?-1:1;
-      ski.rotation.y=mix(ski.rotation.y,-pose.carve*.065+side*.018,.18);
-      ski.rotation.z=mix(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
-      ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-pose.landing*.025+groundPitch*.28,.18);
-      const localGround=(side<0?leftGround:rightGround)-centerGround;
-      ski.position.y=mix(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
-    });
+    if(snowboardMode){
+      const board=snowboard.root;
+      const rest=board.userData.restPosition;
+      board.rotation.y=mix(board.rotation.y,-pose.carve*.04,.18);
+      board.rotation.z=mix(board.rotation.z,-pose.carve*.08+groundRoll*.16,.18);
+      board.rotation.x=mix(board.rotation.x,ascent*.09*airScale+apex*.02-descent*.07*airScale-pose.landing*.025+groundPitch*.28,.18);
+      board.position.y=mix(board.position.y,rest.y+pose.air*.025-pose.landing*.012,.18);
+    }else{
+      skis.forEach((ski,index)=>{
+        const side=index===0?-1:1;
+        ski.rotation.y=mix(ski.rotation.y,-pose.carve*.065+side*.018,.18);
+        ski.rotation.z=mix(ski.rotation.z,-pose.carve*.075+groundRoll*.16,.18);
+        ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-pose.landing*.025+groundPitch*.28,.18);
+        const localGround=(side<0?leftGround:rightGround)-centerGround;
+        ski.position.y=mix(ski.position.y,.12+pose.air*.025-pose.landing*.012+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
+      });
+    }
   };
+  setRideMode(currentRideMode);
   return root;
 }
 
@@ -283,9 +333,8 @@ function footBasedSkiPlacement(root,rig){
   };
 }
 
-function addSkiEquipment(root,rig){
+function addSkiEquipment(root,rig,placement=footBasedSkiPlacement(root,rig)){
   const skis=[];
-  const placement=footBasedSkiPlacement(root,rig);
   const assets=createSkiAssets(0x176f9d);
   for(const side of [-1,1]){
     const ski=createStyledSki(assets);
@@ -309,6 +358,7 @@ function makeRigController(model){
   const targetQ=new THREE.Quaternion(),delta=new THREE.Quaternion();
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const pose={carve:0,speed:0,air:0,landing:0};
+  let currentRideMode=RIDE_MODE.SKI;
 
   let poseDt=1/60;
   const modelBaseY=model.position.y;
@@ -321,13 +371,15 @@ function makeRigController(model){
     b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
   }
 
-  const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource=''}={})=>{
+  const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',rideMode=currentRideMode}={})=>{
     poseDt=dt;
+    currentRideMode=normalizeRideMode(rideMode);
+    const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
     const reversing=Math.sign(targetCarve)!==Math.sign(pose.carve)&&Math.abs(targetCarve)>.035&&Math.abs(pose.carve)>.035;
     pose.carve=mix(pose.carve,targetCarve,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
-    pose.speed=mix(pose.speed,getSpeedFeel(speed),.08);
+    pose.speed=mix(pose.speed,getRideSpeedFeel(currentRideMode,speed),.08);
     pose.air=mix(pose.air,air?1:0,air?.24:.15);
     const landingTarget=THREE.MathUtils.clamp(landing,0,1);
     pose.landing=mix(pose.landing,landingTarget,landingTarget>pose.landing?.52:.20);
@@ -343,44 +395,164 @@ function makeRigController(model){
     const airScale=rampAir?1:.72;
     const stance=1-airBlend;
 
-    // Neutral stance: light knee flex, low hips, gentle forward body angle.
     const hipFlex=.08+speedCrouch*.045+landingBlend*.11-ascent*.045*airScale+descent*.075*airScale;
     const hipLean=-carve*.10*stance;
-    rotate('hips',hipFlex,0,hipLean,.22);
-    rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
-    rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale,carve*.018,carve*.038*stance,.18);
-    rotate('neck',.022+speedCrouch*.01,0,-carve*.012,.16);
-    rotate('head',.012,0,-carve*.014,.14);
+    if(snowboardMode){
+      // Side-on visual stance only: gameplay root/collision remain aligned downhill.
+      rotate('hips',hipFlex,.86+carve*.025,hipLean,.22);
+      rotate('spine',-.065-speedCrouch*.03,.30+carve*.012,carve*.045*stance,.18);
+      rotate('chest',-.035-speedCrouch*.018,.20+carve*.012,carve*.030*stance,.18);
+      // Counter-yaw neck/head so the rider looks downhill while the torso remains sideways.
+      rotate('neck',.025+speedCrouch*.01,-.56,-carve*.010,.17);
+      rotate('head',.012,-.56,-carve*.012,.15);
+    }else{
+      rotate('hips',hipFlex,0,hipLean,.22);
+      rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
+      rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale,carve*.018,carve*.038*stance,.18);
+      rotate('neck',.022+speedCrouch*.01,0,-carve*.012,.16);
+      rotate('head',.012,0,-carve*.014,.14);
+    }
 
     for(const [side,sideSign] of [['left',-1],['right',1]]){
       const outside=Math.max(0,carve*-sideSign);
       const inside=Math.max(0,carve*sideSign);
 
-      // Outside leg lengthens slightly; inside leg compresses while both retain a safe base flex.
-      const thigh=-.30-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.045-inside*.055;
-      const shin=.54+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
+      const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.045-inside*.055;
+      const shin=(snowboardMode?.62:.54)+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
       const foot=-.20+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
 
-      rotate(side+'Thigh',thigh,0,sideSign*(.025+inside*.018),.22);
+      rotate(side+'Thigh',thigh,snowboardMode?sideSign*.14:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
       rotate(side+'Shin',shin,0,0,.22);
-      rotate(side+'Foot',foot,0,-carve*.035,.20);
+      rotate(side+'Foot',foot,snowboardMode?sideSign*.08:0,-carve*.035,.20);
 
-      // Arms stay compact and controlled; airborne pose opens only enough for balance.
+      // Rest rigs are commonly T-posed. ~0.8 rad Z rotation lowers upper arms
+      // into a stable A-pose with hands around waist/upper-hip height.
       const armPull=speedCrouch*.055;
-      rotate(side+'Shoulder',0,0,sideSign*(.10-armPull)+carve*.014,.17);
-      rotate(side+'UpperArm',-.27-armPull-ascent*.15*airScale+apex*.045+descent*.060*airScale+outside*.035,0,sideSign*.085+carve*.018,.18);
-      rotate(side+'Forearm',-.46-speedCrouch*.045+ascent*.055*airScale+apex*.095*airScale+descent*.075*airScale-inside*.055,0,0,.18);
-      rotate(side+'Hand',.045,0,sideSign*carve*.01,.16);
+      const aPose=snowboardMode?.74:.86;
+      rotate(side+'Shoulder',0,0,sideSign*.035+carve*.012,.17);
+      rotate(side+'UpperArm',-.20-armPull-ascent*.10*airScale+apex*.035+descent*.045*airScale+outside*.025,0,sideSign*(aPose-armPull*.10)+carve*.014,.18);
+      rotate(side+'Forearm',-.42-speedCrouch*.035+ascent*.045*airScale+apex*.070*airScale+descent*.060*airScale-inside*.045,0,0,.18);
+      rotate(side+'Hand',.035,0,sideSign*carve*.008,.16);
     }
 
-    // Keep vertical movement subtle: landing compresses, airtime lifts the tucked pose.
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.010+apex*.010*airScale;
   };
   update.rig=rig;
   update.pose=pose;
+  update.setRideMode=mode=>{currentRideMode=normalizeRideMode(mode);};
+  update.getRideMode=()=>currentRideMode;
   return update;
 }
 
+export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI}={}){
+  let loadedModel=null,loadedRoot=null;
+  try{
+    const gltf=await new GLTFLoader().loadAsync(url);
+    const model=gltf.scene;loadedModel=model;
+    model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
+    fitModel(model);
+    const updateRig=makeRigController(model);
+    const root=new THREE.Group();loadedRoot=root;
+
+    // Dedicated visual root: future tricks can rotate rider/equipment without
+    // touching the gameplay transform, collision or camera root.
+    const riderVisual=new THREE.Group();
+    riderVisual.name='rider-visual';
+    root.add(riderVisual);
+
+    // Collection GLBs use +Z as visual forward; gameplay travels downhill toward -Z.
+    const modelCarrier=new THREE.Group();
+    modelCarrier.rotation.y=Math.PI;
+    modelCarrier.add(model);
+    riderVisual.add(modelCarrier);
+
+    const placement=footBasedSkiPlacement(riderVisual,updateRig?.rig);
+    const skiEquipmentRoot=new THREE.Group();
+    skiEquipmentRoot.name='ski-equipment';
+    riderVisual.add(skiEquipmentRoot);
+    const skis=addSkiEquipment(skiEquipmentRoot,updateRig?.rig,placement);
+    const snowboard=createSnowboardEquipment({centerX:placement.centerX,z:placement.z,topColor:0x7b3fc7});
+    riderVisual.add(snowboard.root);
+
+    let currentRideMode=normalizeRideMode(rideMode);
+    function setRideMode(mode){
+      currentRideMode=normalizeRideMode(mode);
+      const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
+      skiEquipmentRoot.visible=!snowboardMode;
+      snowboard.root.visible=snowboardMode;
+      updateRig?.setRideMode?.(currentRideMode);
+      root.userData.rideMode=currentRideMode;
+      root.userData.equipmentType=snowboardMode?'snowboard':'skis';
+      root.userData.poseMode=snowboardMode?'snowboard-side-stance':'ski-a-pose';
+      root.userData.trailContacts=snowboardMode?snowboard.trailContacts:skis;
+      return currentRideMode;
+    }
+
+    root.userData.modelForwardAxis='-Z';
+    root.userData.fallback=false;
+    root.userData.rigReady=!!updateRig;
+    root.userData.riderVisual=riderVisual;
+    root.userData.skis=skis;
+    root.userData.skiTrackSpacing=placement.spacing;
+    root.userData.setRideMode=setRideMode;
+    root.userData.updateSkiPose=(state={})=>{
+      const requestedMode=normalizeRideMode(state.rideMode??currentRideMode);
+      if(requestedMode!==currentRideMode)setRideMode(requestedMode);
+      const dt=state.dt??1/60;
+      const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
+      updateRig?.({...state,rideMode:currentRideMode});
+      const pose=updateRig?.pose;
+      const carve=pose?.carve??THREE.MathUtils.clamp(state.steer||0,-1,1);
+      const air=pose?.air??Number(!!state.air);
+      const landing=pose?.landing??THREE.MathUtils.clamp(state.landing||0,0,1);
+      const speed=pose?.speed??getRideSpeedFeel(currentRideMode,state.speed);
+      const verticalVelocity=state.verticalVelocity||0;
+      const ascent=state.air?THREE.MathUtils.clamp(verticalVelocity/11,0,1):0;
+      const descent=state.air?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
+      const apex=state.air?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/4.6,0,1):0;
+      const airScale=state.jumpSource==='ramp'?1:.72;
+
+      const groundPitch=THREE.MathUtils.clamp(state.groundPitch||0,-.18,.18);
+      const groundRoll=THREE.MathUtils.clamp(state.groundRoll||0,-.18,.18);
+      const leftGround=state.leftGround??state.centerGround??0;
+      const rightGround=state.rightGround??state.centerGround??0;
+      const centerGround=state.centerGround??0;
+
+      if(currentRideMode===RIDE_MODE.SNOWBOARD){
+        const board=snowboard.root;
+        const rest=board.userData.restPosition;
+        board.rotation.y=mix(board.rotation.y,-carve*.040,.18);
+        board.rotation.z=mix(board.rotation.z,-carve*.085+groundRoll*.16,.18);
+        board.rotation.x=mix(board.rotation.x,ascent*.095*airScale+apex*.020-descent*.072*airScale-landing*.026+groundPitch*.28,.18);
+        board.position.x=mix(board.position.x,rest.x,.18);
+        board.position.y=mix(board.position.y,rest.y+air*.026-landing*.012-speed*.004,.18);
+        board.position.z=mix(board.position.z,rest.z+air*.012,.18);
+      }else{
+        skis.forEach((ski,index)=>{
+          const side=index===0?-1:1;
+          const rest=ski.userData.restPosition;
+          const outside=Math.max(0,carve*-side);
+          const inside=Math.max(0,carve*side);
+          const localGround=(side<0?leftGround:rightGround)-centerGround;
+
+          ski.rotation.y=mix(ski.rotation.y,-carve*.065+side*.012,.18);
+          ski.rotation.z=mix(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
+          ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-landing*.026+groundPitch*.28,.18);
+          ski.position.x=mix(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);
+          ski.position.y=mix(ski.position.y,rest.y+air*.026-landing*.012-speed*.004+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);
+          ski.position.z=mix(ski.position.z,rest.z+air*.018,.18);
+        });
+      }
+    };
+
+    setRideMode(currentRideMode);
+    return root;
+  }catch(error){
+    disposeAvatarObject(loadedRoot?.children.length?loadedRoot:loadedModel);
+    console.info('Using procedural skier until a Chimpion GLB is installed:',error.message);
+    return createFallbackSkier({rideMode});
+  }
+}
 export async function loadSkier(url='/models/default.glb'){
   let loadedModel=null,loadedRoot=null;
   try{
