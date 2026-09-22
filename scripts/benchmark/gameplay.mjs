@@ -1,4 +1,4 @@
-import {CONFIG,analyzeCourse,frameMark,frameSummarySince,pending,readDiagnostics,runtimeSnapshot,sampleRuntime,speedBins} from './core.mjs';
+import {CONFIG,analyzeCourse,analyzeMetric,frameMark,frameSummarySince,pending,readDiagnostics,round,runtimeSnapshot,sampleRuntime,speedBins} from './core.mjs';
 import {closeSelector,openSelector} from './selector.mjs';
 
 async function clickStart(page){

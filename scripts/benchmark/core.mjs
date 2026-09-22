@@ -117,7 +117,7 @@ function linearSlopePerMinute(values){
   }
   return denominator?numerator/denominator:null;
 }
-function analyzeMetric(samples,key){
+export function analyzeMetric(samples,key){
   const points=samples
     .map(sample=>({t:sample.t,value:Number(sample[key])}))
     .filter(point=>Number.isFinite(point.value));
