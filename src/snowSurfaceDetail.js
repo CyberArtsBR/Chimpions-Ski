@@ -72,7 +72,7 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
     for(let i=0;i<moundCount;i++){
       const e=moundData[i];
       const ground=terrainHeight(e.x,e.z-travel);
-      setInstance(mounds,i,e.x,ground-.94+e.sy,e.z,e.sx,e.sy,e.sz,e.ry);
+      setInstance(mounds,i,e.x,ground-e.sy*.45,e.z,e.sx,e.sy,e.sz,e.ry);
     }
     for(let i=0;i<ridgeCount;i++){
       const e=ridgeData[i];
