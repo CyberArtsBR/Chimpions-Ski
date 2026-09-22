@@ -3,16 +3,17 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const AudioContextClass=globalThis.AudioContext||globalThis.webkitAudioContext;
 
 export function createSkiAudio(){
-  const JUMP_MUSIC_URL='https://chimp-jump.onrender.com/audio/music-full.mp3';
+  const JUMP_MUSIC_URL='/audio/music-full.mp3';
   let context=null;
   let graph=null;
   let jumpMusic=null;
   let jumpMusicReady=false;
   let jumpMusicFailed=false;
-  let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0};
+  let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0,jumpSource:'',time:0};
+  let lastClearEventId=0;
   const buffers=new Map();
   const eventLast=new Map();
-  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,crash:.34,menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14};
+  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,oil:.18,clear:.07,crash:.34,menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14};
 
   const settings={
     master:readNumber('chimpions-ski-master',.82),
@@ -77,7 +78,7 @@ export function createSkiAudio(){
   }
   function eventBuffer(type){
     if(buffers.has(type))return buffers.get(type);
-    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,crash:.72,menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34}[type]||.18;
+    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,oil:.42,clear:.16,crash:.72,menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34}[type]||.18;
     const length=Math.ceil(context.sampleRate*duration);
     const buffer=context.createBuffer(1,length,context.sampleRate);
     const data=buffer.getChannelData(0);
@@ -121,6 +122,18 @@ export function createSkiAudio(){
         tone=Math.sin(phase)*.72+Math.sin(phase2)*.20;
         noise=smoothNoise*.92;
         env=Math.pow(1-u,2.45)*Math.min(1,t/.0025);
+      }else if(type==='oil'){
+        hz=240-150*u+Math.sin(u*Math.PI*7)*24;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        tone=Math.sin(phase)*.18;
+        noise=smoothNoise*(.72+.22*Math.sin(u*Math.PI*5));
+        env=Math.pow(1-u,1.55)*Math.min(1,t/.003);
+      }else if(type==='clear'){
+        hz=610+190*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*1.5)/context.sampleRate;
+        tone=Math.sin(phase)*.66+Math.sin(phase2)*.16;
+        env=Math.pow(1-u,2.8)*Math.min(1,t/.0025);
       }else if(type==='crash'){
         hz=82-26*u;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -152,7 +165,7 @@ export function createSkiAudio(){
         tone=Math.sin(phase);
         env=Math.pow(1-u,3.5)*Math.min(1,t/.002);
       }
-      data[i]=(tone+noise)*env*(type==='crash'?.34:type==='hardLand'?.31:type==='land'?.27:type==='jump'?.24:.22);
+      data[i]=(tone+noise)*env*(type==='crash'?.34:type==='hardLand'?.31:type==='oil'?.25:type==='land'?.27:type==='clear'?.20:type==='jump'?.24:.22);
     }
     buffers.set(type,buffer);
     return buffer;
@@ -301,9 +314,11 @@ export function createSkiAudio(){
     const countdown=mode==='countdown';
     const response=instant?.01:.09;
 
-    const contact=(running?(0.024+speed01*.058+carve*.032):0)*(air?.045:1);
-    const edge=(running?carve*(.014+speed01*.072):0)*(air?.025:1);
-    const wind=running?(0.014+speed01*.078+(air?.030:0)):countdown?.006:0;
+    const rampAir=air&&pendingState.jumpSource==='ramp';
+    const contact=(running?(0.024+speed01*.058+carve*.032):0)*(air?.025:1);
+    const edge=(running?carve*(.014+speed01*.072):0)*(air?.018:1);
+    const airWind=air?(rampAir?.050:.032):0;
+    const wind=running?(0.014+speed01*.076+airWind):countdown?.006:0;
     const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
     const usingJumpMusic=syncJumpMusic(mode);
@@ -313,13 +328,13 @@ export function createSkiAudio(){
     setTarget(graph.windGain.gain,wind,response);
     setTarget(graph.contactFilter.frequency,560+speed01*720+carve*300,.12);
     setTarget(graph.carveFilter.frequency,980+carve*1280+speed01*520,.10);
-    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?260:0),.20);
+    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?(rampAir?420:260):0),.20);
     setTarget(graph.musicFilter.frequency,1250+intensity*1100,.28);
-    // Keep the procedural bed only as a fallback while the exact Chimp Jump track is unavailable.
+    // Keep the procedural bed as a graceful fallback if the bundled local Chimp Jump track cannot play.
     setTarget(graph.musicGain.gain,usingJumpMusic?0:musicBase*(.86+intensity*.14),.35);
   }
   function update(state){applyState(state,false);}
-  function play(type,gain=1){
+  function play(type,gain=1,rateScale=1){
     unlock();
     if(!context||!graph||!settings.sfxEnabled)return;
     const now=context.currentTime;
@@ -330,13 +345,27 @@ export function createSkiAudio(){
     const source=context.createBufferSource();
     const amp=context.createGain();
     source.buffer=eventBuffer(type);
-    const variation=type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:.03;
-    source.playbackRate.value=1+(Math.random()*2-1)*variation;
+    const variation=type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:.03;
+    source.playbackRate.value=clamp(rateScale,.72,1.65)*(1+(Math.random()*2-1)*variation);
     amp.gain.value=Math.min(1.08,Math.max(0,gain));
     source.connect(amp);
     amp.connect(graph.eventBus);
     source.onended=()=>{source.disconnect();amp.disconnect();source.onended=null;};
     source.start();
+  }
+  function playClear(clearEvent){
+    const id=Number(clearEvent?.id)||0;
+    if(!id||id===lastClearEventId)return false;
+    lastClearEventId=id;
+    const chain=Math.max(1,Number(clearEvent?.combo)||1);
+    const pitch=1+Math.min(5,chain-1)*.08;
+    const gain=.22+Math.min(5,chain-1)*.018;
+    play('clear',gain,pitch);
+    return true;
+  }
+  function resetRun(){
+    lastClearEventId=0;
+    eventLast.delete('clear');
   }
   function refreshBuses(){
     if(!graph)return;
@@ -366,5 +395,5 @@ export function createSkiAudio(){
   document.addEventListener('pointerdown',unlock,{once:true,capture:true});
   document.addEventListener('keydown',unlock,{once:true,capture:true});
 
-  return {play,unlock,update,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled};
+  return {play,playClear,resetRun,unlock,update,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled};
 }
