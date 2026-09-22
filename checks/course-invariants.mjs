@@ -24,7 +24,8 @@ for(let i=0;i<120;i++){
   const difficulty=Math.min(1,i/85);
   const section=director.next({startZ:z,difficulty});
   assert(COURSE_TYPES.includes(section.type),'unknown course section type');
-  assert(section.length>=20&&section.length<=50,'implausible section length');
+  // Longer recovery/jump sections are intentional after the open-course gameplay pass.
+  assert(section.length>=20&&section.length<=56,'implausible section length');
   assert(section.endZ<z,'section does not advance downhill');
 
   // Jump sections must be followed by explicit recovery space.
