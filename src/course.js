@@ -600,6 +600,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       placement.x=boundedPlacementX(placement.kind,placement.x,placement.safeX,placement);
       placement.section=type;
     }
+    // Boundary fitting can collapse two formerly separate edge hazards onto the
+    // same legal X. Re-prune only those final physical overlaps.
+    pruneExcessiveOverlap(placements);
     lastType=type;
     sectionIndex++;
     return {
