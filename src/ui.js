@@ -22,26 +22,40 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   bestFlag.textContent='NEW BEST';
   hud?.append(bestFlag);
 
+  const hudMeta=document.createElement('div');
+  hudMeta.className='hud-meta';
+  hudMeta.innerHTML='<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">SPACE / A · JUMP</span><span class="hud-run-state" id="hud-run-state">READY</span>';
+  hud?.append(hudMeta);
+  const hudBestReadout=byId('hud-best-readout');
+  const hudJumpHint=byId('hud-jump-hint');
+  const hudRunState=byId('hud-run-state');
+
+  const landingCallout=document.createElement('div');
+  landingCallout.className='landing-callout';
+  landingCallout.hidden=true;
+  hud?.append(landingCallout);
+  let landingTimer=0;
+
   const countdown=document.createElement('div');
   countdown.id='run-countdown';
   countdown.className='run-countdown';
   countdown.hidden=true;
   countdown.setAttribute('aria-live','assertive');
-  countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div>';
+  countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div><div class="countdown-control">SPACE / A · JUMP</div>';
   document.body.append(countdown);
 
   const pause=document.createElement('div');
   pause.id='pause-overlay';
   pause.className='presentation-overlay';
   pause.hidden=true;
-  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button></div><p class="controller-hint">ESC / MENU · Resume</p></section>';
+  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>← → / LEFT STICK</b> Carve</span><span><b>SPACE / A · CROSS</b> Jump</span><span><b>ESC / START · MENU</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button></div><p class="controller-hint">Controller and keyboard ready</p></section>';
   document.body.append(pause);
 
   const results=document.createElement('div');
   results.id='result-overlay';
   results.className='presentation-overlay';
   results.hidden=true;
-  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><p class="controller-hint">A / ENTER · Select</p></section>';
+  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><p class="controller-hint">ENTER / A · Restart &nbsp; · &nbsp; SPACE / A · Jump during run</p></section>';
   document.body.append(results);
 
   const resumeButton=byId('resume-game');
@@ -65,6 +79,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   function setMode(next){
     mode=next;
     document.body.dataset.mode=next;
+    if(hudRunState)hudRunState.textContent=next==='playing'?'RUN':next==='paused'?'PAUSE':next==='crashed'?'DOWN':next==='countdown'?'READY':'MENU';
   }
   function setAvatar(entry){
     if(!entry)return;
@@ -133,7 +148,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       }else image.textContent='🐵';
     }
     const number=byId('countdown-number');
-    const frames=[['3',0],['2',520],['1',1040],['GO',1560]];
+    const frames=[['3',0],['2',430],['1',860],['GO',1290]];
     countdown.hidden=false;
     countdown.classList.add('is-active');
     for(const [label,delay] of frames){
@@ -153,7 +168,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       countdown.hidden=true;
       setMode('playing');
       onGo?.();
-    },2020);
+    },1690);
   }
   function cancelCountdown(){
     countdownToken++;
@@ -202,9 +217,14 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     const d=Math.max(0,Number(values.distance)||0);
     const b=Math.max(0,Number(values.bananas)||0);
     const kmh=Math.max(0,Math.round((Number(values.speed)||0)*3.6));
+    const speedFeel=Math.max(0,Math.min(1,(kmh-42)/70));
     if(distance)distance.textContent=Math.floor(d)+' m';
     if(bananas)bananas.textContent=String(b);
     if(speed)speed.textContent=kmh+' km/h';
+    if(hudBestReadout)hudBestReadout.textContent='BEST '+Math.floor(Math.max(bestDistance,Number(values.best)||0))+' m';
+    if(hudRunState&&mode==='playing')hudRunState.textContent=values.air?'AIR':'RUN';
+    hud?.style.setProperty('--speed-intensity',String(speedFeel));
+    hud?.classList.toggle('is-fast',speedFeel>.62);
 
     if(b>previousBananas)pulse(bananaStat,'stat-pop');
     previousBananas=b;
@@ -221,6 +241,23 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       distanceStat?.classList.add('is-best');
       pulse(distanceStat,'stat-best-pop');
       setTimeout(()=>{if(bestFlag)bestFlag.hidden=true;},2200);
+    }
+  }
+  function showLandingFeedback(quality='clean'){
+    clearTimeout(landingTimer);
+    const hard=quality==='hard'||quality==='rough';
+    landingCallout.textContent=quality==='hard'?'HARD LANDING':quality==='rough'?'ROUGH LANDING':'CLEAN LANDING';
+    landingCallout.className='landing-callout '+(hard?'is-hard':'is-clean');
+    landingCallout.hidden=false;
+    landingTimer=setTimeout(()=>{landingCallout.hidden=true;},hard?850:650);
+  }
+  function showJumpFeedback(source='JUMP'){
+    if(hudJumpHint){
+      hudJumpHint.textContent=source==='RAMP'?'RAMP LAUNCH':'JUMP';
+      hudJumpHint.classList.remove('jump-pulse');
+      void hudJumpHint.offsetWidth;
+      hudJumpHint.classList.add('jump-pulse');
+      setTimeout(()=>{hudJumpHint.textContent='SPACE / A · JUMP';hudJumpHint.classList.remove('jump-pulse');},520);
     }
   }
   function activeRoot(){
@@ -306,5 +343,5 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons};
+  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback};
 }

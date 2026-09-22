@@ -10,6 +10,7 @@ import {progressSpeed,stepCarving,stepAir,launchRamp} from './skiPhysics.js';
 import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
+import {createGameFeedback} from './gameFeedback.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -31,7 +32,7 @@ app.innerHTML=`
         <button class="secondary" id="choose" aria-label="Choose Chimpion" disabled>CHOOSE CHIMPION</button>
         <button class="primary" id="start" aria-label="Start skiing" disabled>LOADING CHIMPION…</button>
       </div>
-      <div class="tip">← → / A D · LEFT STICK / D-PAD · ENTER / A</div>
+      <div class="tip">A / D or LEFT STICK / D-PAD · CARVE &nbsp; · &nbsp; SPACE / A · CROSS · JUMP &nbsp; · &nbsp; ESC / START · MENU · PAUSE</div>
     </section>
   </div>
 `;
@@ -197,6 +198,7 @@ const ui=createGameUI({
   onRestart:()=>beginRun(),
   onChoose:()=>selector?.open()
 });
+const feedback=createGameFeedback({audio,ui});
 ui.setAvatarLoading(true);
 
 async function setAvatar(entry){
@@ -254,7 +256,7 @@ function resetRunState(mode='countdown'){
   Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.42;}
-  courseFrame=0;resetCourse(0);skiCamera.reset();
+  courseFrame=0;resetCourse(0);skiCamera.reset();feedback.reset();
 }
 function beginRun(){
   if(!ready)return;
@@ -297,7 +299,7 @@ function crash(kind='tree',item=null){
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
   ui.setMode('crashed');
-  audio.play('crash',.9);
+  feedback.onCrash();
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
   ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
 }
@@ -324,7 +326,7 @@ function update(dt){
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
     const landing=stepAir(state,dt,groundY);
-    if(landing.landed)audio.play('land',landing.quality==='clean'?.5:.62);
+    if(landing.landed)feedback.onLanding(landing);
 
     player.position.x=state.x;player.position.y=state.y;
     const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68;
@@ -390,7 +392,7 @@ function update(dt){
         const aligned=dx<=radiusX+.28;
         if(!item.userData.activated&&!state.air&&state.rampGrace<=0&&onDeck&&aligned){
           item.userData.activated=true;
-          if(launchRamp(state,itemGround))audio.play('ramp');
+          if(launchRamp(state,itemGround))feedback.onRampTakeoff();
         }
         continue;
       }
@@ -428,8 +430,9 @@ function update(dt){
   }
   environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
 
-  ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best});
+  ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
+  feedback.update(state,dt);
 }
 
 function render(now){

@@ -6,6 +6,8 @@ export function createSkiAudio(){
   let graph=null;
   let pendingState={mode:'menu',speed:12,carve:0,air:false,intensity:0};
   const buffers=new Map();
+  const eventLast=new Map();
+  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,crash:.34,menu:.025,button:.025,go:.14};
 
   const settings={
     master:readNumber('chimpions-ski-master',.82),
@@ -47,7 +49,7 @@ export function createSkiAudio(){
   }
   function eventBuffer(type){
     if(buffers.has(type))return buffers.get(type);
-    const duration={banana:.28,ramp:.34,land:.30,crash:.72,menu:.09,button:.075,go:.32}[type]||.18;
+    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,crash:.72,menu:.09,button:.075,go:.32}[type]||.18;
     const length=Math.ceil(context.sampleRate*duration);
     const buffer=context.createBuffer(1,length,context.sampleRate);
     const data=buffer.getChannelData(0);
@@ -65,6 +67,13 @@ export function createSkiAudio(){
         phase2+=Math.PI*2*(hz*1.5)/context.sampleRate;
         tone=Math.sin(phase)*.72+Math.sin(phase2)*.20;
         env=Math.pow(1-u,1.8)*Math.min(1,t/.008);
+      }else if(type==='jump'){
+        hz=245+390*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*1.48)/context.sampleRate;
+        tone=Math.sin(phase)*.55+Math.sin(phase2)*.14;
+        noise=smoothNoise*.22;
+        env=Math.pow(1-u,2.0)*Math.min(1,t/.005);
       }else if(type==='ramp'){
         hz=190+590*u;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -72,11 +81,18 @@ export function createSkiAudio(){
         noise=smoothNoise*.40;
         env=Math.pow(1-u,1.5)*Math.min(1,t/.008);
       }else if(type==='land'){
-        hz=92-28*u;
+        hz=105-34*u;
         phase+=Math.PI*2*hz/context.sampleRate;
-        tone=Math.sin(phase)*.75;
-        noise=smoothNoise*.72;
-        env=Math.pow(1-u,3.0)*Math.min(1,t/.003);
+        tone=Math.sin(phase)*.68;
+        noise=smoothNoise*.58;
+        env=Math.pow(1-u,3.2)*Math.min(1,t/.003);
+      }else if(type==='hardLand'){
+        hz=88-30*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*.52)/context.sampleRate;
+        tone=Math.sin(phase)*.72+Math.sin(phase2)*.20;
+        noise=smoothNoise*.92;
+        env=Math.pow(1-u,2.45)*Math.min(1,t/.0025);
       }else if(type==='crash'){
         hz=82-26*u;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -95,7 +111,7 @@ export function createSkiAudio(){
         tone=Math.sin(phase);
         env=Math.pow(1-u,3.5)*Math.min(1,t/.002);
       }
-      data[i]=(tone+noise)*env*(type==='crash'?.34:type==='land'?.30:.22);
+      data[i]=(tone+noise)*env*(type==='crash'?.34:type==='hardLand'?.31:type==='land'?.27:type==='jump'?.24:.22);
     }
     buffers.set(type,buffer);
     return buffer;
@@ -157,11 +173,18 @@ export function createSkiAudio(){
     const musicBus=context.createGain();
     const continuousBus=context.createGain();
     const eventBus=context.createGain();
+    const compressor=context.createDynamicsCompressor();
+    compressor.threshold.value=-11;
+    compressor.knee.value=12;
+    compressor.ratio.value=3.2;
+    compressor.attack.value=.004;
+    compressor.release.value=.16;
     sfxBus.connect(master);
     musicBus.connect(master);
     continuousBus.connect(sfxBus);
     eventBus.connect(sfxBus);
-    master.connect(context.destination);
+    master.connect(compressor);
+    compressor.connect(context.destination);
 
     const contactSource=makeLoop(noiseBuffer(2.4,19531));
     const contactFilter=context.createBiquadFilter();
@@ -212,7 +235,7 @@ export function createSkiAudio(){
     windSource.start();
     musicSource.start();
 
-    graph={master,sfxBus,musicBus,continuousBus,eventBus,contactFilter,contactGain,carveFilter,carveGain,windFilter,windGain,musicFilter,musicGain};
+    graph={master,sfxBus,musicBus,continuousBus,eventBus,compressor,contactFilter,contactGain,carveFilter,carveGain,windFilter,windGain,musicFilter,musicGain};
     applyState(pendingState,true);
     return graph;
   }
@@ -235,18 +258,18 @@ export function createSkiAudio(){
     const countdown=mode==='countdown';
     const response=instant?.01:.09;
 
-    const contact=(running?(0.026+speed01*.075+carve*.045):0)*(air?.06:1);
-    const edge=(running?carve*(.018+speed01*.085):0)*(air?.04:1);
-    const wind=running?(0.018+speed01*.105+(air?.045:0)):countdown?.012:0;
+    const contact=(running?(0.024+speed01*.060+carve*.030):0)*(air?.045:1);
+    const edge=(running?carve*(.014+speed01*.076):0)*(air?.025:1);
+    const wind=running?(0.015+speed01*.086+(air?.034:0)):countdown?.010:0;
     const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
 
     setTarget(graph.contactGain.gain,contact,response);
     setTarget(graph.carveGain.gain,edge,response);
     setTarget(graph.windGain.gain,wind,response);
-    setTarget(graph.contactFilter.frequency,620+speed01*650+carve*320,.12);
-    setTarget(graph.carveFilter.frequency,1120+carve*1150+speed01*460,.10);
-    setTarget(graph.windFilter.frequency,720+speed01*2100+(air?360:0),.16);
+    setTarget(graph.contactFilter.frequency,560+speed01*720+carve*300,.12);
+    setTarget(graph.carveFilter.frequency,980+carve*1280+speed01*520,.10);
+    setTarget(graph.windFilter.frequency,650+speed01*1760+(air?300:0),.18);
     setTarget(graph.musicFilter.frequency,1250+intensity*1100,.28);
     setTarget(graph.musicGain.gain,musicBase*(.86+intensity*.14),.35);
   }
@@ -254,12 +277,17 @@ export function createSkiAudio(){
   function play(type,gain=1){
     unlock();
     if(!context||!graph||!settings.sfxEnabled)return;
+    const now=context.currentTime;
+    const cooldown=eventCooldown[type]??.035;
+    const last=eventLast.get(type)??-Infinity;
+    if(now-last<cooldown)return;
+    eventLast.set(type,now);
     const source=context.createBufferSource();
     const amp=context.createGain();
     source.buffer=eventBuffer(type);
-    const variation=type==='crash'?.045:type==='banana'?.06:.035;
+    const variation=type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:.03;
     source.playbackRate.value=1+(Math.random()*2-1)*variation;
-    amp.gain.value=Math.max(0,gain);
+    amp.gain.value=Math.min(1.08,Math.max(0,gain));
     source.connect(amp);
     amp.connect(graph.eventBus);
     source.start();
