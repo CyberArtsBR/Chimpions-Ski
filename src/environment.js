@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
+import {terrainHeight} from './terrainContact.js';
+import {createDayCycle} from './dayCycle.js';
+import {createBoundaryMarkers} from './boundaryMarkers.js';
+import {createSnowParticles} from './snowParticles.js';
+import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 
 const _dummy=new THREE.Object3D();
 const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);
@@ -69,6 +74,7 @@ function createRidge(width,height,y,z,color,opacity,seed,segments=26){
     depthWrite:false,
     fog:true
   });
+  material.userData.atmosphereRole='mountain';
   const mesh=new THREE.Mesh(ridgeGeometry(width,height,-height*.46,segments,seed),material);
   mesh.position.set(0,y,z);
   mesh.renderOrder=-20;
@@ -88,12 +94,14 @@ function createMountainField({count,z,spreadX,baseY,heightMin,heightMax,widthMin
     metalness:0,
     flatShading:true
   });
+  mountainMaterial.userData.atmosphereRole='mountain';
   const capMaterial=new THREE.MeshStandardMaterial({
     color:snowColor,
     roughness:.96,
     metalness:0,
     flatShading:true
   });
+  capMaterial.userData.atmosphereRole='snowcap';
 
   const mountains=new THREE.InstancedMesh(mountainGeometry,mountainMaterial,count);
   const caps=new THREE.InstancedMesh(capGeometry,capMaterial,count);
@@ -137,11 +145,12 @@ function createMovingInstances(count,mesh,makeEntry){
 
 function resetBank(entry,i,deep=false){
   const side=i%2===0?-1:1;
-  entry.x=side*(42+wave(i*2.7+11)*52);
-  entry.z=-12-wave(i*4.1+21)*205;
-  entry.sx=(deep?2.8:2.1)+wave(i*3.4+5)*(deep?3.3:2.6);
-  entry.sy=(deep?.34:.18)+wave(i*7.1+9)*(deep?.42:.22);
-  entry.sz=(deep?1.1:.7)+wave(i*5.7+4)*(deep?1.7:1.15);
+  entry.x=side*((deep?20:15.5)+wave(i*2.7+11)*(deep?34:22));
+  entry.z=-12-wave(i*4.1+21)*215;
+  entry.sx=(deep?5.2:2.4)+wave(i*3.4+5)*(deep?7.8:3.8);
+  entry.sy=(deep?.62:.14)+wave(i*7.1+9)*(deep?1.55:.32);
+  entry.sz=(deep?3.2:.9)+wave(i*5.7+4)*(deep?7.2:2.2);
+  entry.y=deep?(-.78+wave(i*6.9+15)*.36):(-.28+wave(i*4.2+17)*.14);
   entry.ry=wave(i*8.4+2)*Math.PI;
 }
 
@@ -150,8 +159,8 @@ function resetTree(entry,i){
   const within=i%6;
   const side=cluster%2===0?-1:1;
   const clusterZ=-16-wave(cluster*4.91+8)*224;
-  const clusterX=side*(34+wave(cluster*2.7+4)*54);
-  entry.x=clusterX+(wave(i*5.37+1)-.5)*(10+within*.45);
+  const clusterX=side*(18.5+wave(cluster*2.7+4)*34);
+  entry.x=clusterX+(wave(i*5.37+1)-.5)*(8.2+within*.42);
   entry.z=clusterZ+(wave(i*6.91+8)-.5)*15.5;
   entry.s=.60+wave(i*4.17+3)*1.22;
   entry.width=.80+wave(i*9.13+12)*.38;
@@ -216,52 +225,6 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
   const points=new THREE.Points(geometry,material);
   points.frustumCulled=false;
   return {count,positions,fall,sway,geometry,points,xSpread,zMin,zMax,ground};
-}
-
-function makePowderPool(scene){
-  const count=560;
-  const positions=new Float32Array(count*3);
-  const velocity=new Float32Array(count*3);
-  const life=new Float32Array(count);
-  const maxLife=new Float32Array(count);
-  for(let i=0;i<count;i++)positions[i*3+1]=-100;
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
-  const material=new THREE.PointsMaterial({
-    color:0xffffff,
-    size:.12,
-    transparent:true,
-    opacity:.66,
-    depthWrite:false,
-    sizeAttenuation:true
-  });
-  const points=new THREE.Points(geometry,material);
-  points.frustumCulled=false;
-  scene.add(points);
-  return {count,positions,velocity,life,maxLife,geometry,points,cursor:0,lastLanding:0,emitCarry:0};
-}
-
-function emitPowder(pool,x,y,z,edge,speed,count,landing=false,inside=false){
-  const turnSign=Math.sign(edge);
-  const lateral=turnSign===0?0:(inside?turnSign*.20:-turnSign*.33);
-  const direction=turnSign===0?(wave(pool.cursor+3)>.5?1:-1):(inside?turnSign:-turnSign);
-  const strength=inside?.58:1;
-  for(let n=0;n<count;n++){
-    const i=pool.cursor++%pool.count;
-    const base=i*3;
-    const r1=wave(pool.cursor*1.17+n*2.3);
-    const r2=wave(pool.cursor*2.71+n*5.1);
-    const r3=wave(pool.cursor*4.33+n*7.9);
-    const spread=landing?1.05:(inside?.36:.58);
-    pool.positions[base]=(landing?x:x+lateral)+(r1-.5)*spread;
-    pool.positions[base+1]=y+.035+r2*(landing?.32:(inside?.10:.15));
-    pool.positions[base+2]=z+.30+r3*(landing?.62:.54);
-    pool.velocity[base]=direction*((.42+r1*(landing?2.25:1.52))*strength)+(r2-.5)*.48;
-    pool.velocity[base+1]=(landing?1.08:.52)*strength+r2*(landing?3.25:1.92)*strength;
-    pool.velocity[base+2]=(.92+r3*(landing?3.65:2.35)+speed*.032)*strength;
-    pool.life[i]=(landing?.56:.32)+r1*(landing?.60:.38);
-    pool.maxLife[i]=pool.life[i];
-  }
 }
 
 function makeContactShadow(scene){
@@ -392,23 +355,29 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
   atmosphere.add(
-    createRidge(230,39,-1.7,-174,0xc9dce5,.62,2.4,40),
-    createRidge(194,33,-2.8,-141,0x9ebdca,.72,5.9,36),
-    createRidge(154,25,-4.0,-106,0x759cae,.82,9.1,30),
+    createRidge(252,43,1.1,-190,0xd3e2e8,.52,1.2,44),
+    createRidge(230,39,-.3,-164,0xbfd4dd,.62,2.4,40),
+    createRidge(194,33,-1.8,-132,0x94b3c0,.74,5.9,36),
+    createRidge(154,25,-3.1,-101,0x6d91a1,.84,9.1,30),
     createMountainField({
-      count:11,z:-157,spreadX:190,baseY:-6.6,
-      heightMin:27,heightMax:43,widthMin:17,widthMax:28,
-      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4,valleyGap:18
+      count:12,z:-166,spreadX:204,baseY:-5.6,
+      heightMin:30,heightMax:47,widthMin:18,widthMax:30,
+      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4,valleyGap:21
     }),
     createMountainField({
-      count:10,z:-124,spreadX:154,baseY:-5.9,
-      heightMin:23,heightMax:36,widthMin:15,widthMax:24,
-      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7,valleyGap:13
+      count:11,z:-132,spreadX:164,baseY:-5.3,
+      heightMin:25,heightMax:38,widthMin:16,widthMax:25,
+      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7,valleyGap:16
     }),
     createMountainField({
-      count:8,z:-92,spreadX:112,baseY:-5.2,
-      heightMin:18,heightMax:29,widthMin:13,widthMax:20,
-      color:0x536f7b,snowColor:0xf7fcff,seed:47.2,valleyGap:9
+      count:9,z:-99,spreadX:122,baseY:-5.0,
+      heightMin:19,heightMax:30,widthMin:13,widthMax:21,
+      color:0x536f7b,snowColor:0xf7fcff,seed:47.2,valleyGap:11
+    }),
+    createMountainField({
+      count:7,z:-73,spreadX:96,baseY:-5.6,
+      heightMin:14,heightMax:22,widthMin:11,widthMax:17,
+      color:0x3f606f,snowColor:0xf8fcff,seed:64.8,valleyGap:14
     })
   );
 
@@ -473,14 +442,21 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     makeSnowLayer(310,.050,.52,25,-31,11,.42,true)
   ];
   for(const layer of snowLayers)scene.add(layer.points);
-  const powder=makePowderPool(scene);
+  const snowParticles=createSnowParticles({scene});
+  const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank});
+  const boundaryMarkers=createBoundaryMarkers({world,terrainHeight,limit:11.3,countPerSide:18,spacing:15.5});
   const contactShadow=makeContactShadow(scene);
+  const dayCycle=createDayCycle({
+    scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
+  });
 
+  let visualTravel=0;
   function refreshBanks(group){
     const {mesh,entries}=group;
     for(let i=0;i<entries.length;i++){
       const e=entries[i];
-      setInstance(mesh,i,e.x,-.33,e.z,e.sx,e.sy,e.sz,e.ry);
+      const ground=terrainHeight(e.x,e.z-visualTravel);
+      setInstance(mesh,i,e.x,ground+e.y,e.z,e.sx,e.sy,e.sz,e.ry);
     }
     mesh.instanceMatrix.needsUpdate=true;
   }
@@ -495,18 +471,19 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       const asym=e.asymScaled;
       const lean=e.lean;
       const trunkScale=e.trunkScale;
+      const ground=terrainHeight(e.x,e.z-visualTravel);
 
-      setInstance(trunkMesh,i,e.x,.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
+      setInstance(trunkMesh,i,e.x,ground+.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
 
-      setInstance(foliageLower,i,e.x+asym,1.40*s*height,e.z-asym*.18,1.18*s*width,1.00*s,1.12*s*width,e.ry+.04,0,sway*.20+lean);
-      setInstance(foliageLowMid,i,e.x-asym*.55,1.93*s*height,e.z+asym*.15,1.04*s*width,.96*s,1.00*s*width,e.ry-.10,0,sway*.35+lean);
-      setInstance(foliageMid,i,e.x+asym*.32,2.44*s*height,e.z-asym*.10,.87*s*width,.90*s,.84*s*width,e.ry+.15,0,sway*.52+lean);
-      setInstance(foliageHighMid,i,e.x-asym*.24,2.90*s*height,e.z+asym*.08,.69*s*width,.80*s,.67*s*width,e.ry-.17,0,sway*.70+lean);
-      setInstance(foliageUpper,i,e.x+asym*.15,3.34*s*height,e.z,.53*s*width,.78*s,.51*s*width,e.ry+.22,0,sway+lean);
+      setInstance(foliageLower,i,e.x+asym,ground+1.40*s*height,e.z-asym*.18,1.18*s*width,1.00*s,1.12*s*width,e.ry+.04,0,sway*.20+lean);
+      setInstance(foliageLowMid,i,e.x-asym*.55,ground+1.93*s*height,e.z+asym*.15,1.04*s*width,.96*s,1.00*s*width,e.ry-.10,0,sway*.35+lean);
+      setInstance(foliageMid,i,e.x+asym*.32,ground+2.44*s*height,e.z-asym*.10,.87*s*width,.90*s,.84*s*width,e.ry+.15,0,sway*.52+lean);
+      setInstance(foliageHighMid,i,e.x-asym*.24,ground+2.90*s*height,e.z+asym*.08,.69*s*width,.80*s,.67*s*width,e.ry-.17,0,sway*.70+lean);
+      setInstance(foliageUpper,i,e.x+asym*.15,ground+3.34*s*height,e.z,.53*s*width,.78*s,.51*s*width,e.ry+.22,0,sway+lean);
 
-      setInstance(snowShelfLower,i,e.x+asym*.40,1.68*s*height,e.z,1.08*s*width*snow,.82*s,1.02*s*width*snow,e.ry+.02,0,sway*.25+lean);
-      setInstance(snowShelfUpper,i,e.x-asym*.18,2.63*s*height,e.z,.79*s*width*snow,.78*s,.75*s*width*snow,e.ry-.12,0,sway*.58+lean);
-      setInstance(capMesh,i,e.x+asym*.10,3.60*s*height,e.z,.48*s*width*snow,.60*s,.46*s*width*snow,e.ry+.20,0,sway*.90+lean);
+      setInstance(snowShelfLower,i,e.x+asym*.40,ground+1.68*s*height,e.z,1.08*s*width*snow,.82*s,1.02*s*width*snow,e.ry+.02,0,sway*.25+lean);
+      setInstance(snowShelfUpper,i,e.x-asym*.18,ground+2.63*s*height,e.z,.79*s*width*snow,.78*s,.75*s*width*snow,e.ry-.12,0,sway*.58+lean);
+      setInstance(capMesh,i,e.x+asym*.10,ground+3.60*s*height,e.z,.48*s*width*snow,.60*s,.46*s*width*snow,e.ry+.20,0,sway*.90+lean);
     }
     trunkMesh.instanceMatrix.needsUpdate=true;
     foliageLower.instanceMatrix.needsUpdate=true;
@@ -524,18 +501,24 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   let time=0;
   function reset(){
     time=0;
+    visualTravel=0;
     banks.entries.forEach((entry,index)=>resetBank(entry,index,true));
     windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
     trees.entries.forEach((entry,index)=>resetTree(entry,index));
     refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
-    powder.life.fill(0);powder.velocity.fill(0);
-    for(let i=0;i<powder.count;i++)powder.positions[i*3+1]=-100;
-    powder.cursor=0;powder.lastLanding=0;powder.emitCarry=0;
-    powder.geometry.attributes.position.needsUpdate=true;
+    snowParticles.reset();
+    surfaceDetail.reset();
+    boundaryMarkers.reset();
+    dayCycle.apply(0);
   }
-  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY){
+  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time){
     time+=dt;
+    visualTravel+=worldSpeed*dt;
     sky.position.copy(camera.position);
+    dayCycle.apply(runTime);
+    snowParticles.setTint(snowMaterials.terrain.color);
+    surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
+    surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
 
     for(let i=0;i<banks.entries.length;i++){
       const e=banks.entries[i];e.z+=worldSpeed*dt;
@@ -585,40 +568,12 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       layer.geometry.attributes.position.needsUpdate=true;
     }
 
-    if(running&&!air){
-      const carve=Math.abs(edge);
-      const straight=.10+speed01*.22;
-      powder.emitCarry+=dt*(straight+carve*(1.22+speed01*1.02))*44;
-      const emit=Math.min(18,Math.floor(powder.emitCarry));
-      if(emit>0){
-        if(carve>.20){
-          const insideCount=Math.max(1,Math.floor(emit*(.16+carve*.08)));
-          const outsideCount=Math.max(1,emit-insideCount);
-          emitPowder(powder,playerX,playerY,playerZ,edge,speed,outsideCount,false,false);
-          emitPowder(powder,playerX,playerY,playerZ,edge,speed,insideCount,false,true);
-        }else{
-          emitPowder(powder,playerX,playerY,playerZ,edge,speed,emit,false,false);
-        }
-        powder.emitCarry-=emit;
-      }
-    }
-    if(running&&landingPulse>.18&&powder.lastLanding<=.18){
-      emitPowder(powder,playerX,playerY,playerZ,edge,speed,46+Math.floor(speed01*22),true,false);
-    }
-    powder.lastLanding=landingPulse;
-
-    for(let i=0;i<powder.count;i++){
-      if(powder.life[i]<=0)continue;
-      const k=i*3;
-      powder.life[i]-=dt;
-      powder.velocity[k+1]-=4.4*dt;
-      powder.velocity[k]*=Math.pow(.994,dt*60);
-      powder.positions[k]+=powder.velocity[k]*dt;
-      powder.positions[k+1]+=powder.velocity[k+1]*dt;
-      powder.positions[k+2]+=(powder.velocity[k+2]+worldSpeed*.18)*dt;
-      if(powder.life[i]<=0||powder.positions[k+1]<.015)powder.positions[k+1]=-100;
-    }
-    powder.geometry.attributes.position.needsUpdate=true;
+    snowParticles.spray({
+      dt,x:playerX,y:playerY,z:playerZ,speed,edge,air,landingPulse,running
+    });
+    snowParticles.update(dt,worldSpeed);
+    surfaceDetail.update(dt,worldSpeed);
+    boundaryMarkers.update(dt,worldSpeed);
 
     contactShadow.position.set(playerX,Math.max(.006,groundY-.108),playerZ+.02);
     const groundAlpha=air?0:THREE.MathUtils.clamp(1-landingPulse*.12,.72,1);
