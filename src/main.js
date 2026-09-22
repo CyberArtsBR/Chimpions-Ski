@@ -144,6 +144,48 @@ function spawn(z=-90){
 }
 for(let i=0;i<38;i++)spawn(-12-i*5.1-Math.random()*2.2);
 
+// Twin ski tracks and snow spray are pooled for the desktop high-quality build.
+const trackGroup=new THREE.Group();world.add(trackGroup);
+const trackMat=new THREE.MeshBasicMaterial({color:0xb8d7e4,transparent:true,opacity:.48,depthWrite:false});
+const trackPool=[];
+for(let i=0;i<80;i++){
+  const mark=new THREE.Mesh(new THREE.BoxGeometry(.055,.012,.72),trackMat.clone());
+  mark.position.set(0,-10,0);mark.visible=false;trackGroup.add(mark);trackPool.push(mark);
+}
+let trackCursor=0,trackTimer=0;
+const sprayCount=170;
+const sprayPositions=new Float32Array(sprayCount*3);
+const sprayVelocity=new Float32Array(sprayCount*3);
+const sprayLife=new Float32Array(sprayCount);
+for(let i=0;i<sprayCount;i++)sprayPositions[i*3+1]=-100;
+const sprayGeometry=new THREE.BufferGeometry();
+sprayGeometry.setAttribute('position',new THREE.BufferAttribute(sprayPositions,3));
+const sprayMaterial=new THREE.PointsMaterial({color:0xf8fdff,size:.085,transparent:true,opacity:.9,depthWrite:false});
+const sprayPoints=new THREE.Points(sprayGeometry,sprayMaterial);scene.add(sprayPoints);
+let sprayCursor=0;
+
+function emitTrack(x,z,steer){
+  for(const side of [-1,1]){
+    const mark=trackPool[trackCursor++%trackPool.length];
+    mark.visible=true;mark.material.opacity=.48;
+    mark.position.set(x+side*.22,.014,z-.48);
+    mark.rotation.set(0,-steer*.10,0);
+  }
+}
+function emitSpray(x,y,z,steer,speed){
+  const amount=2+Math.floor(Math.abs(steer)*5+speed/11);
+  for(let n=0;n<amount;n++){
+    const i=sprayCursor++%sprayCount;
+    sprayPositions[i*3]=x+THREE.MathUtils.randFloat(-.32,.32);
+    sprayPositions[i*3+1]=y+THREE.MathUtils.randFloat(.04,.18);
+    sprayPositions[i*3+2]=z+THREE.MathUtils.randFloat(.32,.62);
+    sprayVelocity[i*3]=THREE.MathUtils.randFloat(-.7,.7)-steer*1.25;
+    sprayVelocity[i*3+1]=THREE.MathUtils.randFloat(.8,2.2);
+    sprayVelocity[i*3+2]=THREE.MathUtils.randFloat(1.3,3.2);
+    sprayLife[i]=THREE.MathUtils.randFloat(.28,.62);
+  }
+}
+
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
@@ -188,6 +230,7 @@ function reset(){
   audio.play('menu',.5);
   state.mode='playing';state.distance=0;state.bananas=0;state.speed=12;state.x=0;state.vx=0;state.y=.12;state.vy=0;state.air=false;state.landingPulse=0;
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
+  trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.48;}sprayLife.fill(0);
   course.forEach((o,i)=>{o.visible=true;placeCourseItem(o,-12-i*5.1-Math.random()*2.2);});
   $('overlay').hidden=true;$('crash-copy').innerHTML='';
 }
@@ -232,6 +275,14 @@ function update(dt){
       speed:state.speed,
       time:performance.now()/1000
     });
+    if(!state.air){
+      trackTimer-=dt;
+      if(trackTimer<=0){
+        emitTrack(state.x,player.position.z,steer);
+        trackTimer=Math.max(.045,.09-state.speed*.0013);
+      }
+      if(Math.abs(steer)>.12||state.speed>18)emitSpray(state.x,state.y,player.position.z,steer,state.speed);
+    }
 
     for(const item of course){
       item.position.z+=state.speed*dt;
@@ -257,6 +308,22 @@ function update(dt){
     if(tile.position.z>22)tile.position.z-=tiles.length*28;
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
+  for(const mark of trackPool){
+    if(!mark.visible)continue;
+    mark.position.z+=worldSpeed*dt;
+    mark.material.opacity=Math.max(0,mark.material.opacity-dt*.18);
+    if(mark.position.z>16||mark.material.opacity<=.02)mark.visible=false;
+  }
+  for(let i=0;i<sprayCount;i++){
+    if(sprayLife[i]<=0)continue;
+    sprayLife[i]-=dt;
+    sprayVelocity[i*3+1]-=5.8*dt;
+    sprayPositions[i*3]+=sprayVelocity[i*3]*dt;
+    sprayPositions[i*3+1]+=sprayVelocity[i*3+1]*dt;
+    sprayPositions[i*3+2]+=(sprayVelocity[i*3+2]+worldSpeed*.22)*dt;
+    if(sprayLife[i]<=0||sprayPositions[i*3+1]<.01)sprayPositions[i*3+1]=-100;
+  }
+  sprayGeometry.attributes.position.needsUpdate=true;
   for(const tree of forest.children){
     tree.position.z+=worldSpeed*dt;
     if(tree.position.z>18){

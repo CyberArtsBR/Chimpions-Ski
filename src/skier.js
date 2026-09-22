@@ -94,6 +94,28 @@ function fitModel(root){
   root.position.y-=fitted.min.y;
 }
 
+function addSkiEquipment(root){
+  const skiMat=new THREE.MeshStandardMaterial({color:0x1c5f86,roughness:.38,metalness:.16});
+  const edgeMat=new THREE.MeshStandardMaterial({color:0xd8f3ff,roughness:.28,metalness:.28});
+  const bindingMat=new THREE.MeshStandardMaterial({color:0x152431,roughness:.48,metalness:.16});
+  const skis=[];
+  for(const side of [-1,1]){
+    const ski=new THREE.Group();
+    const deck=new THREE.Mesh(new THREE.BoxGeometry(.115,.045,2.12),skiMat);
+    deck.position.z=.08;deck.castShadow=true;deck.receiveShadow=true;ski.add(deck);
+    const edge=new THREE.Mesh(new THREE.BoxGeometry(.125,.018,2.04),edgeMat);
+    edge.position.set(0,-.028,.04);ski.add(edge);
+    const binding=new THREE.Mesh(new THREE.BoxGeometry(.18,.10,.34),bindingMat);
+    binding.position.set(0,.075,.14);binding.castShadow=true;ski.add(binding);
+    const tip=new THREE.Mesh(new THREE.BoxGeometry(.11,.04,.34),skiMat);
+    tip.position.set(0,.08,-1.02);tip.rotation.x=-.30;tip.castShadow=true;ski.add(tip);
+    ski.position.set(side*.22,.055,.02);
+    root.add(ski);skis.push(ski);
+  }
+  root.userData.skis=skis;
+  return skis;
+}
+
 function makeRigController(model){
   const {rig,bones}=mapRig(model);
   const required=['hips','leftThigh','rightThigh','leftShin','rightShin','leftFoot','rightFoot'];
@@ -162,9 +184,20 @@ export async function loadSkier(url='/models/default.glb'){
     fitModel(model);
     const updateRig=makeRigController(model);
     const root=new THREE.Group();root.add(model);
+    const skis=addSkiEquipment(root);
     root.userData.fallback=false;
     root.userData.rigReady=!!updateRig;
-    root.userData.updateSkiPose=updateRig||(()=>{});
+    root.userData.updateSkiPose=(state={})=>{
+      updateRig?.(state);
+      const carve=THREE.MathUtils.clamp(state.steer||0,-1,1);
+      const air=!!state.air;
+      skis.forEach((ski,index)=>{
+        const sign=index===0?-1:1;
+        ski.rotation.y=THREE.MathUtils.lerp(ski.rotation.y,-carve*.10+sign*.018,.24);
+        ski.rotation.x=THREE.MathUtils.lerp(ski.rotation.x,air?.12:0,.20);
+        ski.position.y=.055+(air?.02:0);
+      });
+    };
     return root;
   }catch(error){
     console.info('Using procedural skier until a Chimpion GLB is installed:',error.message);
