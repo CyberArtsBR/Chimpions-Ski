@@ -3,6 +3,7 @@ import './style.css';
 import {loadSkier} from './skier.js';
 import {readPad} from './input.js';
 import {createSkiAudio} from './audio.js';
+import {createSkiEnvironment,decorateCourseObject} from './environment.js';
 import {loadAvatarCatalog,randomAvatar,createAvatarSelector} from './avatar-system.js';
 
 const app=document.querySelector('#app');
@@ -49,13 +50,14 @@ renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.05;
 app.prepend(renderer.domElement);
 
-scene.add(new THREE.HemisphereLight(0xeaf8ff,0x718a9b,2.1));
+scene.add(new THREE.HemisphereLight(0xeaf8ff,0x718a9b,1.72));
 const sun=new THREE.DirectionalLight(0xfff4dc,3.2);
-sun.position.set(-8,14,8);sun.castShadow=true;sun.shadow.mapSize.set(1024,1024);
+sun.position.set(-8,14,8);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00045;sun.shadow.normalBias=.025;
 Object.assign(sun.shadow.camera,{left:-14,right:14,top:18,bottom:-8,near:.5,far:45});
 scene.add(sun);
 
 const world=new THREE.Group();scene.add(world);
+const environment=createSkiEnvironment({scene,world,renderer,camera});
 const snowMat=new THREE.MeshStandardMaterial({color:0xf5fbff,roughness:.96});
 const shadowSnow=new THREE.MeshStandardMaterial({color:0xe4f1f7,roughness:1});
 const trunkMat=new THREE.MeshStandardMaterial({color:0x68452e,roughness:.9});
@@ -77,7 +79,7 @@ for(let i=0;i<12;i++){
 }
 
 // High-quality desktop snow field. Particles are recycled around the camera instead of allocated every frame.
-const snowCount=1100;
+const snowCount=700;
 const snowPositions=new Float32Array(snowCount*3);
 for(let i=0;i<snowCount;i++){
   snowPositions[i*3]=THREE.MathUtils.randFloat(-17,17);
@@ -105,21 +107,21 @@ function makeTree(){
   const g=new THREE.Group();
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,1.6,8),trunkMat);trunk.position.y=.8;trunk.castShadow=true;g.add(trunk);
   for(let i=0;i<3;i++){const c=new THREE.Mesh(new THREE.ConeGeometry(1.05-i*.12,2.1,10),pineMat);c.position.y=1.35+i*.72;c.castShadow=true;g.add(c);}
-  g.userData.kind='tree';g.userData.radius=.72;return g;
+  g.userData.kind='tree';g.userData.radius=.72;decorateCourseObject(g,'tree');return g;
 }
 function makeRock(){
-  const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.64,0),rockMat);m.scale.set(1.15,.75,.9);m.position.y=.48;m.castShadow=true;m.userData.kind='rock';m.userData.radius=.62;return m;
+  const m=new THREE.Mesh(new THREE.DodecahedronGeometry(.64,0),rockMat);m.scale.set(1.15,.75,.9);m.position.y=.48;m.castShadow=true;m.userData.kind='rock';m.userData.radius=.62;decorateCourseObject(m,'rock');return m;
 }
 function makeBanana(){
   const g=new THREE.Group();
   const curve=new THREE.TorusGeometry(.38,.085,8,18,Math.PI*1.08);
   const m=new THREE.Mesh(curve,bananaMat);m.rotation.z=.35;m.castShadow=true;g.add(m);
-  g.position.y=1.05;g.userData.kind='banana';g.userData.radius=.55;return g;
+  g.position.y=1.05;g.userData.kind='banana';g.userData.radius=.55;decorateCourseObject(g,'banana');return g;
 }
 function makeRamp(){
   const g=new THREE.Group();
   const m=new THREE.Mesh(new THREE.BoxGeometry(2.4,.22,3.2),rampMat);m.rotation.x=-.18;m.position.y=.34;m.castShadow=m.receiveShadow=true;g.add(m);
-  g.userData.kind='ramp';g.userData.radius=1.15;return g;
+  g.userData.kind='ramp';g.userData.radius=1.15;decorateCourseObject(g,'ramp');return g;
 }
 function makeLog(){
   const g=new THREE.Group();
@@ -129,7 +131,7 @@ function makeLog(){
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.16,12),new THREE.MeshStandardMaterial({color:0x9a704d,roughness:.95}));
     cap.rotation.z=Math.PI/2;cap.position.set(side*1.12,.28,0);cap.castShadow=true;g.add(cap);
   }
-  g.userData.kind='log';g.userData.radius=1.15;return g;
+  g.userData.kind='log';g.userData.radius=1.15;decorateCourseObject(g,'log');return g;
 }
 
 const course=[];
@@ -166,10 +168,11 @@ for(let i=0;i<38;i++)spawn(-12-i*5.1-Math.random()*2.2);
 
 // Twin ski tracks and snow spray are pooled for the desktop high-quality build.
 const trackGroup=new THREE.Group();world.add(trackGroup);
-const trackMat=new THREE.MeshBasicMaterial({color:0xb8d7e4,transparent:true,opacity:.48,depthWrite:false});
+const trackMat=new THREE.MeshBasicMaterial({color:0x9fc7d8,transparent:true,opacity:.42,depthWrite:false});
+const trackGeometry=new THREE.BoxGeometry(.064,.012,.86);
 const trackPool=[];
-for(let i=0;i<80;i++){
-  const mark=new THREE.Mesh(new THREE.BoxGeometry(.055,.012,.72),trackMat.clone());
+for(let i=0;i<112;i++){
+  const mark=new THREE.Mesh(trackGeometry,trackMat.clone());
   mark.position.set(0,-10,0);mark.visible=false;trackGroup.add(mark);trackPool.push(mark);
 }
 let trackCursor=0,trackTimer=0;
@@ -187,9 +190,9 @@ let sprayCursor=0;
 function emitTrack(x,z,steer){
   for(const side of [-1,1]){
     const mark=trackPool[trackCursor++%trackPool.length];
-    mark.visible=true;mark.material.opacity=.48;
-    mark.position.set(x+side*.22,.014,z-.48);
-    mark.rotation.set(0,-steer*.10,0);
+    mark.visible=true;mark.material.opacity=.42;
+    mark.position.set(x+side*.23,.014,z-.5);
+    mark.rotation.set(0,-steer*.13+side*steer*.018,0);
   }
 }
 function emitSpray(x,y,z,steer,speed){
@@ -250,7 +253,7 @@ function reset(){
   audio.play('menu',.5);
   Object.assign(state,{mode:'playing',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
-  trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.48;}sprayLife.fill(0);
+  trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.42;}sprayLife.fill(0);
   course.forEach((o,i)=>{o.visible=true;placeCourseItem(o,-12-i*5.1-Math.random()*2.2);});
   $('overlay').hidden=true;$('crash-copy').innerHTML='';
 }
@@ -364,7 +367,7 @@ function update(dt){
   for(const mark of trackPool){
     if(!mark.visible)continue;
     mark.position.z+=worldSpeed*dt;
-    mark.material.opacity=Math.max(0,mark.material.opacity-dt*.18);
+    mark.material.opacity=Math.max(0,mark.material.opacity-dt*.145);
     if(mark.position.z>16||mark.material.opacity<=.02)mark.visible=false;
   }
   for(let i=0;i<sprayCount;i++){
@@ -394,6 +397,7 @@ function update(dt){
     if(snow[i*3+2]>14){snow[i*3+2]=THREE.MathUtils.randFloat(-48,-32);snow[i*3]=THREE.MathUtils.randFloat(-17,17);}
   }
   snowGeometry.attributes.position.needsUpdate=true;
+  environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
 
   $('distance').textContent=Math.floor(state.distance)+' m';
   $('bananas').textContent=state.bananas;
