@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 
 const _dummy=new THREE.Object3D();
-const _color=new THREE.Color();
 
 function addGeometryPiece(target,geometry,matrix,color){
   const source=geometry.index?geometry.toNonIndexed():geometry.clone();
@@ -30,9 +29,9 @@ function pieceMatrix(x,y,z,sx,sy,sz,ry=0,rz=0){
 
 function buildTreeGeometry({variant=0,mid=false,far=false}){
   const target={positions:[],normals:[],colors:[]};
-  const trunkColor=new THREE.Color(0x684632);
-  const pineDark=new THREE.Color(0x0f5148);
-  const pineLight=new THREE.Color(0x17665a);
+  const trunkColor=new THREE.Color(variant===0?0x71503a:variant===2?0x5f402f:0x684632);
+  const pineDark=new THREE.Color(variant===0?0x155b50:variant===2?0x104a45:0x0f5148);
+  const pineLight=new THREE.Color(variant===0?0x1f6d60:variant===2?0x175b52:0x17665a);
   const snowColor=new THREE.Color(0xf4fbff);
 
   if(far){
@@ -106,15 +105,6 @@ function applyInstance(mesh,index,entry,ground,time,lod){
   _dummy.updateMatrix();
   mesh.setMatrixAt(index,_dummy.matrix);
 
-  const cool=entry.colorSeed;
-  const variant=entry.variant;
-  let r=.90,g=.98,b=.93;
-  if(variant===0){r=.94;g=1;b=.96;}
-  else if(variant===2){r=.84;g=.95;b=.89;}
-  else if(variant===3){r=.88;g=.97;b=.92;}
-  const variation=.965+cool*.035;
-  _color.setRGB(r*variation,g*variation,b*variation);
-  mesh.setColorAt(index,_color);
 }
 
 export function createTreeLodSystem({world,entries,terrainHeight}){
@@ -187,14 +177,11 @@ export function createTreeLodSystem({world,entries,terrainHeight}){
       const mesh=nearMeshes[i];
       mesh.count=counters[i];
       mesh.instanceMatrix.needsUpdate=true;
-      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
     }
     midMesh.count=counters[3];
     midMesh.instanceMatrix.needsUpdate=true;
-    if(midMesh.instanceColor)midMesh.instanceColor.needsUpdate=true;
     farMesh.count=counters[4];
     farMesh.instanceMatrix.needsUpdate=true;
-    if(farMesh.instanceColor)farMesh.instanceColor.needsUpdate=true;
   }
 
   return {
