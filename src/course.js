@@ -1,3 +1,5 @@
+import {SKI_TUNING as T} from './gameplayTuning.js';
+
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
 export const COURSE_TYPES=[
@@ -11,33 +13,62 @@ export const COURSE_TYPES=[
   'LOG JUMP'
 ];
 
-export function getCourseDifficulty(distance=0,speed=12){
-  const speedPart=clamp((speed-12)/19,0,1);
-  const distancePart=clamp(distance/1500,0,1);
-  return clamp(speedPart*.58+distancePart*.42,0,1);
+export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
+  const speedPart=clamp((speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
+  const distancePart=clamp(distance/2200,0,1);
+  return clamp(speedPart*.56+distancePart*.44,0,1);
 }
 
 export function createCourseDirector({routeCenter,random=Math.random}){
   let lastType='RECOVERY';
   let sectionIndex=0;
+  let recentBands=[2];
+  const bands=[-1,-.5,0,.5,1];
   const opening=[
     'OPEN CARVE','GATE','OPEN CARVE','BANANA LINE',
-    'RAMP','RECOVERY','OPEN CARVE','FOREST','OPEN CARVE','ROCK SLALOM'
+    'OPEN CARVE','RAMP','RECOVERY','OPEN CARVE','FOREST','OPEN CARVE','ROCK SLALOM'
   ];
 
-  const route=(z,offset=0)=>clamp(routeCenter(z)+offset,-4.9,4.9);
+  const weightedIndex=weights=>{
+    let total=weights.reduce((sum,value)=>sum+value,0);
+    let roll=random()*total;
+    for(let i=0;i<weights.length;i++){
+      roll-=weights[i];
+      if(roll<=0)return i;
+    }
+    return weights.length-1;
+  };
+
+  function pickBand(){
+    const weights=[1.12,1,0.92,1,1.12];
+    const last=recentBands.at(-1);
+    const previous=recentBands.at(-2);
+    if(last!=null)weights[last]*=.14;
+    if(previous!=null)weights[previous]*=.48;
+    const index=weightedIndex(weights);
+    recentBands.push(index);
+    if(recentBands.length>3)recentBands.shift();
+    return index;
+  }
+
+  function contentX(z,bandIndex=pickBand(),strength=1){
+    const lane=bands[bandIndex]*T.CONTENT_BAND_HALF_WIDTH*strength;
+    return clamp(lane+routeCenter(z)*.14,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+  }
+
+  const route=(z,offset=0,limit=T.SAFE_ROUTE_HALF_WIDTH)=>clamp(routeCenter(z)+offset,-limit,limit);
   const place=(kind,x,z,safeX,extra={})=>({
     kind,
-    x:clamp(x,-7.25,7.25),
+    x:clamp(x,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
     z,
-    safeX:clamp(safeX,-5.2,5.2),
+    safeX:clamp(safeX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH),
     ...extra
   });
   const sidePair=(kind,z,safeX,gap,extra={})=>[
     place(kind,safeX-gap,z,safeX,extra),
     place(kind,safeX+gap,z,safeX,extra)
   ];
-  const banana=(z,safeX,offset=0)=>place('banana',safeX+offset,z,safeX);
+  const banana=(z,x,safeX=x)=>place('banana',x,z,safeX);
 
   function chooseType(difficulty){
     if(sectionIndex<opening.length)return opening[sectionIndex];
@@ -45,17 +76,17 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     const transitions={
       'RECOVERY':['OPEN CARVE','OPEN CARVE','BANANA LINE'],
-      'OPEN CARVE':['GATE','BANANA LINE','FOREST','ROCK SLALOM','OPEN CARVE'],
-      'GATE':['OPEN CARVE','BANANA LINE','RAMP'],
-      'BANANA LINE':['OPEN CARVE','RAMP','GATE'],
+      'OPEN CARVE':['OPEN CARVE','GATE','BANANA LINE','FOREST','ROCK SLALOM','RAMP'],
+      'GATE':['OPEN CARVE','OPEN CARVE','BANANA LINE'],
+      'BANANA LINE':['OPEN CARVE','GATE','RAMP'],
       'FOREST':['OPEN CARVE','OPEN CARVE','BANANA LINE'],
       'ROCK SLALOM':['OPEN CARVE','OPEN CARVE','GATE']
     };
     let options=[...(transitions[lastType]||['OPEN CARVE'])];
 
-    if(difficulty<.32)options=options.filter(type=>type!=='ROCK SLALOM');
-    if(difficulty>.62&&lastType==='OPEN CARVE')options.push('LOG JUMP');
-    if(difficulty>.48&&lastType==='GATE')options.push('RAMP');
+    if(difficulty<.28)options=options.filter(type=>type!=='ROCK SLALOM');
+    if(difficulty>.58&&lastType==='OPEN CARVE'&&random()<.20)options.push('LOG JUMP');
+    if(lastType==='OPEN CARVE'&&random()<.22)options.push('RAMP');
 
     return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
@@ -63,110 +94,122 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   function next({startZ,difficulty=0}){
     const type=chooseType(difficulty);
     const placements=[];
-    const phase=sectionIndex*.79;
-    let length=42;
+    const phase=sectionIndex*.73;
+    const sectionBand=pickBand();
+    const anchor=contentX(startZ-18,sectionBand);
+    let length=60;
 
     if(type==='OPEN CARVE'){
-      length=46;
-      const rows=3+Math.round(difficulty);
-      for(let i=0;i<rows;i++){
-        const z=startZ-8-i*(10.2-difficulty*.6);
-        const safeX=route(z,Math.sin(phase+i*.72)*1.15);
-        placements.push(banana(z,safeX,Math.sin(i*.8)*.30));
-        if(i===1){
-          const side=sectionIndex%2?-1:1;
-          placements.push(place('rock',safeX+side*4.25,z-1.1,safeX));
-        }
+      length=62;
+      if(random()<.58){
+        const z=startZ-24-random()*16;
+        const x=contentX(z,pickBand());
+        placements.push(banana(z,x));
+      }
+      if(random()<.52){
+        const z=startZ-43;
+        const hazardX=contentX(z,pickBand());
+        const safeX=clamp(-hazardX*.35,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        placements.push(place(random()<.55?'rock':'tree',hazardX,z,safeX));
       }
     }
 
     if(type==='GATE'){
-      length=42;
-      const rows=3+Math.round(difficulty);
-      const spacing=9.2-difficulty*.7;
+      length=64;
+      const rows=2+(difficulty>.68?1:0);
+      const gateSafe=clamp(anchor*.62,-5.9,5.9);
       for(let i=0;i<rows;i++){
-        const z=startZ-7-i*spacing;
-        const safeX=route(z,Math.sin(phase+i*.62)*.82);
-        placements.push(...sidePair(i%2?'tree':'rock',z,safeX,3.55-difficulty*.08));
-        if(i<rows-1)placements.push(banana(z-4.0,route(z-4.0,Math.sin(phase+(i+.45)*.62)*.82)));
+        const z=startZ-16-i*19;
+        const safeX=clamp(gateSafe+Math.sin(phase+i*.8)*1.0,-5.9,5.9);
+        placements.push(...sidePair(i%2?'tree':'rock',z,safeX,4.15));
+      }
+      if(random()<.42){
+        const z=startZ-52;
+        const x=contentX(z,pickBand());
+        placements.push(banana(z,x));
       }
     }
 
     if(type==='BANANA LINE'){
-      length=43;
-      for(let i=0;i<8;i++){
-        const z=startZ-5-i*4.4;
-        const safeX=route(z,Math.sin(phase+i*.48)*1.18);
-        placements.push(banana(z,safeX));
+      length=60;
+      const z=startZ-26;
+      const x=contentX(z,sectionBand);
+      placements.push(banana(z,x));
+      if(random()<.24){
+        const z2=startZ-50;
+        const x2=contentX(z2,pickBand());
+        placements.push(banana(z2,x2));
       }
-      const firstSafe=route(startZ-10);
-      const lastSafe=route(startZ-31);
-      placements.push(place('tree',firstSafe-4.55,startZ-10,firstSafe));
-      placements.push(place('tree',lastSafe+4.55,startZ-31,lastSafe));
     }
 
     if(type==='RAMP'){
-      length=50;
-      const rampZ=startZ-12;
-      const safeX=route(rampZ,Math.sin(phase)*.48);
-      placements.push(banana(startZ-5.5,route(startZ-5.5,Math.sin(phase)*.30)));
-      placements.push(place('tree',safeX-4.75,rampZ+4.6,safeX));
-      placements.push(place('tree',safeX+4.75,rampZ+4.6,safeX));
-      placements.push(place('ramp',safeX,rampZ,safeX,{landingZone:true}));
-      // Only collectibles occupy the landing corridor; the following section is forced RECOVERY.
-      placements.push(banana(rampZ-8.5,route(rampZ-8.5,Math.sin(phase)*.34)));
-      placements.push(banana(rampZ-15.0,route(rampZ-15.0,Math.sin(phase)*.28)));
-      placements.push(banana(rampZ-22.0,route(rampZ-22.0,Math.sin(phase)*.22)));
+      length=92;
+      const rampZ=startZ-18;
+      const rampX=contentX(rampZ,sectionBand,.92);
+      if(random()<.30){
+        const bananaZ=startZ-7;
+        const bananaX=contentX(bananaZ,pickBand());
+        placements.push(banana(bananaZ,bananaX));
+      }
+      // Ramp has a completely open approach and a large hazard-free landing corridor.
+      placements.push(place('ramp',rampX,rampZ,rampX,{landingZone:true}));
     }
 
     if(type==='RECOVERY'){
-      length=44;
-      for(let i=0;i<5;i++){
-        const z=startZ-6-i*7.0;
-        const safeX=route(z,Math.sin(phase+i*.42)*.78);
-        placements.push(banana(z,safeX));
+      length=74;
+      if(random()<.62){
+        const z=startZ-32;
+        const x=contentX(z,sectionBand);
+        placements.push(banana(z,x));
       }
-      const safeX=route(startZ-38);
-      placements.push(place('rock',safeX+(sectionIndex%2?-4.65:4.65),startZ-38,safeX));
+      // First 58m stays hazard-free after jumps. One optional edge hazard closes the section.
+      if(random()<.48){
+        const z=startZ-64;
+        const hazardX=contentX(z,pickBand());
+        const safeX=clamp(-hazardX*.32,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        placements.push(place('rock',hazardX,z,safeX));
+      }
     }
 
     if(type==='FOREST'){
-      length=50;
-      const rows=4+Math.round(difficulty);
-      const spacing=10.0-difficulty*.65;
+      length=72;
+      const rows=3+(difficulty>.72?1:0);
+      const forestSafe=clamp(anchor*.65,-5.8,5.8);
       for(let i=0;i<rows;i++){
-        const z=startZ-7-i*spacing;
-        const safeX=route(z,Math.sin(phase+i*.60)*1.10);
-        placements.push(...sidePair('tree',z,safeX,3.65-difficulty*.08));
-        if(i<rows-1)placements.push(banana(z-4.2,route(z-4.2,Math.sin(phase+(i+.42)*.60)*1.10)));
+        const z=startZ-15-i*17.5;
+        const safeX=clamp(forestSafe+Math.sin(phase+i*.72)*1.2,-5.8,5.8);
+        placements.push(...sidePair('tree',z,safeX,4.25));
+      }
+      if(random()<.35){
+        const z=startZ-61;
+        const x=contentX(z,pickBand());
+        placements.push(banana(z,x));
       }
     }
 
     if(type==='ROCK SLALOM'){
-      length=48;
-      const rows=4+Math.round(difficulty);
-      const spacing=9.3-difficulty*.6;
+      length=70;
+      const rows=3+(difficulty>.74?1:0);
       for(let i=0;i<rows;i++){
-        const z=startZ-7-i*spacing;
-        const pathOffset=Math.sin(phase+i*.68)*1.15;
-        const safeX=route(z,pathOffset);
+        const z=startZ-14-i*16;
+        const safeX=clamp(contentX(z,(sectionBand+i+1)%bands.length,.72),-7.2,7.2);
         const side=i%2?-1:1;
-        placements.push(place('rock',safeX+side*(2.75-difficulty*.08),z,safeX));
-        if(i<rows-1)placements.push(banana(z-4.0,route(z-4.0,pathOffset-side*.48)));
+        placements.push(place('rock',safeX+side*3.35,z,safeX));
+      }
+      if(random()<.40){
+        const z=startZ-60;
+        const x=contentX(z,pickBand());
+        placements.push(banana(z,x));
       }
     }
 
     if(type==='LOG JUMP'){
-      length=52;
-      const rampZ=startZ-12;
-      const safeX=route(rampZ,Math.sin(phase)*.42);
-      placements.push(place('ramp',safeX,rampZ,safeX,{landingZone:true}));
-      placements.push(banana(rampZ-4.0,safeX));
-      placements.push(place('log',route(rampZ-8.6,Math.sin(phase)*.38),rampZ-8.6,safeX,{jumpTarget:true}));
-      placements.push(banana(rampZ-16.5,route(rampZ-16.5,Math.sin(phase)*.28)));
-      placements.push(banana(rampZ-24.0,route(rampZ-24.0,Math.sin(phase)*.20)));
-      placements.push(place('tree',safeX-4.75,rampZ+4.8,safeX));
-      placements.push(place('tree',safeX+4.75,rampZ+4.8,safeX));
+      length=96;
+      const rampZ=startZ-18;
+      const rampX=contentX(rampZ,sectionBand,.90);
+      placements.push(place('ramp',rampX,rampZ,rampX,{landingZone:true}));
+      placements.push(place('log',rampX,rampZ-13.5,rampX,{jumpTarget:true}));
+      // No further hazards: monster-jump arc and landing stay completely clear.
     }
 
     for(const placement of placements)placement.section=type;
@@ -177,7 +220,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
   return {
     next,
-    reset(){lastType='RECOVERY';sectionIndex=0;},
+    reset(){lastType='RECOVERY';sectionIndex=0;recentBands=[2];},
     get lastType(){return lastType;},
     get sectionIndex(){return sectionIndex;}
   };

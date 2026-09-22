@@ -12,6 +12,7 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
+import {SKI_TUNING} from './gameplayTuning.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -159,7 +160,7 @@ function addCoursePlacement(placement){
 function fillCourse(difficulty=0){
   let farthest=course.length?Math.min(...course.map(item=>item.position.z)):-12;
   let guard=0;
-  while(farthest>-166&&guard++<10){
+  while(farthest>-260&&guard++<10){
     const section=courseDirector.next({startZ:farthest-5.5,difficulty});
     for(const placement of section.placements)addCoursePlacement(placement);
     farthest=section.endZ;
@@ -260,7 +261,7 @@ async function setAvatar(entry){
   }
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
@@ -273,7 +274,7 @@ function control(pad){
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function resetRunState(mode='countdown'){
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.30;}
   courseFrame=0;resetCourse(0);skiCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
@@ -490,4 +491,4 @@ function resize(){
 }
 addEventListener('resize',resize);
 
-window.chimpionsSki=()=>({...state,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});
+window.chimpionsSki=()=>({...state,playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,ready,catalogSize:catalog.length,selectedAvatar:selectedAvatar?.name||'',skierFallback:!!skier?.userData?.fallback,rigReady:!!skier?.userData?.rigReady,modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',courseObjects:course.length,pooledCourseObjects:Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0)});
