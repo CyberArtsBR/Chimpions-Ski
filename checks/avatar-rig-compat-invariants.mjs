@@ -31,4 +31,5 @@ if(baseline){
   }
   assert.deepEqual(regressions,[],'rig compatibility regressions: '+regressions.join('; '));
 }
-console.log(JSON.stringify({check:'avatar-rig-compat-invariants',avatars:report.avatars.length,classifications:report.summary.classifications,errors:report.errors.length}));\nif(process.env.RIG_AUDIT_EMIT_REPORT==='1')console.log('RIG_AUDIT_REPORT_B64 '+Buffer.from(JSON.stringify(report)).toString('base64'));
+console.log(JSON.stringify({check:'avatar-rig-compat-invariants',avatars:report.avatars.length,classifications:report.summary.classifications,errors:report.errors.length}));
+if(process.env.RIG_AUDIT_EMIT_REPORT==='1')console.log('RIG_AUDIT_REPORT_B64 '+Buffer.from(JSON.stringify(report)).toString('base64'));
