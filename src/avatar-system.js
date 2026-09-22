@@ -441,7 +441,11 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     axisLatchX=axisLatchY=0;
   });
   rideBack.addEventListener('click',()=>{if(!loading)showAvatarStep();});
-  for(const button of rideButtons)button.addEventListener('click',()=>completeRide(button.dataset.rideMode));
+  rideStep.addEventListener('click',event=>{
+    const button=event.target.closest?.('.ride-mode-card');
+    if(!button||!rideStep.contains(button))return;
+    completeRide(button.dataset.rideMode);
+  });
 
   // One delegated listener per interaction type instead of three listeners per card.
   grid.addEventListener('focusin',event=>{
