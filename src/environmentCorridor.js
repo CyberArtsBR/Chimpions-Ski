@@ -13,6 +13,14 @@ export const COURSE_OBJECT_VISUAL_HALF_WIDTH=Object.freeze({
   oil:1.60
 });
 
+export const COURSE_OBJECT_COLLISION_HALF_WIDTH=Object.freeze({
+  tree:.62,
+  rock:.55,
+  log:1.02,
+  wideLog:2.48,
+  oil:1.48
+});
+
 export function gameplayObjectCenterLimit(kind){
   const halfWidth=COURSE_OBJECT_VISUAL_HALF_WIDTH[kind]??1;
   return Math.max(0,Math.min(
