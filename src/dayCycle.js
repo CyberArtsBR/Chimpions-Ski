@@ -106,6 +106,8 @@ const colorKeys=['zenith','high','horizon','fog','hemiSky','hemiGround','sun','r
 const scalarKeys=['hemiIntensity','sunIntensity','rimIntensity'];
 const tmpA=new THREE.Color();
 const tmpB=new THREE.Color();
+const tmpMountain=new THREE.Color();
+const tmpSnowCap=new THREE.Color();
 
 function smoothstep(t){
   t=THREE.MathUtils.clamp(t,0,1);
@@ -158,10 +160,6 @@ export function createDayCycle({
       blend=smoothstep(segmentTime/transitionSeconds);
     }
 
-    for(const key of colorKeys){
-      if(from[key]==null||to[key]==null)continue;
-    }
-
     setColor(sky.material.uniforms.zenith.value,from.zenith,to.zenith,blend);
     setColor(sky.material.uniforms.high.value,from.high,to.high,blend);
     setColor(sky.material.uniforms.horizon.value,from.horizon,to.horizon,blend);
@@ -185,8 +183,8 @@ export function createDayCycle({
     setColor(snowMaterials.bank.color,from.bank,to.bank,blend);
     setColor(snowMaterials.shadowBank.color,from.shadowSnow,to.shadowSnow,blend);
 
-    const mountainColor=tmpA.setHex(from.mountain).lerp(tmpB.setHex(to.mountain),blend);
-    const snowCapColor=new THREE.Color(from.snowCap).lerp(new THREE.Color(to.snowCap),blend);
+    const mountainColor=tmpMountain.setHex(from.mountain).lerp(tmpB.setHex(to.mountain),blend);
+    const snowCapColor=tmpSnowCap.setHex(from.snowCap).lerp(tmpA.setHex(to.snowCap),blend);
     for(const material of atmosphereMaterials){
       const base=material.userData.baseDayColor;
       if(!base)continue;
