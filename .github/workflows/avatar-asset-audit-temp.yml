@@ -45,6 +45,37 @@ jobs:
             duplicateGeometrySavingsMiB:Number(report.duplicates.geometry.theoreticalSavingsMiB.toFixed(2))
           },null,2));
           NODE
+      - name: Print focused structural findings
+        run: |
+          node - <<'NODE'
+          const fs=require('node:fs');
+          const r=JSON.parse(fs.readFileSync('docs/avatar-asset-audit.json','utf8'));
+          const topImage=r.duplicates.images.groups.slice(0,8).map(g=>({
+            mb:g.mb,occurrences:g.occurrences,savingsMiB:g.theoreticalSavingsMb,files:g.files
+          }));
+          const topGeometry=r.duplicates.geometry.groups.slice(0,8).map(g=>({
+            mb:g.mb,occurrences:g.occurrences,savingsMiB:g.theoreticalSavingsMb,files:g.files
+          }));
+          const duplicateMaterialModels=r.models.filter(m=>m.duplicateMaterialCount>0).map(m=>({
+            filename:m.filename,duplicates:m.duplicateMaterialCount
+          }));
+          const unusedNodeLeaders=r.models.filter(m=>m.unusedNodeCount>0)
+            .sort((a,b)=>b.unusedNodeCount-a.unusedNodeCount)
+            .slice(0,15)
+            .map(m=>({filename:m.filename,unusedNodes:m.unusedNodeCount,nodeCount:m.nodeCount}));
+          console.log('FOCUSED_AVATAR_AUDIT '+JSON.stringify({
+            compressionAudit:r.compressionAudit,
+            textureAudit:{
+              modelsOver2048:r.textureAudit.modelsOver2048,
+              imagesOver2048:r.textureAudit.imagesOver2048,
+              imagesAtLeast4096:r.textureAudit.imagesAtLeast4096
+            },
+            duplicateMaterialModels,
+            unusedNodeLeaders,
+            topImage,
+            topGeometry
+          }));
+          NODE
       - name: Commit generated audit reports
         run: |
           git config user.name "github-actions[bot]"
