@@ -8,6 +8,7 @@ import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 
 const _dummy=new THREE.Object3D();
+const _instanceColor=new THREE.Color();
 const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);
 const _branchTierGeometry=new THREE.ConeGeometry(1.02,.52,10);
 const _branchSnowGeometry=new THREE.ConeGeometry(.98,.16,10);
@@ -460,6 +461,35 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     world.add(mesh);
   }
   const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
+
+  function applyTreeInstanceColors(){
+    for(let i=0;i<trees.entries.length;i++){
+      const e=trees.entries[i];
+      const variant=e.variant;
+      const cool=wave(i*3.77+19);
+      const green=variant===0
+        ?[.90,.99,.93]
+        :variant===2
+          ?[.78,.91,.84]
+          :variant===3
+            ?[.84,.94,.89]
+            :[.86,.97,.90];
+      _instanceColor.setRGB(
+        green[0]*(.94+cool*.06),
+        green[1]*(.95+cool*.05),
+        green[2]*(.94+cool*.06)
+      );
+      for(const mesh of [foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
+        mesh.setColorAt(i,_instanceColor);
+      }
+      _instanceColor.setRGB(.84+cool*.10,.82+cool*.08,.80+cool*.07);
+      trunkMesh.setColorAt(i,_instanceColor);
+    }
+    for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
+      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+    }
+  }
+  applyTreeInstanceColors();
 
   const snowLayers=[
     makeSnowLayer(190,.042,.34,35,-62,10,.90,false),
