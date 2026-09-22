@@ -6,9 +6,10 @@ import {createDayCycle} from './dayCycle.js';
 import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
+import {createTreeLodSystem} from './treeLod.js';
+import {createAlpineBackgroundVariety} from './environmentAssets.js';
 
 const _dummy=new THREE.Object3D();
-const _instanceColor=new THREE.Color();
 const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);
 const _branchTierGeometry=new THREE.ConeGeometry(1.02,.52,10);
 const _branchSnowGeometry=new THREE.ConeGeometry(.98,.16,10);
@@ -249,6 +250,7 @@ function resetTree(entry,i){
   entry.lean=(wave(i*3.41+37)-.5)*.045;
   entry.ry=wave(i*2.61+6)*Math.PI*2;
   entry.phase=wave(i*8.23+17)*Math.PI*2;
+  entry.colorSeed=wave(i*3.77+19);
 
   const young=entry.variant===0;
   const large=entry.variant===2;
@@ -437,6 +439,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   scene.add(atmosphere);
   const distantValley=createDistantValley(snowMaterials.bank);
   scene.add(distantValley);
+  const backgroundVariety=createAlpineBackgroundVariety({scene,terrainHeight});
   atmosphere.add(
     createRidge(252,43,1.1,-190,0xd3e2e8,.52,1.2,44),
     createRidge(230,39,-.3,-164,0xbfd4dd,.62,2.4,40),
@@ -471,7 +474,10 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
   sun.position.set(-9,15,7);
   sun.castShadow=true;
-  sun.shadow.mapSize.set(4096,4096);
+  // 3072 preserves crisp desktop contact detail across the current shadow
+  // volume while cutting shadow-map texels ~44% versus 4096.
+  const shadowMapSize=Math.min(3072,renderer.capabilities.maxTextureSize||3072);
+  sun.shadow.mapSize.set(shadowMapSize,shadowMapSize);
   sun.shadow.bias=-.00032;
   sun.shadow.normalBias=.022;
   sun.shadow.radius=2.1;
@@ -488,7 +494,9 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
   const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
-  bankMesh.castShadow=true;
+  // Large side shoulders are visual depth cues; receiving the sun is enough.
+  // Keeping all 54 out of the shadow pass saves a high-area caster batch.
+  bankMesh.castShadow=false;
   bankMesh.receiveShadow=true;
   bankMesh.frustumCulled=false;
   world.add(bankMesh);
@@ -500,54 +508,12 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
 
   const treeCount=152;
-  const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.15,.30,2.05,8),_barkMaterial,treeCount);
-  const branchGeo=new THREE.ConeGeometry(1.04,1.05,9);
-  const crownGeo=new THREE.ConeGeometry(.70,1.40,9);
-  const snowGeo=new THREE.ConeGeometry(.98,.18,9);
-  const foliageLower=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
-  const foliageLowMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
-  const foliageMid=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
-  const foliageHighMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
-  const foliageUpper=new THREE.InstancedMesh(crownGeo,_pineMaterial,treeCount);
-  const snowShelfLower=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const snowShelfUpper=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const capMesh=new THREE.InstancedMesh(new THREE.ConeGeometry(.60,.82,9),_snowDetailMaterial,treeCount);
-  for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfUpper,capMesh]){
-    mesh.castShadow=true;
-    mesh.receiveShadow=true;
-    mesh.frustumCulled=false;
-    world.add(mesh);
-  }
-  const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
-
-  function applyTreeInstanceColors(){
-    for(let i=0;i<trees.entries.length;i++){
-      const e=trees.entries[i];
-      const variant=e.variant;
-      const cool=wave(i*3.77+19);
-      const green=variant===0
-        ?[.90,.99,.93]
-        :variant===2
-          ?[.78,.91,.84]
-          :variant===3
-            ?[.84,.94,.89]
-            :[.86,.97,.90];
-      _instanceColor.setRGB(
-        green[0]*(.94+cool*.06),
-        green[1]*(.95+cool*.05),
-        green[2]*(.94+cool*.06)
-      );
-      for(const mesh of [foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
-        mesh.setColorAt(i,_instanceColor);
-      }
-      _instanceColor.setRGB(.84+cool*.10,.82+cool*.08,.80+cool*.07);
-      trunkMesh.setColorAt(i,_instanceColor);
-    }
-    for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
-      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-    }
-  }
-  applyTreeInstanceColors();
+  const trees=createMovingInstances(treeCount,null,i=>{const e={};resetTree(e,i);return e;});
+  const treeLod=createTreeLodSystem({
+    world,
+    entries:trees.entries,
+    terrainHeight
+  });
 
   const snowLayers=[
     makeSnowLayer(190,.042,.34,35,-62,10,.90,false),
@@ -561,7 +527,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const boundaryMarkers=createBoundaryMarkers({world,terrainHeight,limit:11.3,countPerSide:18,spacing:15.5});
   const contactShadow=makeContactShadow(scene);
   const dayCycle=createDayCycle({
-    scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
+    scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere,
+    adaptiveMaterials:[treeLod.material,...backgroundVariety.materials]
   });
 
   let visualTravel=0;
@@ -576,38 +543,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   }
 
   function refreshTrees(time=0){
-    for(let i=0;i<trees.entries.length;i++){
-      const e=trees.entries[i],s=e.s;
-      const sway=Math.sin(time*.72+e.phase)*.014;
-      const height=e.heightScale;
-      const width=e.widthScale;
-      const snow=e.snowScale;
-      const asym=e.asymScaled;
-      const lean=e.lean;
-      const trunkScale=e.trunkScale;
-      const ground=terrainHeight(e.x,e.z-visualTravel);
-
-      setInstance(trunkMesh,i,e.x,ground+.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
-
-      setInstance(foliageLower,i,e.x+asym,ground+1.40*s*height,e.z-asym*.18,1.18*s*width,1.00*s,1.12*s*width,e.ry+.04,0,sway*.20+lean);
-      setInstance(foliageLowMid,i,e.x-asym*.55,ground+1.93*s*height,e.z+asym*.15,1.04*s*width,.96*s,1.00*s*width,e.ry-.10,0,sway*.35+lean);
-      setInstance(foliageMid,i,e.x+asym*.32,ground+2.44*s*height,e.z-asym*.10,.87*s*width,.90*s,.84*s*width,e.ry+.15,0,sway*.52+lean);
-      setInstance(foliageHighMid,i,e.x-asym*.24,ground+2.90*s*height,e.z+asym*.08,.69*s*width,.80*s,.67*s*width,e.ry-.17,0,sway*.70+lean);
-      setInstance(foliageUpper,i,e.x+asym*.15,ground+3.34*s*height,e.z,.53*s*width,.78*s,.51*s*width,e.ry+.22,0,sway+lean);
-
-      setInstance(snowShelfLower,i,e.x+asym*.40,ground+1.68*s*height,e.z,1.08*s*width*snow,.82*s,1.02*s*width*snow,e.ry+.02,0,sway*.25+lean);
-      setInstance(snowShelfUpper,i,e.x-asym*.18,ground+2.63*s*height,e.z,.79*s*width*snow,.78*s,.75*s*width*snow,e.ry-.12,0,sway*.58+lean);
-      setInstance(capMesh,i,e.x+asym*.10,ground+3.60*s*height,e.z,.48*s*width*snow,.60*s,.46*s*width*snow,e.ry+.20,0,sway*.90+lean);
-    }
-    trunkMesh.instanceMatrix.needsUpdate=true;
-    foliageLower.instanceMatrix.needsUpdate=true;
-    foliageLowMid.instanceMatrix.needsUpdate=true;
-    foliageMid.instanceMatrix.needsUpdate=true;
-    foliageHighMid.instanceMatrix.needsUpdate=true;
-    foliageUpper.instanceMatrix.needsUpdate=true;
-    snowShelfLower.instanceMatrix.needsUpdate=true;
-    snowShelfUpper.instanceMatrix.needsUpdate=true;
-    capMesh.instanceMatrix.needsUpdate=true;
+    treeLod.update(time,visualTravel);
   }
 
   refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
@@ -709,6 +645,10 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     update,
     reset,
     terrainMaterial:snowMaterials.terrain,
+    renderProfile:{
+      shadowMapSize,
+      treeLodThresholds:treeLod.thresholds
+    },
     courseMaterials:{
       trunk:_barkMaterial,
       pine:_pineMaterial,
