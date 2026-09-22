@@ -21,7 +21,6 @@ export function createGameFeedback({audio,ui}){
     if(quality==='hard')audio.play('hardLand',.78);
     else if(quality==='rough')audio.play('hardLand',.62);
     else audio.play('land',.50);
-    ui?.showLandingFeedback?.(quality);
   }
 
   function onCrash(){

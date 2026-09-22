@@ -1,6 +1,11 @@
 import * as THREE from 'three';
 import {getSpeedFeel} from './gameplayTuning.js';
 
+function smoothstep01(value){
+  const t=THREE.MathUtils.clamp(value,0,1);
+  return t*t*(3-2*t);
+}
+
 export function createSkiCamera(camera){
   const chasePosition=new THREE.Vector3();
   const lookTarget=new THREE.Vector3();
@@ -10,6 +15,7 @@ export function createSkiCamera(camera){
   let previousLanding=0;
   let previousAir=false;
   let crashSettle=0;
+  let lateralFollow=0;
 
   function reset(){
     roll=0;
@@ -18,6 +24,18 @@ export function createSkiCamera(camera){
     previousLanding=0;
     previousAir=false;
     crashSettle=0;
+    lateralFollow=0;
+  }
+
+  function lateralTarget(state){
+    const x=state.x||0;
+    const absX=Math.abs(x);
+    const deadStart=2.05;
+    const deadEnd=3.0;
+    const engage=smoothstep01((absX-deadStart)/(deadEnd-deadStart));
+    const edgeFeel=THREE.MathUtils.clamp((absX-deadEnd)/5.2,0,1);
+    const followFraction=THREE.MathUtils.lerp(.38,.52,edgeFeel);
+    return x*followFraction*engage;
   }
 
   function getChaseFrame(state,positionOut=chasePosition,lookOut=lookTarget){
@@ -32,23 +50,23 @@ export function createSkiCamera(camera){
     const apex=rampAir?THREE.MathUtils.clamp(1-Math.abs(verticalVelocity)/8,0,1):0;
     const descent=rampAir?THREE.MathUtils.clamp(-verticalVelocity/11,0,1):0;
 
-    const steerLead=state.heading*(1.20+speed01*.58)+lateralVelocity*.030;
-    const downhillCameraLift=.22+speed01*.16;
+    const steerLead=state.heading*(.82+speed01*.34)+lateralVelocity*.014;
+    const downhillCameraLift=.30+speed01*.18;
     positionOut.set(
-      state.x*.38-steerLead,
-      5.92+speed01*.74+downhillCameraLift+state.y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
-      10.28+speed01*1.92+(rampAir?1.05+airHeight*.14+apex*.42:manualAir?airHeight*.07:0)
+      lateralFollow-steerLead,
+      6.02+speed01*.78+downhillCameraLift+state.y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
+      10.48+speed01*1.98+(rampAir?1.05+airHeight*.14+apex*.42:manualAir?airHeight*.07:0)
     );
 
-    const lookAhead=1.28+speed01*1.42;
-    const lateralLook=state.heading*lookAhead+lateralVelocity*.040;
+    const lookAhead=1.36+speed01*1.52;
+    const lateralLook=state.heading*lookAhead+lateralVelocity*.042;
     const rampFraming=rampAir?(.88+descent*.08):1;
-    const downhillLookBias=(1.55+speed01*.80)*rampFraming;
-    const downhillLookDistance=1.20+speed01*1.00;
+    const downhillLookBias=(1.62+speed01*.84)*rampFraming;
+    const downhillLookDistance=1.35+speed01*1.18;
     lookOut.set(
-      state.x*.17+lateralLook,
-      .30+state.y*.075-downhillLookBias+airHeight*(rampAir?.012:.025)-descent*.12,
-      -15.40-speed01*5.10-downhillLookDistance-(rampAir?2.35+descent*1.95:air?.85:0)
+      lateralFollow*.24+state.x*.12+lateralLook,
+      .34+state.y*.072-downhillLookBias+airHeight*(rampAir?.012:.025)-descent*.12,
+      -15.85-speed01*5.35-downhillLookDistance-(rampAir?2.35+descent*1.95:air?.85:0)
     );
 
     const fov=54.5+speed01*7.4+(rampAir?1.35+apex*.75:manualAir?.42:0);
@@ -70,6 +88,10 @@ export function createSkiCamera(camera){
     landingKick=THREE.MathUtils.damp(landingKick,0,8.2,dt);
     landingOpen=THREE.MathUtils.damp(landingOpen,0,5.6,dt);
 
+    const desiredLateral=lateralTarget(state);
+    const returning=Math.abs(desiredLateral)<Math.abs(lateralFollow);
+    lateralFollow=THREE.MathUtils.damp(lateralFollow,desiredLateral,returning?4.25:5.15,dt);
+
     const baseFov=getChaseFrame(state,chasePosition,lookTarget);
     const crashTime=state.crashTime||0;
     const crashDir=state.crashDirection||0;
@@ -87,7 +109,7 @@ export function createSkiCamera(camera){
     }
 
     const rampAir=air&&state.jumpSource==='ramp';
-    const lateralResponse=crash?2.4:rampAir?7.2:air?8.4:10.8;
+    const lateralResponse=crash?2.4:rampAir?6.7:air?7.4:8.0;
     camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,dt);
     camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,dt);
     camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,dt);
@@ -98,10 +120,10 @@ export function createSkiCamera(camera){
     camera.lookAt(lookTarget);
 
     const speed01=getSpeedFeel(state.speed);
-    const carveRoll=-state.edge*(.010+speed01*.016);
-    const terrainRoll=-(state.groundRoll||0)*.045;
+    const carveRoll=-state.edge*(.009+speed01*.014);
+    const terrainRoll=-(state.groundRoll||0)*.042;
     const crashRoll=THREE.MathUtils.clamp(-crashDir*.038,-.040,.040)*crashSettle;
-    const targetRoll=crash?crashRoll:THREE.MathUtils.clamp(carveRoll+terrainRoll,-.032,.032);
+    const targetRoll=crash?crashRoll:THREE.MathUtils.clamp(carveRoll+terrainRoll,-.029,.029);
     roll=THREE.MathUtils.damp(roll,targetRoll,crash?3.2:6.2,dt);
     camera.rotateZ(roll);
   }
