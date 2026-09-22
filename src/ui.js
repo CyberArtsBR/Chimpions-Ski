@@ -1,0 +1,310 @@
+function byId(id){return document.getElementById(id);}
+function isVisible(element){return !!element&&!element.hidden&&element.getClientRects().length>0;}
+function buttonList(root){
+  if(!root)return [];
+  return Array.from(root.querySelectorAll('button:not([disabled]),[role="button"][tabindex]:not([aria-disabled="true"])')).filter(isVisible);
+}
+
+export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}){
+  const overlay=byId('overlay');
+  const startButton=byId('start');
+  const chooseButton=byId('choose');
+  const distance=byId('distance');
+  const bananas=byId('bananas');
+  const speed=byId('speed');
+  const hud=overlay?.previousElementSibling?.classList?.contains('hud')?overlay.previousElementSibling:document.querySelector('.hud');
+  const distanceStat=distance?.closest('.stat');
+  const bananaStat=bananas?.closest('.stat');
+  const speedStat=speed?.closest('.stat');
+  const bestFlag=document.createElement('div');
+  bestFlag.className='hud-best';
+  bestFlag.hidden=true;
+  bestFlag.textContent='NEW BEST';
+  hud?.append(bestFlag);
+
+  const countdown=document.createElement('div');
+  countdown.id='run-countdown';
+  countdown.className='run-countdown';
+  countdown.hidden=true;
+  countdown.setAttribute('aria-live','assertive');
+  countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div>';
+  document.body.append(countdown);
+
+  const pause=document.createElement('div');
+  pause.id='pause-overlay';
+  pause.className='presentation-overlay';
+  pause.hidden=true;
+  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button></div><p class="controller-hint">ESC / MENU · Resume</p></section>';
+  document.body.append(pause);
+
+  const results=document.createElement('div');
+  results.id='result-overlay';
+  results.className='presentation-overlay';
+  results.hidden=true;
+  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><p class="controller-hint">A / ENTER · Select</p></section>';
+  document.body.append(results);
+
+  const resumeButton=byId('resume-game');
+  const restartPause=byId('restart-pause');
+  const restartResult=byId('restart-result');
+  const chooseResult=byId('choose-result');
+  const sfxButton=byId('toggle-sfx');
+  const musicButton=byId('toggle-music');
+
+  let mode='menu';
+  let countdownToken=0;
+  let resultTimer=0;
+  let previousBananas=0;
+  let previousSpeedBucket=0;
+  let bestDistance=0;
+  let bestCelebrated=false;
+  let padButtons=[];
+  let axisLatchX=0;
+  let axisLatchY=0;
+
+  function setMode(next){
+    mode=next;
+    document.body.dataset.mode=next;
+  }
+  function setAvatar(entry){
+    if(!entry)return;
+    const name=byId('selected-avatar-name');
+    const image=byId('selected-avatar-image');
+    if(name)name.textContent=entry.name||'Chimpion';
+    if(image){
+      image.replaceChildren();
+      if(entry.image){
+        const img=document.createElement('img');
+        img.src=entry.image;img.alt='';
+        image.append(img);
+      }else image.textContent='🐵';
+    }
+  }
+  function setAvatarLoading(loading){
+    if(startButton)startButton.disabled=!!loading;
+    if(chooseButton)chooseButton.disabled=!!loading;
+    overlay?.classList.toggle('is-loading',!!loading);
+    if(startButton)startButton.textContent=loading?'LOADING CHIMPION…':(mode==='menu'?'START SKIING':'SKI AGAIN');
+  }
+  function syncAudioButtons(){
+    const settings=audio.getSettings();
+    if(sfxButton){
+      sfxButton.textContent='SFX · '+(settings.sfxEnabled?'ON':'OFF');
+      sfxButton.setAttribute('aria-pressed',String(settings.sfxEnabled));
+    }
+    if(musicButton){
+      musicButton.textContent='MUSIC · '+(settings.musicEnabled?'ON':'OFF');
+      musicButton.setAttribute('aria-pressed',String(settings.musicEnabled));
+    }
+  }
+  function pulse(element,className){
+    if(!element)return;
+    element.classList.remove(className);
+    void element.offsetWidth;
+    element.classList.add(className);
+    setTimeout(()=>element.classList.remove(className),420);
+  }
+  function prepareRun({best=0}={}){
+    clearTimeout(resultTimer);
+    resultTimer=0;
+    countdownToken++;
+    previousBananas=0;
+    previousSpeedBucket=0;
+    bestDistance=Math.max(0,Number(best)||0);
+    bestCelebrated=false;
+    bestFlag.hidden=true;
+    results.hidden=true;
+    pause.hidden=true;
+    overlay.classList.add('is-leaving');
+    setTimeout(()=>{if(mode==='countdown')overlay.hidden=true;},220);
+    distanceStat?.classList.remove('is-best');
+    setMode('countdown');
+    updateHud({distance:0,bananas:0,speed:12,best:bestDistance});
+  }
+  function startCountdown({entry,onGo}={}){
+    const token=++countdownToken;
+    const image=byId('countdown-avatar-image');
+    const name=byId('countdown-avatar-name');
+    if(name)name.textContent=entry?.name||'Chimpion';
+    if(image){
+      image.replaceChildren();
+      if(entry?.image){
+        const img=document.createElement('img');img.src=entry.image;img.alt='';image.append(img);
+      }else image.textContent='🐵';
+    }
+    const number=byId('countdown-number');
+    const frames=[['3',0],['2',520],['1',1040],['GO',1560]];
+    countdown.hidden=false;
+    countdown.classList.add('is-active');
+    for(const [label,delay] of frames){
+      setTimeout(()=>{
+        if(token!==countdownToken)return;
+        number.textContent=label;
+        number.classList.remove('tick');
+        void number.offsetWidth;
+        number.classList.add('tick');
+        if(label!=='GO')audio.play('menu',.30);
+        else audio.play('go',.62);
+      },delay);
+    }
+    setTimeout(()=>{
+      if(token!==countdownToken)return;
+      countdown.classList.remove('is-active');
+      countdown.hidden=true;
+      setMode('playing');
+      onGo?.();
+    },2020);
+  }
+  function cancelCountdown(){
+    countdownToken++;
+    countdown.hidden=true;
+    countdown.classList.remove('is-active');
+  }
+  function showPause(){
+    cancelCountdown();
+    pause.hidden=false;
+    results.hidden=true;
+    setMode('paused');
+    syncAudioButtons();
+    setTimeout(()=>resumeButton?.focus(),0);
+  }
+  function hidePause(){
+    pause.hidden=true;
+    setMode('playing');
+  }
+  function showResults({distance=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
+    clearTimeout(resultTimer);
+    resultTimer=setTimeout(()=>{
+      byId('result-distance').textContent=Math.floor(distance)+' m';
+      byId('result-bananas').textContent=String(bananas);
+      byId('result-best').textContent=Math.floor(best)+' m';
+      const banner=byId('new-best-banner');
+      banner.hidden=!newBest;
+      const eyebrow=byId('result-eyebrow');
+      eyebrow.textContent=crashType?String(crashType).replace(/[-_]/g,' ').toUpperCase():'RUN COMPLETE';
+      results.hidden=false;
+      pause.hidden=true;
+      setTimeout(()=>restartResult?.focus(),0);
+    },delay);
+  }
+  function showMenu(){
+    clearTimeout(resultTimer);
+    resultTimer=0;
+    cancelCountdown();
+    results.hidden=true;
+    pause.hidden=true;
+    overlay.hidden=false;
+    overlay.classList.remove('is-leaving');
+    setMode('menu');
+    setTimeout(()=>startButton?.focus(),0);
+  }
+  function updateHud(values={}){
+    const d=Math.max(0,Number(values.distance)||0);
+    const b=Math.max(0,Number(values.bananas)||0);
+    const kmh=Math.max(0,Math.round((Number(values.speed)||0)*3.6));
+    if(distance)distance.textContent=Math.floor(d)+' m';
+    if(bananas)bananas.textContent=String(b);
+    if(speed)speed.textContent=kmh+' km/h';
+
+    if(b>previousBananas)pulse(bananaStat,'stat-pop');
+    previousBananas=b;
+
+    const bucket=Math.floor(kmh/10);
+    if(bucket>previousSpeedBucket&&previousSpeedBucket>0)pulse(speedStat,'stat-speed');
+    previousSpeedBucket=bucket;
+
+    const targetBest=Math.max(0,Number(values.best)||bestDistance);
+    bestDistance=targetBest;
+    if(!bestCelebrated&&bestDistance>0&&d>bestDistance){
+      bestCelebrated=true;
+      bestFlag.hidden=false;
+      distanceStat?.classList.add('is-best');
+      pulse(distanceStat,'stat-best-pop');
+      setTimeout(()=>{if(bestFlag)bestFlag.hidden=true;},2200);
+    }
+  }
+  function activeRoot(){
+    if(!pause.hidden)return pause;
+    if(!results.hidden)return results;
+    if(overlay&&!overlay.hidden)return overlay;
+    return null;
+  }
+  function focusMove(direction){
+    const root=activeRoot();
+    const buttons=buttonList(root);
+    if(!buttons.length)return;
+    const current=buttons.indexOf(document.activeElement);
+    const index=current<0?(direction>0?0:buttons.length-1):(current+direction+buttons.length)%buttons.length;
+    buttons[index].focus();
+    audio.play('menu',.18);
+  }
+  function clickFocused(root){
+    const buttons=buttonList(root);
+    if(!buttons.length)return;
+    const active=buttons.includes(document.activeElement)?document.activeElement:(root.querySelector('.primary:not([disabled])')||buttons[0]);
+    active?.focus();
+    active?.click();
+  }
+  function updateController(pad,selector){
+    if(selector?.dialog?.open){
+      selector.updateGamepad?.(pad);
+      padButtons=pad.buttons?.slice?.()||[];
+      axisLatchX=0;axisLatchY=0;
+      return;
+    }
+    const buttons=pad.buttons||[];
+    const pressed=index=>!!buttons[index]&&!padButtons[index];
+    if(pressed(9)){
+      if(mode==='playing')onPause?.();
+      else if(mode==='paused')onResume?.();
+      else if(mode==='menu')onStart?.();
+      else if(mode==='crashed'&&!results.hidden)onRestart?.();
+    }
+    const root=activeRoot();
+    if(root){
+      if(pressed(0))clickFocused(root);
+      if(pressed(1)&&mode==='paused')onResume?.();
+      const x=pad.axis||0,y=pad.axisY||0;
+      if(Math.abs(x)<.35)axisLatchX=0;
+      if(Math.abs(y)<.35)axisLatchY=0;
+      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
+      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
+    }else{axisLatchX=0;axisLatchY=0;}
+    padButtons=buttons.slice();
+  }
+
+  startButton?.addEventListener('click',()=>onStart?.());
+  chooseButton?.addEventListener('click',()=>onChoose?.());
+  resumeButton?.addEventListener('click',()=>onResume?.());
+  restartPause?.addEventListener('click',()=>onRestart?.());
+  restartResult?.addEventListener('click',()=>onRestart?.());
+  chooseResult?.addEventListener('click',()=>{results.hidden=true;setMode('menu');overlay.hidden=false;onChoose?.();});
+  sfxButton?.addEventListener('click',()=>{
+    const next=!audio.getSettings().sfxEnabled;
+    audio.setSfxEnabled(next);syncAudioButtons();
+  });
+  musicButton?.addEventListener('click',()=>{
+    const next=!audio.getSettings().musicEnabled;
+    audio.setMusicEnabled(next);syncAudioButtons();
+  });
+  document.addEventListener('click',event=>{
+    if(event.target.closest('button'))audio.play('button',.24);
+  },true);
+  document.addEventListener('keydown',event=>{
+    if(document.querySelector('.selector-dialog[open]'))return;
+    if(event.code==='Escape'){
+      if(mode==='playing'){event.preventDefault();onPause?.();}
+      else if(mode==='paused'){event.preventDefault();onResume?.();}
+      return;
+    }
+    if(event.code==='Enter'&&!event.target.closest('button,input')){
+      if(mode==='menu'){event.preventDefault();onStart?.();}
+      else if(mode==='crashed'&&!results.hidden){event.preventDefault();onRestart?.();}
+    }
+  });
+
+  syncAudioButtons();
+  setMode('menu');
+
+  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons};
+}

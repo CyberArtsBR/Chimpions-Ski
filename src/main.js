@@ -4,32 +4,32 @@ import {loadSkier} from './skier.js';
 import {readPad} from './input.js';
 import {createSkiAudio} from './audio.js';
 import {createSkiEnvironment,decorateCourseObject} from './environment.js';
-import {loadAvatarCatalog,randomAvatar,createAvatarSelector} from './avatar-system.js';
+import {loadAvatarCatalog,randomAvatar,createAvatarSelector,disposeAvatarObject} from './avatar-system.js';
+import {createGameUI} from './ui.js';
 import {progressSpeed,stepCarving,stepAir,launchRamp} from './skiPhysics.js';
 import {createCourseDirector,getCourseDifficulty} from './course.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
-  <div class="hud">
-    <div class="stat"><small>DISTANCE</small><strong id="distance">0 m</strong></div>
-    <div class="stat"><small>BANANAS</small><strong id="bananas">0</strong></div>
-    <div class="stat"><small>SPEED</small><strong id="speed">0</strong></div>
+  <div class="hud" aria-label="Run statistics">
+    <div class="stat" aria-label="Distance"><small>DISTANCE</small><strong id="distance">0 m</strong></div>
+    <div class="stat is-banana" aria-label="Bananas"><small>BANANAS</small><strong id="bananas">0</strong></div>
+    <div class="stat" aria-label="Speed"><small>SPEED</small><strong id="speed">0 km/h</strong></div>
   </div>
   <div class="overlay" id="overlay">
-    <section class="card">
-      <div class="badge">❄️ FIRST RUN · v0.1</div>
-      <h1 class="logo">CHIMPIONS <span>SKI</span></h1>
-      <p class="tagline">Carve through an endless mountain. Dodge trees and rocks, collect bananas and hit ramps as the slope gets faster.</p>
-      <div id="crash-copy"></div>
+    <section class="card" aria-labelledby="game-title">
+      <div class="badge">❄️ ALPINE ARCADE</div>
+      <h1 class="logo" id="game-title">CHIMPIONS <span>SKI</span></h1>
+      <p class="tagline">Carve the endless mountain, chase bananas, clear the jumps and keep your line as the descent gets faster.</p>
       <div class="selected-avatar" id="selected-avatar">
         <span class="selected-avatar-image" id="selected-avatar-image">🐵</span>
         <span><small>YOUR SKIER</small><strong id="selected-avatar-name">Loading Chimpions…</strong></span>
       </div>
       <div class="menu-actions">
-        <button class="secondary" id="choose">CHOOSE CHIMPION</button>
-        <button class="primary" id="start">START SKIING</button>
+        <button class="secondary" id="choose" aria-label="Choose Chimpion" disabled>CHOOSE CHIMPION</button>
+        <button class="primary" id="start" aria-label="Start skiing" disabled>LOADING CHIMPION…</button>
       </div>
-      <div class="tip">← → / A D · Xbox / PlayStation controller</div>
+      <div class="tip">← → / A D · LEFT STICK / D-PAD · ENTER / A</div>
     </section>
   </div>
 `;
@@ -235,63 +235,122 @@ const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 const audio=createSkiAudio();
+const ui=createGameUI({
+  audio,
+  onStart:()=>beginRun(),
+  onPause:()=>pauseGame(),
+  onResume:()=>resumeGame(),
+  onRestart:()=>beginRun(),
+  onChoose:()=>selector?.open()
+});
+ui.setAvatarLoading(true);
 
 async function setAvatar(entry){
-  selectedAvatar=entry;
-  $('selected-avatar-name').textContent=entry.name;
-  $('selected-avatar-image').innerHTML=entry.image?`<img src="${entry.image}" alt="">`:'🐵';
-  if(skier)player.remove(skier);
-  skier=await loadSkier('/'+entry.url);
+  if(!entry)return;
+  ui.setAvatarLoading(true);
+  const nextSkier=await loadSkier('/'+entry.url);
+  const previousSkier=skier;
+  skier=nextSkier;
   player.add(skier);
+  if(previousSkier){
+    player.remove(previousSkier);
+    disposeAvatarObject(previousSkier);
+  }
+  selectedAvatar=entry;
+  ui.setAvatar(entry);
+  selector?.setSelected(entry);
+  ui.setAvatarLoading(false);
 }
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    selector=createAvatarSelector({catalog,onSelect:setAvatar});
-    await setAvatar(randomAvatar(catalog));
+    const initialAvatar=randomAvatar(catalog);
+    await setAvatar(initialAvatar);
+    selector=createAvatarSelector({catalog,onSelect:setAvatar,selectedId:initialAvatar.id});
+    selector.setSelected(initialAvatar);
   }catch(error){
     console.warn(error);
-    skier=await loadSkier();player.add(skier);
-    $('selected-avatar-name').textContent='Fallback skier';
-  }finally{ready=true;}
+    const previousSkier=skier;
+    skier=await loadSkier();
+    player.add(skier);
+    if(previousSkier){
+      player.remove(previousSkier);
+      disposeAvatarObject(previousSkier);
+    }
+    selectedAvatar={name:'Fallback skier',image:''};
+    ui.setAvatar(selectedAvatar);
+  }finally{
+    ready=true;
+    ui.setAvatarLoading(false);
+  }
 })();
 
-const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0};
+const state={mode:'menu',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,crashType:''};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 courseDirector=createCourseDirector({routeCenter});
 resetCourse(0);
 const keys=new Set();
 let last=performance.now();
 
-function control(){
+function control(pad){
   const keyboard=Number(keys.has('ArrowRight')||keys.has('KeyD'))-Number(keys.has('ArrowLeft')||keys.has('KeyA'));
-  const pad=readPad(navigator.getGamepads?.()||[]);
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
-function reset(){
-  audio.play('menu',.5);
-  Object.assign(state,{mode:'playing',distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0});
+function resetRunState(mode='countdown'){
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,crashType:''});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
   trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.42;}sprayLife.fill(0);
   courseFrame=0;resetCourse(0);
-  $('overlay').hidden=true;$('crash-copy').innerHTML='';
 }
-function crash(){
+function beginRun(){
+  if(!ready)return;
+  audio.unlock();
+  audio.play('menu',.38);
+  resetRunState('countdown');
+  ui.prepareRun({best:state.best});
+  ui.startCountdown({
+    entry:selectedAvatar,
+    onGo:()=>{
+      if(state.mode!=='countdown')return;
+      state.mode='playing';
+      ui.setMode('playing');
+      last=performance.now();
+    }
+  });
+}
+function pauseGame(){
   if(state.mode!=='playing')return;
-  state.mode='crashed';audio.play('crash',.9);
-  state.best=Math.max(state.best,Math.floor(state.distance));
-  try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
-  $('crash-copy').innerHTML='<div class="crash">WIPEOUT · '+Math.floor(state.distance)+' m</div>';
-  $('start').textContent='SKI AGAIN';
-  $('overlay').hidden=false;
+  state.mode='paused';
+  ui.showPause();
+  audio.play('menu',.24);
 }
-$('start').onclick=reset;
-$('choose').onclick=()=>selector?.open();
-addEventListener('keydown',e=>{keys.add(e.code);if(e.code==='Enter'&&state.mode!=='playing')reset();});
+function resumeGame(){
+  if(state.mode!=='paused')return;
+  state.mode='playing';
+  ui.hidePause();
+  audio.play('menu',.22);
+  last=performance.now();
+}
+function crash(crashType=''){
+  if(state.mode!=='playing')return;
+  const runDistance=Math.floor(state.distance);
+  const previousBest=state.best;
+  const newBest=runDistance>previousBest;
+  state.mode='crashed';
+  state.crashType=crashType||state.crashType||'';
+  state.best=Math.max(state.best,runDistance);
+  ui.setMode('crashed');
+  audio.play('crash',.9);
+  try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
+  ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
+}
+addEventListener('keydown',e=>keys.add(e.code));
 addEventListener('keyup',e=>keys.delete(e.code));
 
 function update(dt){
-  const steer=control();
+  const pad=readPad(navigator.getGamepads?.()||[]);
+  ui.updateController(pad,selector);
+  const steer=control(pad);
   if(state.mode==='playing'){
     state.time+=dt;
     state.frame++;
@@ -426,9 +485,8 @@ function update(dt){
   snowGeometry.attributes.position.needsUpdate=true;
   environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
 
-  $('distance').textContent=Math.floor(state.distance)+' m';
-  $('bananas').textContent=state.bananas;
-  $('speed').textContent=Math.round(state.speed*3.6)+' km/h';
+  ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best});
+  audio.update({mode:state.mode,speed:state.speed,carve:state.edge,air:state.air,intensity:state.difficulty});
 }
 
 function render(now){
