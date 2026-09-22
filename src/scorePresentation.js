@@ -31,7 +31,25 @@ export function createScorePresentation({hud=document.querySelector('.hud')}={})
   popLayer.setAttribute('aria-live','polite');
   document.body.append(popLayer);
 
+  const trickLayer=document.createElement('div');
+  trickLayer.className='trick-pop-layer';
+  Object.assign(trickLayer.style,{
+    position:'fixed',
+    zIndex:'7',
+    left:'50%',
+    top:'31%',
+    transform:'translate(-50%,-50%)',
+    display:'grid',
+    gap:'6px',
+    pointerEvents:'none',
+    textAlign:'center',
+    justifyItems:'center'
+  });
+  trickLayer.setAttribute('aria-live','polite');
+  document.body.append(trickLayer);
+
   let previousEvent=null;
+  let previousTrickEvent=null;
   let presentationChain=0;
   let comboActsAsMultiplier=false;
 
@@ -78,7 +96,42 @@ export function createScorePresentation({hud=document.querySelector('.hud')}={})
     setTimeout(()=>pop.remove(),1250);
   }
 
-  function update({score=0,combo=0,lastClearPoints=0,clearEvent=null}={}){
+  function showTrick(trickEvent){
+    if(!trickEvent||typeof trickEvent!=='object')return;
+    while(trickLayer.children.length>=2)trickLayer.firstElementChild?.remove();
+    const pop=document.createElement('div');
+    const points=Math.max(0,Math.round(Number(trickEvent.points)||0));
+    const success=trickEvent.success===true;
+    const failed=trickEvent.success===false;
+    const label=String(trickEvent.label||(failed?'TRICK FAILED':trickEvent.phase==='start'?'AIR TIME':trickEvent.type||'TRICK'));
+    pop.className='trick-pop';
+    pop.textContent=success&&points?label+' +'+points:label;
+    Object.assign(pop.style,{
+      padding:'9px 16px',
+      borderRadius:'999px',
+      border:failed?'1px solid rgba(255,174,142,.74)':'1px solid rgba(210,247,255,.62)',
+      background:failed?'rgba(76,25,18,.82)':'rgba(4,30,48,.82)',
+      color:failed?'#ffd0ba':success?'#fff0a5':'#d4f7ff',
+      boxShadow:'0 10px 28px rgba(2,20,34,.24)',
+      textShadow:'0 2px 8px rgba(0,0,0,.46)',
+      backdropFilter:'blur(8px)',
+      fontSize:success?'19px':'12px',
+      fontWeight:'950',
+      letterSpacing:success?'.08em':'.14em',
+      whiteSpace:'nowrap'
+    });
+    trickLayer.append(pop);
+    const animation=pop.animate?.([
+      {opacity:0,transform:'translateY(10px) scale(.86)'},
+      {opacity:1,transform:'translateY(0) scale(1.06)',offset:.20},
+      {opacity:1,transform:'translateY(-6px) scale(1)',offset:.70},
+      {opacity:0,transform:'translateY(-18px) scale(.98)'}
+    ],{duration:900,easing:'cubic-bezier(.18,.75,.2,1)',fill:'forwards'});
+    animation?.finished?.then(()=>pop.remove()).catch(()=>{});
+    setTimeout(()=>pop.remove(),980);
+  }
+
+  function update({score=0,combo=0,lastClearPoints=0,clearEvent=null,trickEvent=null}={}){
     const total=Math.max(0,Math.round(Number(score)||0));
     if(scoreValue)scoreValue.textContent=total.toLocaleString('en-US');
 
@@ -90,16 +143,28 @@ export function createScorePresentation({hud=document.querySelector('.hud')}={})
         :lastClearPoints;
       showClear(points,chainLabel(clearEvent,combo));
     }
+
+    const trickToken=trickEvent&&typeof trickEvent==='object'
+      ?String(trickEvent.id??trickEvent.sequence??trickEvent.time??'')+':'+String(trickEvent.phase??'')+':'+String(trickEvent.type??'')
+      :null;
+    if(trickToken&&trickToken!==previousTrickEvent){
+      previousTrickEvent=trickToken;
+      showTrick(trickEvent);
+    }
   }
 
-  function reset({score=0,combo=0,lastClearPoints=0,clearEvent=null}={}){
+  function reset({score=0,combo=0,lastClearPoints=0,clearEvent=null,trickEvent=null}={}){
     const total=Math.max(0,Math.round(Number(score)||0));
     previousEvent=eventToken(clearEvent,total,lastClearPoints,combo);
+    previousTrickEvent=trickEvent&&typeof trickEvent==='object'
+      ?String(trickEvent.id??trickEvent.sequence??trickEvent.time??'')+':'+String(trickEvent.phase??'')+':'+String(trickEvent.type??'')
+      :null;
     presentationChain=0;
     comboActsAsMultiplier=false;
     if(scoreValue)scoreValue.textContent='0';
     popLayer.replaceChildren();
+    trickLayer.replaceChildren();
   }
 
-  return {update,reset,showClear};
+  return {update,reset,showClear,showTrick};
 }
