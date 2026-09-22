@@ -74,7 +74,7 @@ export function createBoundaryMarkers({world,terrainHeight,limit=11.3,countPerSi
 
         const flagMesh=side<0?blueFlags:redFlags;
         const flagFacing=side<0?.10:Math.PI-.10;
-        setInstance(flagMesh,i,x,ground+1.49,z,flagFacing,side<0?1:-1,1,1);
+        setInstance(flagMesh,i,x,ground+1.49,z,flagFacing,1,1,1);
       }
     }
     poles.instanceMatrix.needsUpdate=true;
