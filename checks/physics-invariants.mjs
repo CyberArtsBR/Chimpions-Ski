@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import {stepCarving,stepAir,launchRamp,progressSpeed} from '../src/skiPhysics.js';
+import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 
 function makeState(overrides={}){
   return {
-    speed:12,x:0,vx:0,edge:0,heading:0,turnRate:0,
+    speed:T.BASE_SPEED,time:0,x:0,vx:0,edge:0,heading:0,turnRate:0,
     air:false,y:.12,vy:0,landingPulse:0,rampGrace:0,
     counterSteer:false,
     ...overrides
@@ -16,17 +17,17 @@ function runCarve(state,input,seconds,dt=1/120){
 }
 
 // Steering must stay inside the gameplay corridor at all supported speeds.
-for(const speed of [12,20,31]){
+for(const speed of [T.BASE_SPEED,(T.BASE_SPEED+T.MAX_SPEED)/2,T.MAX_SPEED]){
   const s=makeState({speed});
   runCarve(s,1,1/120);
   runCarve(s,-1,12,1/120);
-  assert(Math.abs(s.x)<=8.100001,'carving escaped lateral gameplay bounds');
-  assert(Math.abs(s.heading)<=0.540001,'heading escaped designed carve bounds');
+  assert(Math.abs(s.x)<=T.PLAYER_HALF_WIDTH+1e-6,'carving escaped lateral gameplay bounds');
+  assert(Math.abs(s.heading)<=Math.max(T.HEADING_LIMIT_LOW,T.HEADING_LIMIT_HIGH)+1e-6,'heading escaped designed carve bounds');
 }
 
 // Releasing steering should settle heading/turn rate toward neutral.
 {
-  const s=makeState({speed:24});
+  const s=makeState({speed:T.BASE_SPEED+5});
   runCarve(s,1,.9);
   const before=Math.abs(s.heading);
   runCarve(s,0,2.2);
@@ -36,7 +37,7 @@ for(const speed of [12,20,31]){
 
 // Opposite input must enter a counter-steer / neutralization phase rather than snapping.
 {
-  const s=makeState({speed:25});
+  const s=makeState({speed:T.BASE_SPEED+6});
   runCarve(s,1,.8);
   const initialEdge=s.edge;
   stepCarving(s,-1,1/120);
@@ -47,8 +48,8 @@ for(const speed of [12,20,31]){
 
 // High speed should produce at least as much useful carve response as low speed.
 {
-  const low=makeState({speed:12});
-  const high=makeState({speed:31});
+  const low=makeState({speed:T.BASE_SPEED});
+  const high=makeState({speed:T.MAX_SPEED});
   runCarve(low,1,.7);
   runCarve(high,1,.7);
   assert(Math.abs(high.vx)>Math.abs(low.vx)*1.25,'high-speed carving is not materially stronger');
@@ -56,19 +57,23 @@ for(const speed of [12,20,31]){
 
 // Speed progression must be monotonic and capped.
 {
-  const s=makeState({speed:12});
+  const dt=1/120;
+  const s=makeState({speed:T.BASE_SPEED,time:0});
   let previous=s.speed;
-  for(let i=0;i<20000;i++){
-    progressSpeed(s,1/120);
+  for(let i=0;i<120*360;i++){
+    s.time+=dt;
+    progressSpeed(s,dt);
     assert(s.speed>=previous-1e-9,'speed progression moved backwards');
     previous=s.speed;
   }
-  assert(s.speed<=31.000001,'speed exceeded intended cap');
+  assert(s.speed<=T.MAX_SPEED+1e-6,'speed exceeded intended cap');
+  assert(s.speedTier>=1,'30-second speed tiers did not advance');
+  assert(s.targetSpeed<=T.MAX_SPEED+1e-6,'target speed exceeded intended cap');
 }
 
 // Ramp -> air -> landing must complete and produce a landing pulse.
 {
-  const s=makeState({speed:22,y:.12});
+  const s=makeState({speed:T.BASE_SPEED+3,y:.12});
   assert.equal(launchRamp(s,0),true,'ramp failed to launch grounded player');
   assert.equal(s.air,true);
   let landed=false;
