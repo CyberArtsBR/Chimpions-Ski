@@ -1,4 +1,7 @@
-import {SKI_TUNING,getSpeedFeel} from './gameplayTuning.js';
+import {SKI_TUNING} from './gameplayTuning.js';
+import {DEFAULT_RIDE_MODE,getRideAudioProfile,getRideSpeedFeel,normalizeRideMode} from './rideAudioProfile.js';
+import {createTrickAudioState,getTrickFailProfile,getTrickStartProfile,getTrickSuccessProfile} from './trickAudio.js';
+
 const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const AudioContextClass=globalThis.AudioContext||globalThis.webkitAudioContext;
 
@@ -9,11 +12,17 @@ export function createSkiAudio(){
   let jumpMusic=null;
   let jumpMusicReady=false;
   let jumpMusicFailed=false;
+  let rideMode=DEFAULT_RIDE_MODE;
   let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0,jumpSource:'',time:0};
   let lastClearEventId=0;
+  const trickState=createTrickAudioState();
   const buffers=new Map();
   const eventLast=new Map();
-  const eventCooldown={banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,oil:.18,clear:.07,crash:.34,menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14};
+  const eventCooldown={
+    banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,oil:.18,clear:.07,crash:.34,
+    menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14,
+    trick360Start:.20,trick360Success:.12,trickBackflipStart:.24,trickBackflipSuccess:.14,trickFail:.20
+  };
 
   const settings={
     master:readNumber('chimpions-ski-master',.82),
@@ -78,7 +87,11 @@ export function createSkiAudio(){
   }
   function eventBuffer(type){
     if(buffers.has(type))return buffers.get(type);
-    const duration={banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,oil:.42,clear:.16,crash:.72,menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34}[type]||.18;
+    const duration={
+      banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,oil:.42,clear:.16,crash:.72,
+      menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34,
+      trick360Start:.32,trick360Success:.28,trickBackflipStart:.42,trickBackflipSuccess:.36,trickFail:.30
+    }[type]||.18;
     const length=Math.ceil(context.sampleRate*duration);
     const buffer=context.createBuffer(1,length,context.sampleRate);
     const data=buffer.getChannelData(0);
@@ -140,6 +153,34 @@ export function createSkiAudio(){
         tone=Math.sin(phase)*.42;
         noise=smoothNoise*1.18;
         env=Math.pow(1-u,1.25)*Math.min(1,t/.003);
+      }else if(type==='trick360Start'){
+        hz=230+470*u+Math.sin(u*Math.PI*4)*55;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        tone=Math.sin(phase)*.18;
+        noise=smoothNoise*(.62+.16*Math.sin(u*Math.PI*6));
+        env=Math.pow(Math.sin(Math.PI*u),.62)*Math.min(1,t/.008);
+      }else if(type==='trickBackflipStart'){
+        hz=150+720*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*.52)/context.sampleRate;
+        tone=Math.sin(phase)*.24+Math.sin(phase2)*.12;
+        noise=smoothNoise*(.82-.18*u);
+        env=Math.pow(Math.sin(Math.PI*u),.48)*Math.min(1,t/.006);
+      }else if(type==='trick360Success'||type==='trickBackflipSuccess'){
+        const backflip=type==='trickBackflipSuccess';
+        hz=(backflip?430:520)+(backflip?520:360)*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*(backflip?1.52:1.5))/context.sampleRate;
+        tone=Math.sin(phase)*.62+Math.sin(phase2)*(backflip?.24:.18);
+        noise=smoothNoise*(backflip?.12:.06);
+        env=Math.pow(1-u,backflip?1.65:2.05)*Math.min(1,t/.004);
+      }else if(type==='trickFail'){
+        hz=120-48*u;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*.54)/context.sampleRate;
+        tone=Math.sin(phase)*.55+Math.sin(phase2)*.18;
+        noise=smoothNoise*.70;
+        env=Math.pow(1-u,2.25)*Math.min(1,t/.0025);
       }else if(type==='countTick'||type==='countTickStrong'){
         hz=type==='countTickStrong'?560:485;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -165,7 +206,10 @@ export function createSkiAudio(){
         tone=Math.sin(phase);
         env=Math.pow(1-u,3.5)*Math.min(1,t/.002);
       }
-      data[i]=(tone+noise)*env*(type==='crash'?.34:type==='hardLand'?.31:type==='oil'?.25:type==='land'?.27:type==='clear'?.20:type==='jump'?.24:.22);
+      const scale=type==='crash'?.34:type==='hardLand'?.31:type==='oil'?.25:type==='land'?.27:type==='clear'?.20:
+        type==='jump'?.24:type==='trickBackflipStart'?.25:type==='trick360Start'?.20:
+        type==='trickBackflipSuccess'?.25:type==='trick360Success'?.22:type==='trickFail'?.27:.22;
+      data[i]=(tone+noise)*env*scale;
     }
     buffers.set(type,buffer);
     return buffer;
@@ -258,6 +302,15 @@ export function createSkiAudio(){
     carveFilter.connect(carveGain);
     carveGain.connect(continuousBus);
 
+    const boardScrapeSource=makeLoop(noiseBuffer(2.3,66571));
+    const boardScrapeFilter=context.createBiquadFilter();
+    const boardScrapeGain=context.createGain();
+    boardScrapeFilter.type='bandpass';
+    boardScrapeFilter.Q.value=.48;
+    boardScrapeSource.connect(boardScrapeFilter);
+    boardScrapeFilter.connect(boardScrapeGain);
+    boardScrapeGain.connect(continuousBus);
+
     const windSource=makeLoop(noiseBuffer(2.7,44963));
     const windFilter=context.createBiquadFilter();
     const windGain=context.createGain();
@@ -281,15 +334,21 @@ export function createSkiAudio(){
     musicBus.gain.value=settings.musicEnabled?settings.music:0;
     contactGain.gain.value=0;
     carveGain.gain.value=0;
+    boardScrapeGain.gain.value=0;
     windGain.gain.value=0;
     musicGain.gain.value=0;
 
     contactSource.start();
     carveSource.start();
+    boardScrapeSource.start();
     windSource.start();
     musicSource.start();
 
-    graph={master,sfxBus,musicBus,continuousBus,eventBus,compressor,contactFilter,contactGain,carveFilter,carveGain,windFilter,windGain,musicFilter,musicGain};
+    graph={
+      master,sfxBus,musicBus,continuousBus,eventBus,compressor,
+      contactFilter,contactGain,carveFilter,carveGain,boardScrapeFilter,boardScrapeGain,
+      windFilter,windGain,musicFilter,musicGain
+    };
     applyState(pendingState,true);
     return graph;
   }
@@ -306,7 +365,8 @@ export function createSkiAudio(){
   function applyState(state,instant=false){
     pendingState={...pendingState,...state};
     if(!graph||!context)return;
-    const speed01=getSpeedFeel(pendingState.speed);
+    const profile=getRideAudioProfile(rideMode);
+    const speed01=getRideSpeedFeel(pendingState.speed,rideMode);
     const carve=clamp(Math.abs(pendingState.carve||0));
     const air=!!pendingState.air;
     const mode=pendingState.mode||'menu';
@@ -315,43 +375,71 @@ export function createSkiAudio(){
     const response=instant?.01:.09;
 
     const rampAir=air&&pendingState.jumpSource==='ramp';
-    const contact=(running?(0.024+speed01*.058+carve*.032):0)*(air?.025:1);
-    const edge=(running?carve*(.014+speed01*.072):0)*(air?.018:1);
-    const airWind=air?(rampAir?.050:.032):0;
-    const wind=running?(0.014+speed01*.076+airWind):countdown?.006:0;
+    const contact=air?0:(running?(0.024+speed01*.058+carve*.032)*profile.contactGain:0);
+    const edge=air?0:(running?carve*(.014+speed01*.072)*profile.carveGain:0);
+    const boardScrape=air?0:(running?carve*(.010+speed01*.038)*profile.snowboardScrapeGain:0);
+    const airWind=air?(rampAir?.058:.038):0;
+    const wind=(running?(0.014+speed01*.076+airWind):countdown?.006:0)*profile.windGain;
     const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
     const usingJumpMusic=syncJumpMusic(mode);
 
     setTarget(graph.contactGain.gain,contact,response);
     setTarget(graph.carveGain.gain,edge,response);
+    setTarget(graph.boardScrapeGain.gain,boardScrape,response);
     setTarget(graph.windGain.gain,wind,response);
-    setTarget(graph.contactFilter.frequency,560+speed01*720+carve*300,.12);
-    setTarget(graph.carveFilter.frequency,980+carve*1280+speed01*520,.10);
-    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?(rampAir?420:260):0),.20);
+    setTarget(graph.contactFilter.frequency,(560+speed01*720+carve*300)*profile.contactFrequencyScale,.12);
+    setTarget(graph.carveFilter.frequency,(980+carve*1280+speed01*520)*profile.carveFrequencyScale,.10);
+    setTarget(graph.carveFilter.Q,profile.carveQ,.12);
+    setTarget(graph.boardScrapeFilter.frequency,360+speed01*420+carve*260,.12);
+    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?(rampAir?460:300):0),.20);
     setTarget(graph.musicFilter.frequency,1250+intensity*1100,.28);
     // Keep the procedural bed as a graceful fallback if the bundled local Chimp Jump track cannot play.
     setTarget(graph.musicGain.gain,usingJumpMusic?0:musicBase*(.86+intensity*.14),.35);
   }
   function update(state){applyState(state,false);}
-  function play(type,gain=1,rateScale=1){
+  function setRideMode(mode){
+    const next=normalizeRideMode(mode);
+    if(next===rideMode)return rideMode;
+    rideMode=next;
+    applyState(pendingState,false);
+    return rideMode;
+  }
+  function getRideMode(){return rideMode;}
+
+  function play(type,gain=1,rateScale=1,pan=0){
     unlock();
-    if(!context||!graph||!settings.sfxEnabled)return;
+    if(!context||!graph||!settings.sfxEnabled)return false;
     const now=context.currentTime;
     const cooldown=eventCooldown[type]??.035;
     const last=eventLast.get(type)??-Infinity;
-    if(now-last<cooldown)return;
+    if(now-last<cooldown)return false;
     eventLast.set(type,now);
     const source=context.createBufferSource();
     const amp=context.createGain();
+    const canPan=Math.abs(pan)>.001&&typeof context.createStereoPanner==='function';
+    const panner=canPan?context.createStereoPanner():null;
     source.buffer=eventBuffer(type);
-    const variation=type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:.03;
+    const variation=type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:
+      type.startsWith('trick')?.012:.03;
     source.playbackRate.value=clamp(rateScale,.72,1.65)*(1+(Math.random()*2-1)*variation);
     amp.gain.value=Math.min(1.08,Math.max(0,gain));
     source.connect(amp);
-    amp.connect(graph.eventBus);
-    source.onended=()=>{source.disconnect();amp.disconnect();source.onended=null;};
+    if(panner){
+      panner.pan.value=clamp(pan,-1,1);
+      amp.connect(panner);
+      panner.connect(graph.eventBus);
+    }else{
+      amp.connect(graph.eventBus);
+    }
+    source.onended=()=>{
+      source.disconnect();
+      amp.disconnect();
+      panner?.disconnect();
+      source.onended=null;
+    };
     source.start();
+    return true;
   }
   function playClear(clearEvent){
     const id=Number(clearEvent?.id)||0;
@@ -363,9 +451,28 @@ export function createSkiAudio(){
     play('clear',gain,pitch);
     return true;
   }
+  function playTrickStart(type,eventId){
+    const event=trickState.start(type,eventId);
+    if(!event.play)return false;
+    const cue=getTrickStartProfile(event.type,event.generation);
+    return cue?play(cue.sound,cue.gain,cue.rate,cue.pan):false;
+  }
+  function playTrickSuccess(type,combo=1,eventId){
+    const event=trickState.result(type,'success',eventId);
+    if(!event.play)return false;
+    const cue=getTrickSuccessProfile(event.type,combo);
+    return cue?play(cue.sound,cue.gain,cue.rate,cue.pan):false;
+  }
+  function playTrickFail(type,eventId){
+    const event=trickState.result(type,'fail',eventId);
+    if(!event.play)return false;
+    const cue=getTrickFailProfile(event.type);
+    return cue?play(cue.sound,cue.gain,cue.rate,cue.pan):false;
+  }
   function resetRun(){
     lastClearEventId=0;
-    eventLast.delete('clear');
+    trickState.reset();
+    eventLast.clear();
   }
   function refreshBuses(){
     if(!graph)return;
@@ -395,5 +502,8 @@ export function createSkiAudio(){
   document.addEventListener('pointerdown',unlock,{once:true,capture:true});
   document.addEventListener('keydown',unlock,{once:true,capture:true});
 
-  return {play,playClear,resetRun,unlock,update,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled};
+  return {
+    play,playClear,playTrickStart,playTrickSuccess,playTrickFail,resetRun,unlock,update,
+    setRideMode,getRideMode,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled
+  };
 }
