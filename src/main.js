@@ -75,6 +75,31 @@ for(let i=0;i<12;i++){
   m.position.set((i-6)*13,-1,-75-Math.random()*65);m.rotation.y=Math.random()*Math.PI;m.receiveShadow=true;world.add(m);
 }
 
+// High-quality desktop snow field. Particles are recycled around the camera instead of allocated every frame.
+const snowCount=1100;
+const snowPositions=new Float32Array(snowCount*3);
+for(let i=0;i<snowCount;i++){
+  snowPositions[i*3]=THREE.MathUtils.randFloat(-17,17);
+  snowPositions[i*3+1]=THREE.MathUtils.randFloat(.4,15);
+  snowPositions[i*3+2]=THREE.MathUtils.randFloat(-48,12);
+}
+const snowGeometry=new THREE.BufferGeometry();
+snowGeometry.setAttribute('position',new THREE.BufferAttribute(snowPositions,3));
+const snowMaterial=new THREE.PointsMaterial({color:0xffffff,size:.075,transparent:true,opacity:.78,depthWrite:false});
+const snowfall=new THREE.Points(snowGeometry,snowMaterial);scene.add(snowfall);
+
+// Decorative forest stays outside the playable corridor and gives the slope depth without affecting collision.
+const forest=new THREE.Group();world.add(forest);
+for(let i=0;i<54;i++){
+  const side=i%2?-1:1;
+  const tree=makeTree();
+  tree.scale.setScalar(THREE.MathUtils.randFloat(.72,1.45));
+  tree.position.set(side*THREE.MathUtils.randFloat(9.5,15.2),0,-8-i*4.2-Math.random()*4);
+  tree.rotation.y=Math.random()*Math.PI*2;
+  tree.userData.decorative=true;
+  forest.add(tree);
+}
+
 function makeTree(){
   const g=new THREE.Group();
   const trunk=new THREE.Mesh(new THREE.CylinderGeometry(.16,.24,1.6,8),trunkMat);trunk.position.y=.8;trunk.castShadow=true;g.add(trunk);
@@ -97,14 +122,27 @@ function makeRamp(){
 }
 
 const course=[];
+function routeCenter(z){
+  return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
+}
+function placeCourseItem(item,z){
+  item.position.z=z;
+  const center=routeCenter(z);
+  if(item.userData.kind==='banana'||item.userData.kind==='ramp'){
+    item.position.x=THREE.MathUtils.clamp(center+THREE.MathUtils.randFloat(-.75,.75),-6.9,6.9);
+  }else{
+    const side=Math.random()<.5?-1:1;
+    const gap=THREE.MathUtils.randFloat(2.1,5.4);
+    item.position.x=THREE.MathUtils.clamp(center+side*gap,-7.5,7.5);
+  }
+}
 function spawn(z=-90){
   const roll=Math.random();
   const item=roll<.48?makeTree():roll<.68?makeRock():roll<.88?makeBanana():makeRamp();
-  item.position.x=THREE.MathUtils.randFloat(-7.2,7.2);
-  item.position.z=z;
+  placeCourseItem(item,z);
   world.add(item);course.push(item);
 }
-for(let i=0;i<34;i++)spawn(-12-i*5.3-Math.random()*2);
+for(let i=0;i<38;i++)spawn(-12-i*5.1-Math.random()*2.2);
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
@@ -131,7 +169,7 @@ async function setAvatar(entry){
   }finally{ready=true;}
 })();
 
-const state={mode:'menu',distance:0,bananas:0,speed:12,x:0,vx:0,y:.12,vy:0,air:false,best:0};
+const state={mode:'menu',distance:0,bananas:0,speed:12,x:0,vx:0,y:.12,vy:0,air:false,landingPulse:0,best:0};
 try{state.best=Number(localStorage.getItem('chimpions-ski-best'))||0}catch{}
 const keys=new Set();
 let last=performance.now();
@@ -142,15 +180,15 @@ function control(){
   return THREE.MathUtils.clamp(keyboard||pad.axis,-1,1);
 }
 function recycle(item){
-  item.position.z=-105-Math.random()*32;
-  item.position.x=THREE.MathUtils.randFloat(-7.4,7.4);
+  const z=-108-Math.random()*34;
+  placeCourseItem(item,z);
   if(item.userData.kind==='banana')item.visible=true;
 }
 function reset(){
   audio.play('menu',.5);
-  state.mode='playing';state.distance=0;state.bananas=0;state.speed=12;state.x=0;state.vx=0;state.y=.12;state.vy=0;state.air=false;
+  state.mode='playing';state.distance=0;state.bananas=0;state.speed=12;state.x=0;state.vx=0;state.y=.12;state.vy=0;state.air=false;state.landingPulse=0;
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
-  course.forEach((o,i)=>{o.visible=true;o.position.z=-12-i*5.3-Math.random()*2;o.position.x=THREE.MathUtils.randFloat(-7.2,7.2);});
+  course.forEach((o,i)=>{o.visible=true;placeCourseItem(o,-12-i*5.1-Math.random()*2.2);});
   $('overlay').hidden=true;$('crash-copy').innerHTML='';
 }
 function crash(){
@@ -177,7 +215,12 @@ function update(dt){
     state.x=THREE.MathUtils.clamp(state.x+state.vx*dt,-8.1,8.1);
     if(state.air){
       state.vy-=17.8*dt;state.y+=state.vy*dt;
-      if(state.y<=.12){state.y=.12;state.vy=0;state.air=false;}
+      if(state.y<=.12){
+        state.landingPulse=Math.min(1,Math.abs(state.vy)/8);
+        state.y=.12;state.vy=0;state.air=false;audio.play('land',.55);
+      }
+    }else{
+      state.landingPulse=Math.max(0,state.landingPulse-dt*4.2);
     }
     player.position.x=state.x;player.position.y=state.y;
     player.rotation.z=THREE.MathUtils.damp(player.rotation.z,-steer*.28,7,dt);
@@ -185,7 +228,7 @@ function update(dt){
     skier?.userData?.updateSkiPose?.({
       steer,
       air:state.air,
-      landing:!state.air&&state.y<=.12?Math.max(0,Math.min(1,Math.abs(state.vy)/8)):0,
+      landing:state.landingPulse,
       speed:state.speed,
       time:performance.now()/1000
     });
@@ -213,6 +256,25 @@ function update(dt){
     tile.position.z+=state.mode==='playing'?state.speed*dt:0;
     if(tile.position.z>22)tile.position.z-=tiles.length*28;
   }
+  const worldSpeed=state.mode==='playing'?state.speed:0;
+  for(const tree of forest.children){
+    tree.position.z+=worldSpeed*dt;
+    if(tree.position.z>18){
+      const side=tree.position.x<0?-1:1;
+      tree.position.z=-205-Math.random()*28;
+      tree.position.x=side*THREE.MathUtils.randFloat(9.5,15.2);
+    }
+  }
+  const snow=snowGeometry.attributes.position.array;
+  for(let i=0;i<snowCount;i++){
+    snow[i*3+1]-=dt*(1.8+state.speed*.035);
+    snow[i*3+2]+=dt*(2.4+worldSpeed*.45);
+    snow[i*3]+=state.vx*dt*.018;
+    if(snow[i*3+1]<.2){snow[i*3+1]=THREE.MathUtils.randFloat(8,15);}
+    if(snow[i*3+2]>14){snow[i*3+2]=THREE.MathUtils.randFloat(-48,-32);snow[i*3]=THREE.MathUtils.randFloat(-17,17);}
+  }
+  snowGeometry.attributes.position.needsUpdate=true;
+
   $('distance').textContent=Math.floor(state.distance)+' m';
   $('bananas').textContent=state.bananas;
   $('speed').textContent=Math.round(state.speed*3.6)+' km/h';
@@ -222,8 +284,14 @@ function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
   const lean=state.vx*.035;
-  camera.position.x=THREE.MathUtils.damp(camera.position.x,state.x*.16,2.6,dt);
-  camera.rotation.z=THREE.MathUtils.damp(camera.rotation.z,-lean*.11,3,dt);
+  const speed01=THREE.MathUtils.clamp((state.speed-12)/19,0,1);
+  camera.position.x=THREE.MathUtils.damp(camera.position.x,state.x*.22,3.1,dt);
+  camera.position.y=THREE.MathUtils.damp(camera.position.y,6.1+speed01*.55+state.y*.12,2.4,dt);
+  camera.position.z=THREE.MathUtils.damp(camera.position.z,10.5+speed01*1.2,2.2,dt);
+  camera.rotation.z=THREE.MathUtils.damp(camera.rotation.z,-lean*.15,3.5,dt);
+  const targetFov=55+speed01*5;
+  camera.fov=THREE.MathUtils.damp(camera.fov,targetFov,2.5,dt);camera.updateProjectionMatrix();
+  camera.lookAt(camera.position.x*.18,1.05,-12.8);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }
