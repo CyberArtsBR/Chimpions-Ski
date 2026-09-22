@@ -1,3 +1,4 @@
+import {gzipSync} from 'node:zlib';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {runAudit} from '../scripts/audit-avatar-rig-compat.mjs';
@@ -32,4 +33,7 @@ if(baseline){
   assert.deepEqual(regressions,[],'rig compatibility regressions: '+regressions.join('; '));
 }
 console.log(JSON.stringify({check:'avatar-rig-compat-invariants',avatars:report.avatars.length,classifications:report.summary.classifications,errors:report.errors.length}));
-if(process.env.RIG_AUDIT_EMIT_REPORT==='1')console.log('RIG_AUDIT_REPORT_B64 '+Buffer.from(JSON.stringify(report)).toString('base64'));
+if(process.env.RIG_AUDIT_EMIT_REPORT==='1'){
+  const encoded=gzipSync(Buffer.from(JSON.stringify(report))).toString('base64');
+  for(let i=0;i<encoded.length;i+=30000)console.log('RIG_AUDIT_GZ_B64 '+String(i/30000).padStart(4,'0')+' '+encoded.slice(i,i+30000));
+}
