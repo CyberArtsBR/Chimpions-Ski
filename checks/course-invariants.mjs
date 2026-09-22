@@ -36,6 +36,7 @@ let totalSections=0,totalMeters=0,totalRamps=0;
 let minLeftEdgeThreats=Infinity,minRightEdgeThreats=Infinity;
 let maxLeftDrySections=0,maxRightDrySections=0;
 let maxColumnStreak=0;
+let columnFailure=null;
 
 for(const seed of seeds){
   const director=createCourseDirector({routeCenter,random:rng(seed)});
@@ -124,6 +125,18 @@ for(const seed of seeds){
         const streak=(columnStreak.get(bin)||0)+1;
         next.set(bin,streak);
         maxColumnStreak=Math.max(maxColumnStreak,streak);
+        if(streak>4&&!columnFailure){
+          columnFailure={
+            seed,
+            sectionIndex:i,
+            sectionType:section.type,
+            decisionZ:decision.z,
+            safeX:decision.safeX,
+            bin,
+            x:bin*.25,
+            hazards:routeHazards.map(p=>({kind:p.kind,x:p.x,z:p.z,formation:p.formation}))
+          };
+        }
       }
       columnStreak.clear();
       for(const [bin,streak] of next)columnStreak.set(bin,streak);
@@ -180,6 +193,7 @@ assert(minLeftEdgeThreats>=20,'far-left edge was insufficiently threatened');
 assert(minRightEdgeThreats>=20,'far-right edge was insufficiently threatened');
 assert(maxLeftDrySections<=16,'far-left edge stayed safe for too many consecutive sections');
 assert(maxRightDrySections<=16,'far-right edge stayed safe for too many consecutive sections');
+if(columnFailure)console.error('COLUMN_DIAGNOSTIC '+JSON.stringify(columnFailure));
 assert(maxColumnStreak<=4,'repeated vertical obstacle column persisted too long');
 
 // Streaming audit: generation must live well outside the ~280m far plane.
