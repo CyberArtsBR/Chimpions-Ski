@@ -1,15 +1,21 @@
 name: Chimpions Ski production desktop audit
 on:
+  workflow_run:
+    workflows: ["Chimpions Ski desktop build and checks"]
+    branches: [main]
+    types: [completed]
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   production-audit:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -20,5 +26,5 @@ jobs:
       - name: Audit deployed desktop build
         env:
           CHIMPIONS_SKI_PRODUCTION_URL: https://chimpions-ski.onrender.com
-          CHIMPIONS_SKI_EXPECTED_COMMIT: ${{ github.sha }}
+          CHIMPIONS_SKI_EXPECTED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
         run: node checks/production-browser.mjs
