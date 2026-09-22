@@ -355,11 +355,13 @@ function update(dt){
           z:player.position.z,
           travel:state.travel,
           heading:state.heading,
-          edge:state.edge
+          edge:state.edge,
+          spacing:skier?.userData?.skiTrackSpacing??.245
         });
         trailTimer=Math.max(.018,.038-state.speed*.00028);
       }
     }else{
+      trailTimer=0;
       skiTrails.breakTrail();
     }
 
