@@ -12,6 +12,7 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
+import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 
 const app=document.querySelector('#app');
@@ -172,39 +173,9 @@ function resetCourse(difficulty=0){
   fillCourse(difficulty);
 }
 
-// Twin ski tracks and snow spray are pooled for the desktop high-quality build.
-const trackGroup=new THREE.Group();world.add(trackGroup);
-const trackMat=new THREE.MeshBasicMaterial({
-  color:0x7faabd,
-  transparent:true,
-  opacity:.30,
-  depthWrite:false,
-  polygonOffset:true,
-  polygonOffsetFactor:-1,
-  polygonOffsetUnits:-1
-});
-const trackGeometry=new THREE.PlaneGeometry(.078,.94);
-const trackPool=[];
-for(let i=0;i<128;i++){
-  const mark=new THREE.Mesh(trackGeometry,trackMat.clone());
-  mark.rotation.x=-Math.PI/2;
-  mark.position.set(0,-10,0);
-  mark.visible=false;
-  trackGroup.add(mark);
-  trackPool.push(mark);
-}
-let trackCursor=0,trackTimer=0;
-function emitTrack(x,z,steer){
-  for(const side of [-1,1]){
-    const mark=trackPool[trackCursor++%trackPool.length];
-    mark.visible=true;
-    mark.material.opacity=.30;
-    const markX=x+side*.24;
-    const markZ=z-.5;
-    mark.position.set(markX,terrainHeight(markX,markZ-state.travel)+.010,markZ);
-    mark.rotation.set(-Math.PI/2,-steer*.18+side*steer*.02,0);
-  }
-}
+// Continuous twin grooves use one bounded dynamic mesh instead of disconnected decals.
+const skiTrails=createSkiTrails({world,terrainHeight,capacity:192});
+let trailTimer=0;
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
@@ -276,7 +247,7 @@ function control(pad){
 function resetRunState(mode='countdown'){
   Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:SKI_TUNING.BASE_SPEED,speedTier:0,speedTierTime:0,targetSpeed:SKI_TUNING.BASE_SPEED,maxSpeed:SKI_TUNING.MAX_SPEED,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   player.position.set(0,.12,2.2);player.rotation.set(0,0,0);
-  trackTimer=0;for(const mark of trackPool){mark.visible=false;mark.material.opacity=.30;}
+  trailTimer=0;skiTrails.reset();
   courseFrame=0;resetCourse(0);skiCamera.reset();feedback.reset();jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
@@ -378,11 +349,21 @@ function update(dt){
       centerGround:state.centerGround
     });
     if(!state.air){
-      trackTimer-=dt;
-      if(trackTimer<=0){
-        emitTrack(state.x,player.position.z,state.edge);
-        trackTimer=Math.max(.045,.09-state.speed*.0013);
+      trailTimer-=dt;
+      if(trailTimer<=0){
+        skiTrails.emit({
+          x:state.x,
+          z:player.position.z,
+          travel:state.travel,
+          heading:state.heading,
+          edge:state.edge,
+          spacing:skier?.userData?.skiTrackSpacing??.245
+        });
+        trailTimer=Math.max(.018,.038-state.speed*.00028);
       }
+    }else{
+      trailTimer=0;
+      skiTrails.breakTrail();
     }
 
     let nearestSectionItem=null;
@@ -463,12 +444,7 @@ function update(dt){
     }
   }
   const worldSpeed=state.mode==='playing'?state.speed:0;
-  for(const mark of trackPool){
-    if(!mark.visible)continue;
-    mark.position.z+=worldSpeed*dt;
-    mark.material.opacity=Math.max(0,mark.material.opacity-dt*.105);
-    if(mark.position.z>16||mark.material.opacity<=.02)mark.visible=false;
-  }
+  skiTrails.update(dt,worldSpeed);
   environment.update(dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
