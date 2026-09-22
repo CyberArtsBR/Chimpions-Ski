@@ -348,11 +348,16 @@ function resetRunState(mode='countdown'){
   Object.assign(state,sampleSkiGround(terrainHeight,0,player.position.z,0,skier?.userData?.skiTrackSpacing));
   state.y=.12+state.centerGround;player.position.y=state.y;
   courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();
-  scorePresentation.reset(state.clearEvent??null);
+  scorePresentation.reset({
+    score:state.score??0,
+    combo:state.combo??0,
+    lastClearPoints:state.lastClearPoints??0,
+    clearEvent:state.clearEvent??null
+  });
   jumpKeyPressed=false;lastPadJump=false;
 }
 function beginRun(){
-  if(!ready||selector?.dialog?.open||document.hidden)return;
+  if(!ready||selector?.dialog?.open||document.hidden)return false;
   audio.unlock();
   audio.play('menu',.38);
   resetRunState('countdown');
@@ -370,6 +375,7 @@ function beginRun(){
       last=performance.now();
     }
   });
+  return true;
 }
 function pauseGame(){
   if(state.mode!=='playing')return;
@@ -656,7 +662,9 @@ function update(dt){
 function render(now){
   const dt=Math.min(.05,(now-last)/1000||.016);last=now;
   update(dt);
-  if(state.mode==='countdown')startCamera.update(state,now);
+  if(startScreen.isActive){
+    // Hold the 3D presentation completely still behind the artwork/fade.
+  }else if(state.mode==='countdown')startCamera.update(state,now);
   else if(state.mode!=='paused')skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
