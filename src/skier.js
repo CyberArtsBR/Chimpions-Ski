@@ -11,6 +11,136 @@ function mesh(geometry,mat,parent){
   return m;
 }
 
+function makeSkiGeometry(width,length,thickness,upturn){
+  const halfW=width*.5;
+  const halfL=length*.5;
+  const shape=new THREE.Shape();
+  shape.moveTo(-halfW*.66,halfL);
+  shape.lineTo(halfW*.66,halfL);
+  shape.lineTo(halfW*.88,halfL*.55);
+  shape.lineTo(halfW,-halfL*.48);
+  shape.quadraticCurveTo(halfW*.96,-halfL*.80,halfW*.46,-halfL*.95);
+  shape.quadraticCurveTo(0,-halfL*1.025,-halfW*.46,-halfL*.95);
+  shape.quadraticCurveTo(-halfW*.96,-halfL*.80,-halfW,-halfL*.48);
+  shape.lineTo(-halfW*.88,halfL*.55);
+  shape.closePath();
+
+  const geometry=new THREE.ExtrudeGeometry(shape,{
+    depth:thickness,
+    steps:1,
+    bevelEnabled:true,
+    bevelSegments:2,
+    bevelSize:.006,
+    bevelThickness:.005,
+    curveSegments:8
+  });
+  geometry.rotateX(Math.PI/2);
+  geometry.translate(0,thickness*.5,0);
+
+  const position=geometry.attributes.position;
+  const bendStart=-length*.34;
+  const bendRange=length*.18;
+  for(let i=0;i<position.count;i++){
+    const z=position.getZ(i);
+    if(z<bendStart){
+      const t=THREE.MathUtils.clamp((bendStart-z)/bendRange,0,1);
+      position.setY(i,position.getY(i)+upturn*t*t);
+    }
+  }
+  position.needsUpdate=true;
+  geometry.computeVertexNormals();
+  geometry.computeBoundingBox();
+  geometry.computeBoundingSphere();
+  return geometry;
+}
+
+function createSkiAssets(topColor=0x1977a5){
+  const edgeGeometry=makeSkiGeometry(.148,2.18,.038,.078);
+  const deckGeometry=makeSkiGeometry(.138,2.14,.030,.082);
+  const stripeGeometry=new THREE.BoxGeometry(.026,.008,1.26);
+  const motifGeometry=new THREE.BoxGeometry(.026,.009,.26);
+  const toeGeometry=new THREE.BoxGeometry(.118,.075,.18);
+  const heelGeometry=new THREE.BoxGeometry(.126,.082,.20);
+  const bindingBridgeGeometry=new THREE.BoxGeometry(.105,.042,.20);
+
+  const edgeMaterial=new THREE.MeshStandardMaterial({
+    color:0x182b37,
+    roughness:.30,
+    metalness:.44
+  });
+  const topMaterial=new THREE.MeshPhysicalMaterial({
+    color:topColor,
+    roughness:.32,
+    metalness:.04,
+    clearcoat:.48,
+    clearcoatRoughness:.36
+  });
+  const graphicMaterial=new THREE.MeshStandardMaterial({
+    color:0xffd54a,
+    roughness:.34,
+    metalness:.04,
+    emissive:0x3c2600,
+    emissiveIntensity:.10
+  });
+  const bindingMaterial=new THREE.MeshStandardMaterial({
+    color:0x17222b,
+    roughness:.42,
+    metalness:.20
+  });
+  const bindingAccentMaterial=new THREE.MeshStandardMaterial({
+    color:0xe6f4fa,
+    roughness:.30,
+    metalness:.16
+  });
+
+  return {
+    edgeGeometry,deckGeometry,stripeGeometry,motifGeometry,
+    toeGeometry,heelGeometry,bindingBridgeGeometry,
+    edgeMaterial,topMaterial,graphicMaterial,bindingMaterial,bindingAccentMaterial
+  };
+}
+
+function createStyledSki(assets){
+  const ski=new THREE.Group();
+
+  const edge=new THREE.Mesh(assets.edgeGeometry,assets.edgeMaterial);
+  edge.castShadow=edge.receiveShadow=true;
+  ski.add(edge);
+
+  const deck=new THREE.Mesh(assets.deckGeometry,assets.topMaterial);
+  deck.position.y=.023;
+  deck.castShadow=deck.receiveShadow=true;
+  ski.add(deck);
+
+  const stripe=new THREE.Mesh(assets.stripeGeometry,assets.graphicMaterial);
+  stripe.position.set(0,.045,.12);
+  ski.add(stripe);
+
+  for(const side of [-1,1]){
+    const motif=new THREE.Mesh(assets.motifGeometry,assets.bindingAccentMaterial);
+    motif.position.set(side*.026,.047,-.76);
+    motif.rotation.y=side*.34;
+    ski.add(motif);
+  }
+
+  const toe=new THREE.Mesh(assets.toeGeometry,assets.bindingMaterial);
+  toe.position.set(0,.091,-.02);
+  toe.castShadow=true;
+  ski.add(toe);
+
+  const heel=new THREE.Mesh(assets.heelGeometry,assets.bindingMaterial);
+  heel.position.set(0,.096,.23);
+  heel.castShadow=true;
+  ski.add(heel);
+
+  const bridge=new THREE.Mesh(assets.bindingBridgeGeometry,assets.bindingAccentMaterial);
+  bridge.position.set(0,.124,.105);
+  bridge.castShadow=true;
+  ski.add(bridge);
+
+  return ski;
+}
+
 export function createFallbackSkier(){
   const root=new THREE.Group();
   root.name='procedural-chimpion';
@@ -20,10 +150,11 @@ export function createFallbackSkier(){
   const muzzle=mesh(new THREE.SphereGeometry(.23,18,12),skin,root);muzzle.scale.set(1,.62,.78);muzzle.position.set(0,2.16,.31);
   const hip=mesh(new THREE.SphereGeometry(.34,16,12),fur,root);hip.scale.y=.7;hip.position.y=1.08;
   const arms=[],legs=[],skis=[];
+  const fallbackSkiAssets=createSkiAssets(0x235f88);
   for(const side of [-1,1]){
     const arm=mesh(new THREE.CapsuleGeometry(.10,.55,5,8),fur,root);arm.position.set(side*.39,1.52,.02);arm.rotation.z=side*(.5);arms.push(arm);
     const leg=mesh(new THREE.CapsuleGeometry(.12,.62,5,8),fur,root);leg.position.set(side*.2,.62,0);leg.rotation.z=side*.16;legs.push(leg);
-    const ski=mesh(new THREE.BoxGeometry(.11,.055,1.85),gear,root);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;skis.push(ski);
+    const ski=createStyledSki(fallbackSkiAssets);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;root.add(ski);skis.push(ski);
     const pole=mesh(new THREE.CylinderGeometry(.018,.018,1.65,8),dark,root);pole.position.set(side*.58,.86,.15);pole.rotation.z=side*.18;pole.rotation.x=.18;
   }
   const pose={carve:0,air:0,landing:0,speed:0};
@@ -143,24 +274,15 @@ function footBasedSkiPlacement(root,rig){
 }
 
 function addSkiEquipment(root,rig){
-  const skiMat=new THREE.MeshStandardMaterial({color:0x1c5f86,roughness:.38,metalness:.16});
-  const edgeMat=new THREE.MeshStandardMaterial({color:0xd8f3ff,roughness:.28,metalness:.28});
-  const bindingMat=new THREE.MeshStandardMaterial({color:0x152431,roughness:.48,metalness:.16});
   const skis=[];
   const placement=footBasedSkiPlacement(root,rig);
+  const assets=createSkiAssets(0x176f9d);
   for(const side of [-1,1]){
-    const ski=new THREE.Group();
-    const deck=new THREE.Mesh(new THREE.BoxGeometry(.115,.045,2.12),skiMat);
-    deck.position.z=.08;deck.castShadow=true;deck.receiveShadow=true;ski.add(deck);
-    const edge=new THREE.Mesh(new THREE.BoxGeometry(.125,.018,2.04),edgeMat);
-    edge.position.set(0,-.028,.04);ski.add(edge);
-    const binding=new THREE.Mesh(new THREE.BoxGeometry(.18,.10,.34),bindingMat);
-    binding.position.set(0,.075,.14);binding.castShadow=true;ski.add(binding);
-    const tip=new THREE.Mesh(new THREE.BoxGeometry(.11,.04,.34),skiMat);
-    tip.position.set(0,.08,-1.02);tip.rotation.x=-.30;tip.castShadow=true;ski.add(tip);
+    const ski=createStyledSki(assets);
     ski.position.set(placement.centerX+side*placement.spacing,.055,placement.z);
     ski.userData.restPosition=ski.position.clone();
-    root.add(ski);skis.push(ski);
+    root.add(ski);
+    skis.push(ski);
   }
   root.userData.skis=skis;
   return skis;
