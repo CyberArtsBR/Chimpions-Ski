@@ -5,30 +5,67 @@ function hash(seed){
   return x-Math.floor(x);
 }
 
+function smoothFade(t){
+  t=THREE.MathUtils.clamp(t,0,1);
+  return t*t*(3-2*t);
+}
+
 function createPool(scene,count,size,opacity){
   const positions=new Float32Array(count*3);
   const velocity=new Float32Array(count*3);
   const life=new Float32Array(count);
   const maxLife=new Float32Array(count);
+  const floorY=new Float32Array(count);
+  const alphas=new Float32Array(count);
+  const sizes=new Float32Array(count);
   for(let i=0;i<count;i++)positions[i*3+1]=-100;
 
   const geometry=new THREE.BufferGeometry();
   const positionAttribute=new THREE.BufferAttribute(positions,3);
+  const alphaAttribute=new THREE.BufferAttribute(alphas,1);
+  const sizeAttribute=new THREE.BufferAttribute(sizes,1);
   positionAttribute.setUsage(THREE.DynamicDrawUsage);
+  alphaAttribute.setUsage(THREE.DynamicDrawUsage);
+  sizeAttribute.setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('position',positionAttribute);
+  geometry.setAttribute('aAlpha',alphaAttribute);
+  geometry.setAttribute('aSize',sizeAttribute);
 
-  const material=new THREE.PointsMaterial({
-    color:0xffffff,
-    size,
+  const material=new THREE.ShaderMaterial({
+    uniforms:{uColor:{value:new THREE.Color(0xffffff)}},
+    vertexShader:`
+      attribute float aAlpha;
+      attribute float aSize;
+      varying float vAlpha;
+      void main(){
+        vAlpha=aAlpha;
+        vec4 mvPosition=modelViewMatrix*vec4(position,1.0);
+        gl_PointSize=max(1.0,aSize*(300.0/max(1.0,-mvPosition.z)));
+        gl_Position=projectionMatrix*mvPosition;
+      }
+    `,
+    fragmentShader:`
+      uniform vec3 uColor;
+      varying float vAlpha;
+      void main(){
+        vec2 p=gl_PointCoord-vec2(.5);
+        float d=length(p);
+        float feather=1.0-smoothstep(.34,.50,d);
+        if(feather<=.001||vAlpha<=.001)discard;
+        gl_FragColor=vec4(uColor,vAlpha*feather);
+      }
+    `,
     transparent:true,
-    opacity,
-    depthWrite:false,
-    sizeAttenuation:true
+    depthWrite:false
   });
   const points=new THREE.Points(geometry,material);
   points.frustumCulled=false;
   scene.add(points);
-  return {count,positions,velocity,life,maxLife,geometry,positionAttribute,material,cursor:0};
+  return {
+    count,positions,velocity,life,maxLife,floorY,alphas,sizes,
+    geometry,positionAttribute,alphaAttribute,sizeAttribute,
+    material,baseSize:size,opacity,cursor:0
+  };
 }
 
 function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
@@ -49,6 +86,9 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
     pool.positions[k]=(landing?x:x+lateral)+(r1-.5)*spread;
     pool.positions[k+1]=y+.035+r2*(landing?.32:(inside?.09:.15));
     pool.positions[k+2]=z+.30+r3*(landing?.68:.58);
+    pool.floorY[i]=y-.12;
+    pool.alphas[i]=pool.opacity;
+    pool.sizes[i]=pool.baseSize*(.72+r3*.72)*(landing?1.08:1);
 
     pool.velocity[k]=direction*((.44+r1*(landing?2.45:1.68))*strength)+(r2-.5)*.52;
     pool.velocity[k+1]=(landing?1.10:.48)*strength+r2*(landing?3.45:2.05)*strength;
@@ -114,10 +154,20 @@ export function createSnowParticles({scene}){
       pool.positions[k]+=pool.velocity[k]*dt;
       pool.positions[k+1]+=pool.velocity[k+1]*dt;
       pool.positions[k+2]+=(pool.velocity[k+2]+worldSpeed*.18)*dt;
-      if(pool.life[i]<=0||pool.positions[k+1]<-.03)pool.positions[k+1]=-100;
+
+      const ratio=Math.max(0,pool.life[i]/Math.max(.001,pool.maxLife[i]));
+      pool.alphas[i]=pool.opacity*smoothFade(ratio);
+      if(pool.life[i]<=0||pool.positions[k+1]<pool.floorY[i]-.025){
+        pool.life[i]=0;
+        pool.alphas[i]=0;
+        pool.positions[k+1]=-100;
+      }
       dirty=true;
     }
-    if(dirty)pool.positionAttribute.needsUpdate=true;
+    if(dirty){
+      pool.positionAttribute.needsUpdate=true;
+      pool.alphaAttribute.needsUpdate=true;
+    }
   }
 
   function update(dt,worldSpeed){
@@ -128,9 +178,11 @@ export function createSnowParticles({scene}){
   function resetPool(pool){
     pool.life.fill(0);
     pool.velocity.fill(0);
+    pool.alphas.fill(0);
     for(let i=0;i<pool.count;i++)pool.positions[i*3+1]=-100;
     pool.cursor=0;
     pool.positionAttribute.needsUpdate=true;
+    pool.alphaAttribute.needsUpdate=true;
   }
 
   function reset(){
@@ -142,8 +194,8 @@ export function createSnowParticles({scene}){
   }
 
   function setTint(color){
-    mist.material.color.copy(color);
-    chunks.material.color.copy(color);
+    mist.material.uniforms.uColor.value.copy(color);
+    chunks.material.uniforms.uColor.value.copy(color);
   }
 
   return {spray,update,reset,setTint};
