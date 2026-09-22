@@ -45,6 +45,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let pendingLanding=null;
   let edgeThreatCountdown=3;
   let lastThreatSide=0;
+  let routeDecisionSerial=0;
   const safeRoute=createSafeRouteTracker(0,null);
 
   // Seven conceptual lanes remain useful for fairness, but formation jitter/stagger
@@ -99,23 +100,21 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     let bounded=clampGameplayObjectX(kind,x);
     if(!PHYSICAL_HAZARDS.has(kind)||extra.jumpTarget)return bounded;
 
-    // Avoid collapsing many edge hazards onto the exact same legal X after
-    // visual-boundary fitting. Fold overflow slightly inward using stable
-    // authored coordinates, while remaining inside the flag-safe limit.
     const rawX=Number.isFinite(x)?x:0;
-    if(Math.abs(rawX)>limit&&extra.routeDecision){
-      const overflow=Math.abs(rawX)-limit;
-      const phase=Math.abs(Number(extra.decisionZ)||0)*.019+Math.abs(rawX)*.113;
-      const inset=.06+((overflow*.71+phase)% .46);
-      bounded=Math.sign(rawX||1)*Math.max(0,limit-inset);
-    }
+    const diversifyEdge=value=>{
+      if(!extra.routeDecision||limit<9.05||Math.abs(value)<8.9)return value;
+      const serial=Math.max(0,Math.trunc(Number(extra.decisionSerial)||0));
+      const fractions=[.05,.38,.70,.95];
+      const target=9.05+(limit-9.05)*fractions[serial%fractions.length];
+      return Math.sign(value||rawX||1)*Math.min(limit,target);
+    };
 
     // If boundary fitting pulled a hazard toward the protected route, preserve
     // the normal navigable gap or the wider ramp touchdown corridor.
     const minGap=extra.landingProtected
       ?T.LANDING_CORRIDOR_HALF_WIDTH
       :(COURSE_OBJECT_COLLISION_HALF_WIDTH[kind]??0)+.36;
-    if(Math.abs(bounded-safeX)>minGap)return bounded;
+    if(Math.abs(bounded-safeX)>minGap)return diversifyEdge(bounded);
 
     const preferred=bounded>=safeX?1:-1;
     const spread=extra.routeDecision
@@ -123,9 +122,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       :.02;
     for(const side of [preferred,-preferred]){
       const candidate=clamp(safeX+side*(minGap+spread),-limit,limit);
-      if(Math.abs(candidate-safeX)>minGap)return candidate;
+      if(Math.abs(candidate-safeX)>minGap)return diversifyEdge(candidate);
     }
-    return bounded;
+    return diversifyEdge(bounded);
   }
 
   const place=(kind,x,z,safeX,extra={})=>({
@@ -173,6 +172,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   }
 
   function addFormation(placements,type,z,safeX,{kinds=['tree','rock'],intensity=.5,landingProtected=false}={}){
+    const decisionSerial=routeDecisionSerial++;
     const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(3.15,2.85,intensity);
     const kindAt=i=>kinds[(i+sectionIndex)%kinds.length];
 
@@ -184,7 +184,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
         const alternating=(i%2===0?-1:1)*rand(1.25,2.85);
         const localZ=z+phaseOffset+alternating+rand(-.45,.45);
-        placements.push(place(kindAt(i),x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        placements.push(place(kindAt(i),x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
     }
@@ -196,7 +196,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       for(let i=0;i<count;i++){
         const x=clamp(center+rand(-1.2,1.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
     }
@@ -209,7 +209,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
           const side=x>=safeX?1:-1;
           x=clamp(safeX+side*(gap+rand(.8,2.4)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         }
-        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
     }
@@ -223,7 +223,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         const x=clamp(startX+direction*i*rand(3.4,4.3)+rand(-.45,.45),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         const localZ=z+(i-(count-1)*.5)*rand(3.0,4.2)+rand(-.9,.9);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        placements.push(place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
     }
@@ -237,7 +237,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         const localZ=z+rand(-7.5,7.5);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
         if(placed.some(p=>Math.abs(p.x-x)<2.0&&Math.abs(p.z-localZ)<2.9))continue;
-        const entry=place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected});
+        const entry=place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial});
         placements.push(entry);placed.push(entry);
       }
       return;
@@ -246,11 +246,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='OFFSET_GATE'){
       const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
-      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       if(intensity>.62){
         const outer=lastThreatSide<=0?T.COURSE_OBJECT_HALF_WIDTH-.55:-(T.COURSE_OBJECT_HALF_WIDTH-.55);
-        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
     }
@@ -266,12 +266,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
     lastThreatSide=side;
     if(isOutsideSafeCorridor(edgeX,safeX,gap)){
-      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
     }
     if(random()<.72){
       const supportX=clamp(side*rand(5.2,7.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
       if(isOutsideSafeCorridor(supportX,safeX,gap)){
-        placements.push(place(kindAt(1),supportX,z+rand(-2,2),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected}));
+        placements.push(place(kindAt(1),supportX,z+rand(-2,2),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
     }
   }
@@ -646,6 +646,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       pendingLanding=null;
       edgeThreatCountdown=3;
       lastThreatSide=0;
+      routeDecisionSerial=0;
       safeRoute.reset(0,null);
     },
     get lastType(){return lastType;},
