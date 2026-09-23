@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 
-function makeBoardGeometry(width=0.58,length=2.14,thickness=.050,upturn=.135){
+function makeBoardGeometry(width=0.66,length=2.20,thickness=.054,upturn=.195){
   const halfW=width*.5;
   const halfL=length*.5;
-  const tipW=halfW*.72;
-  const shoulderW=halfW*.99;
-  const waistW=halfW*.86;
+  const tipW=halfW*.79;
+  const shoulderW=halfW*.995;
+  const waistW=halfW*.84;
   const shape=new THREE.Shape();
   shape.moveTo(-tipW,halfL*.985);
   shape.quadraticCurveTo(0,halfL*1.045,tipW,halfL*.985);
@@ -33,15 +33,15 @@ function makeBoardGeometry(width=0.58,length=2.14,thickness=.050,upturn=.135){
   geometry.translate(0,thickness*.5,0);
 
   const position=geometry.attributes.position;
-  const bendStart=length*.30;
-  const bendRange=length*.22;
+  const bendStart=length*.31;
+  const bendRange=length*.19;
   for(let i=0;i<position.count;i++){
     const z=position.getZ(i);
     const amount=Math.abs(z)-bendStart;
     if(amount>0){
       let t=THREE.MathUtils.clamp(amount/bendRange,0,1);
-      t=t*t*(3-2*t);
-      position.setY(i,position.getY(i)+upturn*t);
+      t=Math.sin(t*Math.PI*.5);
+      position.setY(i,position.getY(i)+upturn*t*t);
     }
   }
   position.needsUpdate=true;
@@ -51,7 +51,10 @@ function makeBoardGeometry(width=0.58,length=2.14,thickness=.050,upturn=.135){
   return geometry;
 }
 
-export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8b3fd1,stanceHalfLength=.28}={}){
+export function createSnowboardEquipment({
+  centerX=0,z=0,boardY=.040,topColor=0x8b3fd1,stanceHalfLength=.28,
+  leftBindingX=0,rightBindingX=0,leftBindingZ=null,rightBindingZ=null
+}={}){
   const bindingOffset=THREE.MathUtils.clamp(Number(stanceHalfLength)||.28,.19,.40);
   const root=new THREE.Group();
   root.name='snowboard-equipment';
@@ -66,11 +69,11 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
   const bindingMaterial=new THREE.MeshStandardMaterial({color:0x17222b,roughness:.38,metalness:.22});
   const strapMaterial=new THREE.MeshStandardMaterial({color:0xe8f6fb,roughness:.30,metalness:.12});
 
-  const edge=new THREE.Mesh(makeBoardGeometry(.60,2.16,.052,.135),edgeMaterial);
+  const edge=new THREE.Mesh(makeBoardGeometry(.68,2.20,.054,.200),edgeMaterial);
   edge.castShadow=edge.receiveShadow=true;
   root.add(edge);
 
-  const deck=new THREE.Mesh(makeBoardGeometry(.56,2.11,.036,.145),deckMaterial);
+  const deck=new THREE.Mesh(makeBoardGeometry(.64,2.15,.038,.212),deckMaterial);
   deck.position.y=.026;
   deck.castShadow=deck.receiveShadow=true;
   root.add(deck);
@@ -86,9 +89,15 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
     root.add(endGraphic);
   }
 
+  const resolvedLeftZ=Number.isFinite(leftBindingZ)
+    ?THREE.MathUtils.clamp(leftBindingZ,-.44,-.18)
+    :-bindingOffset;
+  const resolvedRightZ=Number.isFinite(rightBindingZ)
+    ?THREE.MathUtils.clamp(rightBindingZ,.18,.44)
+    :bindingOffset;
   const bindingSpecs=[
-    {foot:'left',role:'front',zOffset:-bindingOffset,angle:-.18},
-    {foot:'right',role:'rear',zOffset:bindingOffset,angle:.12}
+    {foot:'left',role:'front',xOffset:THREE.MathUtils.clamp(Number(leftBindingX)||0,-.12,.12),zOffset:resolvedLeftZ,angle:-.18},
+    {foot:'right',role:'rear',xOffset:THREE.MathUtils.clamp(Number(rightBindingX)||0,-.12,.12),zOffset:resolvedRightZ,angle:.12}
   ];
   for(const [index,spec] of bindingSpecs.entries()){
     const sign=index===0?-1:1;
@@ -96,15 +105,15 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
     binding.name=`snowboard-${spec.foot}-${spec.role}-binding`;
     binding.userData.foot=spec.foot;
     binding.userData.stanceRole=spec.role;
-    binding.position.set(0,.084,spec.zOffset);
+    binding.position.set(spec.xOffset,.072,spec.zOffset);
     binding.rotation.y=spec.angle;
 
-    const plate=new THREE.Mesh(new THREE.BoxGeometry(.40,.045,.18),bindingMaterial);
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(.44,.046,.19),bindingMaterial);
     plate.castShadow=true;
     binding.add(plate);
 
-    const strap=new THREE.Mesh(new THREE.BoxGeometry(.42,.035,.050),strapMaterial);
-    strap.position.set(0,.055,-.004);
+    const strap=new THREE.Mesh(new THREE.BoxGeometry(.46,.036,.054),strapMaterial);
+    strap.position.set(0,.052,-.004);
     strap.rotation.z=sign*.025;
     strap.castShadow=true;
     binding.add(strap);
@@ -124,13 +133,13 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
   root.userData.frontFoot='left';
   root.userData.rearFoot='right';
   root.userData.stanceHalfLength=bindingOffset;
-  root.userData.boardWidth=.60;
-  root.userData.boardLength=2.16;
-  root.userData.deckTopOffset=.044;
+  root.userData.boardWidth=.68;
+  root.userData.boardLength=2.20;
+  root.userData.deckTopOffset=.064;
 
   const trailContacts=[-1,1].map(side=>{
     const contact=new THREE.Object3D();
-    contact.position.set(side*.24,.006,.46);
+    contact.position.set(side*.285,.006,.46);
     contact.name=side<0?'snowboard-left-edge-contact':'snowboard-right-edge-contact';
     root.add(contact);
     return contact;
