@@ -2,48 +2,42 @@ import * as THREE from 'three';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const _dummy=new THREE.Object3D();
-const _flagGeometry=new THREE.BufferGeometry();
-_flagGeometry.setAttribute('position',new THREE.Float32BufferAttribute([
-  0,0,0,
-  .72,-.14,0,
-  0,-.46,0
-],3));
-_flagGeometry.computeVertexNormals();
+const _postGeometry=new THREE.CylinderGeometry(.09,.12,1.66,8);
+const _postCapGeometry=new THREE.CylinderGeometry(.13,.13,.08,8);
+const _railGeometry=new THREE.BoxGeometry(.14,.13,1);
 
-const _poleGeometry=new THREE.CylinderGeometry(.026,.036,1.62,7);
-const _baseGeometry=new THREE.CylinderGeometry(.065,.085,.10,8);
-
-function setInstance(mesh,index,x,y,z,ry=0,sx=1,sy=1,sz=1){
+function setInstance(mesh,index,x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){
   _dummy.position.set(x,y,z);
-  _dummy.rotation.set(0,ry,0);
+  _dummy.rotation.set(rx,ry,rz);
   _dummy.scale.set(sx,sy,sz);
   _dummy.updateMatrix();
   mesh.setMatrixAt(index,_dummy.matrix);
 }
 
-export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,countPerSide=18,spacing=15.5}){
-  const count=countPerSide*2;
-  const poleMaterial=new THREE.MeshStandardMaterial({
-    color:0xf4f8fb,roughness:.58,metalness:.12
+export function createBoundaryMarkers({
+  world,
+  terrainHeight,
+  limit=COURSE_FLAG_X,
+  countPerSide=40,
+  spacing=7.2
+}){
+  const postCount=countPerSide*2;
+  const railCount=postCount*2;
+  const postMaterial=new THREE.MeshStandardMaterial({
+    color:0x6b4328,roughness:.91,metalness:0
   });
-  const blueMaterial=new THREE.MeshStandardMaterial({
-    color:0x1d68d8,roughness:.42,metalness:.02,
-    emissive:0x0a2456,emissiveIntensity:.26,side:THREE.DoubleSide
+  const railMaterial=new THREE.MeshStandardMaterial({
+    color:0x8b5a33,roughness:.88,metalness:0
   });
-  const redMaterial=new THREE.MeshStandardMaterial({
-    color:0xd94445,roughness:.42,metalness:.02,
-    emissive:0x551315,emissiveIntensity:.24,side:THREE.DoubleSide
-  });
-  const baseMaterial=new THREE.MeshStandardMaterial({
-    color:0xc9d9e2,roughness:.90,metalness:0
+  const capMaterial=new THREE.MeshStandardMaterial({
+    color:0x51311e,roughness:.94,metalness:0
   });
 
-  const poles=new THREE.InstancedMesh(_poleGeometry,poleMaterial,count);
-  const bases=new THREE.InstancedMesh(_baseGeometry,baseMaterial,count);
-  const blueFlags=new THREE.InstancedMesh(_flagGeometry,blueMaterial,countPerSide);
-  const redFlags=new THREE.InstancedMesh(_flagGeometry,redMaterial,countPerSide);
+  const posts=new THREE.InstancedMesh(_postGeometry,postMaterial,postCount);
+  const caps=new THREE.InstancedMesh(_postCapGeometry,capMaterial,postCount);
+  const rails=new THREE.InstancedMesh(_railGeometry,railMaterial,railCount);
 
-  for(const mesh of [poles,bases,blueFlags,redFlags]){
+  for(const mesh of [posts,caps,rails]){
     mesh.castShadow=true;
     mesh.receiveShadow=true;
     mesh.frustumCulled=false;
@@ -51,52 +45,62 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   }
 
   const zPositions=new Float32Array(countPerSide);
+  const fenceOffset=.24;
+  const railLength=spacing+.30;
   let travel=0;
 
   function update(dt,worldSpeed){
-    if(worldSpeed!==0){
-      const dz=worldSpeed*dt;
-      travel+=dz;
-      const span=countPerSide*spacing;
-      for(let i=0;i<countPerSide;i++){
-        zPositions[i]+=dz;
-        if(zPositions[i]>18)zPositions[i]-=span;
-      }
-      refresh();
+    if(worldSpeed===0)return;
+    const dz=worldSpeed*dt;
+    travel+=dz;
+    const span=countPerSide*spacing;
+    for(let i=0;i<countPerSide;i++){
+      zPositions[i]+=dz;
+      if(zPositions[i]>18)zPositions[i]-=span;
     }
+    refresh();
   }
 
   function reset(){
     travel=0;
-    for(let i=0;i<countPerSide;i++){
-      zPositions[i]=-8-i*spacing;
-    }
+    for(let i=0;i<countPerSide;i++)zPositions[i]=-8-i*spacing;
     refresh();
   }
 
   function refresh(){
     for(let i=0;i<countPerSide;i++){
       const z=zPositions[i];
+      const railZ=z-spacing*.5;
       for(let sideIndex=0;sideIndex<2;sideIndex++){
         const side=sideIndex===0?-1:1;
-        const x=side*limit;
-        const ground=terrainHeight(x,z-travel);
-        const index=sideIndex*countPerSide+i;
-        const lean=(i%3-1)*.012*side;
-        setInstance(poles,index,x,ground+.81,z,lean);
-        setInstance(bases,index,x,ground+.045,z,0,1,1,1);
+        const x=side*(limit+fenceOffset);
+        const postGround=terrainHeight(x,z-travel);
+        const railGround=terrainHeight(x,railZ-travel);
+        const postIndex=sideIndex*countPerSide+i;
 
-        const flagMesh=side<0?blueFlags:redFlags;
-        const flagFacing=side<0?.10:Math.PI-.10;
-        setInstance(flagMesh,i,x,ground+1.49,z,flagFacing,1,1,1);
+        setInstance(posts,postIndex,x,postGround+.83,z);
+        setInstance(caps,postIndex,x,postGround+1.70,z);
+
+        const railBase=(sideIndex*countPerSide+i)*2;
+        setInstance(rails,railBase,x,railGround+.72,railZ,0,0,0,1,1,railLength);
+        setInstance(rails,railBase+1,x,railGround+1.22,railZ,0,0,0,1,1,railLength);
       }
     }
-    poles.instanceMatrix.needsUpdate=true;
-    bases.instanceMatrix.needsUpdate=true;
-    blueFlags.instanceMatrix.needsUpdate=true;
-    redFlags.instanceMatrix.needsUpdate=true;
+
+    posts.instanceMatrix.needsUpdate=true;
+    caps.instanceMatrix.needsUpdate=true;
+    rails.instanceMatrix.needsUpdate=true;
   }
 
   reset();
-  return {update,reset,blueMaterial,redMaterial,limit};
+  return {
+    update,
+    reset,
+    limit,
+    postMaterial,
+    railMaterial,
+    // Compatibility aliases for callers that previously tinted left/right flags.
+    blueMaterial:railMaterial,
+    redMaterial:railMaterial
+  };
 }
