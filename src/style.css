@@ -553,6 +553,10 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
 }
 .leave-confirm-card .presentation-actions{gap:12px}
 .leave-confirm-card .presentation-actions button{min-width:118px}
+.run-loading-overlay{z-index:15;background:rgba(4,19,30,.48);backdrop-filter:blur(9px)}
+.run-loading-card{width:min(440px,calc(100vw - 70px));padding:30px}
+.run-loading-card h2{font-size:31px;line-height:1.05;margin-bottom:12px}
+.run-loading-card p{margin:0;color:#5e7e90;font-size:12px;font-weight:800;letter-spacing:.04em}
 .result-grid>div{
   border-radius:18px;
   border:1px solid rgba(103,169,195,.14);
