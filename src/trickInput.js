@@ -13,3 +13,9 @@ export function readTrickIntent(keys,pad={}){
   if(up===down)return null;
   return up?TRICK_TYPE.BACKFLIP:TRICK_TYPE.SPIN_360;
 }
+
+export function readAirborneTrickIntent(keys,pad={}){
+  // Directional + Jump keeps its explicit meaning in air. A plain second
+  // airborne Jump remains the arcade shortcut for a 360.
+  return readTrickIntent(keys,pad)||TRICK_TYPE.SPIN_360;
+}
