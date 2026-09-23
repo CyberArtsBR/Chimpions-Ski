@@ -1,4 +1,5 @@
 import {SKI_TUNING} from './gameplayTuning.js';
+import {createMenuInputRepeat} from './menuInputRepeat.js';
 
 function byId(id){return document.getElementById(id);}
 function isVisible(element){return !!element&&!element.hidden&&element.getClientRects().length>0;}
@@ -99,9 +100,6 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   let previousSpeedBucket=0;
   let bestDistance=0;
   let bestCelebrated=false;
-  let padButtons=[];
-  let axisLatchX=0;
-  let axisLatchY=0;
   let controllerSelected=null;
   let leaveReturnFocus=null;
 
@@ -416,60 +414,48 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     haptics?.menuConfirm?.();
     active?.click();
   }
-  function updateController(pad,selector){
+  const menuInput=createMenuInputRepeat({
+    adapter:{
+      move(direction){
+        const root=activeRoot();
+        if(!root)return;
+        focusMove(direction==='down'||direction==='right'?1:-1);
+      },
+      confirm(){
+        const root=activeRoot();
+        if(root)clickFocused(root);
+      },
+      cancel(){
+        if(!leaveConfirm.hidden)hideLeaveConfirm();
+        else if(mode==='paused')onResume?.();
+      },
+      menu(){
+        if(mode==='playing')onPause?.();
+        else if(mode==='paused')onResume?.();
+        else if(mode==='menu')onStart?.();
+        else if(mode==='crashed'&&!results.hidden)onRestart?.();
+      }
+    }
+  });
+  function updateController(pad={},selector){
     if(document.body.classList.contains('start-screen-active')){
-      padButtons=pad.buttons?.slice?.()||[];
-      axisLatchX=0;axisLatchY=0;
+      menuInput.reset();
       return;
     }
     if(selector?.dialog?.open){
+      menuInput.reset();
       selector.updateGamepad?.(pad);
-      padButtons=pad.buttons?.slice?.()||[];
-      axisLatchX=0;axisLatchY=0;
       return;
     }
-    const buttons=pad.buttons||[];
     if(mode==='countdown'){
-      padButtons=buttons.slice();
-      axisLatchX=0;axisLatchY=0;
+      menuInput.reset();
       return;
     }
-    const pressed=index=>!!buttons[index]&&!padButtons[index];
-    if(!leaveConfirm.hidden){
-      if(pressed(1)){
-        hideLeaveConfirm();
-        padButtons=buttons.slice();
-        return;
-      }
-      const root=leaveConfirm;
-      if(pressed(0))clickFocused(root);
-      const x=pad.axis||0,y=pad.axisY||0;
-      if(Math.abs(x)<.35)axisLatchX=0;
-      if(Math.abs(y)<.35)axisLatchY=0;
-      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
-      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
-      padButtons=buttons.slice();
+    if(!pad?.connected){
+      menuInput.reset();
       return;
     }
-    if(pressed(9)){
-      if(mode==='playing')onPause?.();
-      else if(mode==='paused')onResume?.();
-      else if(mode==='menu')onStart?.();
-      else if(mode==='crashed'&&!results.hidden)onRestart?.();
-      padButtons=buttons.slice();
-      return;
-    }
-    const root=activeRoot();
-    if(root){
-      if(pressed(0))clickFocused(root);
-      if(pressed(1)&&mode==='paused')onResume?.();
-      const x=pad.axis||0,y=pad.axisY||0;
-      if(Math.abs(x)<.35)axisLatchX=0;
-      if(Math.abs(y)<.35)axisLatchY=0;
-      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
-      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
-    }else{axisLatchX=0;axisLatchY=0;}
-    padButtons=buttons.slice();
+    menuInput.update(pad);
   }
 
   for(const root of [pause,results,leaveConfirm]){
