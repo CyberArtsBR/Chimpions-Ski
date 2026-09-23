@@ -13,6 +13,8 @@ import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} f
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
 import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
+import {createStartCrowd} from './startCrowd.js';
+import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {getCourseLookahead} from './courseStreaming.js';
@@ -280,6 +282,8 @@ trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
 const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
+const startCrowd=createStartCrowd({world,terrainHeight});
+const startGate=createStartGateScene({world,terrainHeight});
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectedRideMode=RIDE_MODE.SKI;
 const initialRideProfile=getRideProfile(selectedRideMode);
@@ -401,6 +405,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
+    startCrowd.setSpectators(catalog);
     const initialAvatar=randomAvatar(catalog);
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
@@ -454,6 +459,7 @@ function resetRunState(mode='countdown'){
   tricks.reset();
   audio.resetRun?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
+  startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
   keys.clear();
   tiles.forEach((tile,index)=>{
@@ -840,6 +846,8 @@ function update(dt){
     }
   }
   courseRenderBatches.sync(course,worldDistance!==0);
+  startCrowd.update(dt,{mode:state.mode,worldDistance,time:performance.now()/1000});
+  startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
 
@@ -911,6 +919,9 @@ window.chimpionsSki=()=>{
     courseBatchOverflow:batch.overflow,
     courseBatchCapacity:batch.capacity,
     courseBatchComponentCounts,
+    startCrowdCount:startCrowd.count,
+    startCrowdVisible:startCrowd.visible,
+    startGateVisible:startGate.visible,
     courseAhead:Math.max(0,player.position.z-courseWorldEndZ),
     courseLookaheadTarget:getCourseLookahead(state.speed),
     courseEndZ,

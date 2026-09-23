@@ -232,7 +232,7 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
     radial-gradient(circle at 50% 45%,rgba(232,250,255,.02),rgba(4,27,43,.14));
   transition:opacity .24s ease;
 }
-.run-countdown.is-launching{opacity:.82}
+.run-countdown.is-launching{opacity:.96}
 .countdown-number{
   position:absolute;left:73%;top:49%;
   transform:translate(-50%,-50%);
@@ -240,7 +240,7 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
   letter-spacing:-.075em;
   text-shadow:0 12px 38px rgba(5,26,40,.52),0 0 30px rgba(94,220,255,.32);
 }
-.countdown-number.is-go{font-size:clamp(82px,9vw,126px);letter-spacing:-.045em;color:#fff2a9}
+.countdown-number.is-go{left:50%;top:50%;font-size:clamp(132px,18vw,260px);letter-spacing:-.055em;color:#fff2a9;text-shadow:0 14px 44px rgba(5,26,40,.62),0 0 42px rgba(255,225,85,.52),0 0 18px rgba(255,255,255,.48)}
 .countdown-number.tick{animation:cinematicCountTick .54s cubic-bezier(.16,.82,.20,1)}
 @keyframes cinematicCountTick{
   0%{opacity:0;transform:translate(-50%,-50%) scale(1.34)}
