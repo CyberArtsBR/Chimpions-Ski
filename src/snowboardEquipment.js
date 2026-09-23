@@ -1,48 +1,28 @@
 import * as THREE from 'three';
 
-function makeBoardGeometry(width=0.66,length=2.20,thickness=.054,upturn=.195){
-  const halfW=width*.5;
-  const halfL=length*.5;
-  const tipW=halfW*.79;
-  const shoulderW=halfW*.995;
-  const waistW=halfW*.84;
-  const shape=new THREE.Shape();
-  shape.moveTo(-tipW,halfL*.985);
-  shape.quadraticCurveTo(0,halfL*1.045,tipW,halfL*.985);
-  shape.quadraticCurveTo(shoulderW,halfL*.94,shoulderW,halfL*.74);
-  shape.quadraticCurveTo(halfW*.91,halfL*.34,waistW,0);
-  shape.quadraticCurveTo(halfW*.91,-halfL*.34,shoulderW,-halfL*.74);
-  shape.quadraticCurveTo(shoulderW,-halfL*.94,tipW,-halfL*.985);
-  shape.quadraticCurveTo(0,-halfL*1.045,-tipW,-halfL*.985);
-  shape.quadraticCurveTo(-shoulderW,-halfL*.94,-shoulderW,-halfL*.74);
-  shape.quadraticCurveTo(-halfW*.91,-halfL*.34,-waistW,0);
-  shape.quadraticCurveTo(-halfW*.91,halfL*.34,-shoulderW,halfL*.74);
-  shape.quadraticCurveTo(-shoulderW,halfL*.94,-tipW,halfL*.985);
-  shape.closePath();
-
-  const geometry=new THREE.ExtrudeGeometry(shape,{
-    depth:thickness,
-    steps:1,
-    bevelEnabled:true,
-    bevelSegments:2,
-    bevelSize:.008,
-    bevelThickness:.006,
-    curveSegments:12
-  });
-  geometry.rotateX(Math.PI/2);
-  geometry.translate(0,thickness*.5,0);
-
+function makeBoardGeometry(width=0.70,length=2.24,thickness=.054,upturn=.205){
+  // Segmented geometry bends cleanly; unlike the old triangulated extrude it
+  // cannot form raised diagonal facets when the twin tips curve upward.
+  const halfW=width*.5,halfL=length*.5;
+  const geometry=new THREE.BoxGeometry(width,thickness,length,8,1,36);
   const position=geometry.attributes.position;
-  const bendStart=length*.31;
-  const bendRange=length*.19;
   for(let i=0;i<position.count;i++){
-    const z=position.getZ(i);
-    const amount=Math.abs(z)-bendStart;
-    if(amount>0){
-      let t=THREE.MathUtils.clamp(amount/bendRange,0,1);
-      t=Math.sin(t*Math.PI*.5);
-      position.setY(i,position.getY(i)+upturn*t*t);
+    let x=position.getX(i),y=position.getY(i),z=position.getZ(i);
+    const longitudinal=THREE.MathUtils.clamp(Math.abs(z)/halfL,0,1);
+    const widthScale=.84+.16*Math.pow(longitudinal,1.55);
+    x*=widthScale;
+    if(longitudinal>.965){
+      const localHalfW=Math.max(.001,halfW*widthScale);
+      const across=THREE.MathUtils.clamp(Math.abs(x)/localHalfW,0,1);
+      z+=Math.sign(z)*.055*(1-across*across);
     }
+    if(longitudinal>.66){
+      let t=THREE.MathUtils.clamp((longitudinal-.66)/.34,0,1);
+      t=Math.sin(t*Math.PI*.5);
+      const centerLift=.82+.18*(1-THREE.MathUtils.clamp(Math.abs(x)/halfW,0,1));
+      y+=upturn*t*t*centerLift;
+    }
+    position.setXYZ(i,x,y,z);
   }
   position.needsUpdate=true;
   geometry.computeVertexNormals();
@@ -76,11 +56,11 @@ export function createSnowboardEquipment({
   const strapMaterial=new THREE.MeshStandardMaterial({color:0xeaf8fb,roughness:.24,metalness:.18});
   const buckleMaterial=new THREE.MeshStandardMaterial({color:0x8fa8b5,roughness:.24,metalness:.72});
 
-  const edge=new THREE.Mesh(makeBoardGeometry(.68,2.20,.054,.200),edgeMaterial);
+  const edge=new THREE.Mesh(makeBoardGeometry(.72,2.24,.054,.210),edgeMaterial);
   edge.castShadow=edge.receiveShadow=true;
   root.add(edge);
 
-  const deck=new THREE.Mesh(makeBoardGeometry(.64,2.15,.038,.212),deckMaterial);
+  const deck=new THREE.Mesh(makeBoardGeometry(.68,2.20,.038,.224),deckMaterial);
   deck.position.y=.026;
   deck.castShadow=deck.receiveShadow=true;
   root.add(deck);

@@ -427,9 +427,22 @@ function makeRigController(model){
   }
 
   const armRestDirections=new Map();
+  const armOutwardSigns=new Map();
   const limbStart=new THREE.Vector3(),limbEnd=new THREE.Vector3();
   const boneWorldQ=new THREE.Quaternion(),inverseBoneWorldQ=new THREE.Quaternion();
+  const modelLocalProbe=new THREE.Vector3();
   model.updateWorldMatrix(true,true);
+  // Collection rigs do not all author LEFT on local -X. Derive each arm's
+  // actual outward side from the untouched GLB rest pose so the A-pose opens
+  // away from the chest instead of depending on hardcoded handedness.
+  for(const side of ['left','right']){
+    const upper=rig[side+'UpperArm']||rig[side+'Shoulder'];
+    if(!upper)continue;
+    upper.getWorldPosition(modelLocalProbe);
+    model.worldToLocal(modelLocalProbe);
+    const xSign=Math.sign(modelLocalProbe.x);
+    if(xSign)armOutwardSigns.set(side,xSign);
+  }
   for(const [key,childKey] of [
     ['leftUpperArm','leftForearm'],['rightUpperArm','rightForearm'],
     ['leftForearm','leftHand'],['rightForearm','rightHand']
@@ -580,6 +593,7 @@ function makeRigController(model){
     riderForward.set(0,0,1).applyQuaternion(riderWorldQ).normalize();
 
     for(const [side,sideSign] of [['left',-1],['right',1]]){
+      const authoredOutSign=armOutwardSigns.get(side)??sideSign;
       const outside=Math.max(0,carve*-sideSign);
       const inside=Math.max(0,carve*sideSign);
 
@@ -602,7 +616,7 @@ function makeRigController(model){
         ?(.62+speedCrouch*.025+landingBlend*.025)
         :(.70+speedCrouch*.030+landingBlend*.025);
       const upperForward=.10+outside*.015-ascent*.015*airScale;
-      upperArmTarget.copy(riderRight).multiplyScalar(sideSign*upperOut)
+      upperArmTarget.copy(riderRight).multiplyScalar(authoredOutSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
         .addScaledVector(riderForward,upperForward)
         .normalize();
@@ -619,7 +633,7 @@ function makeRigController(model){
         ?(.87+speedCrouch*.020+landingBlend*.020)
         :(.90+speedCrouch*.025+landingBlend*.020);
       const foreForward=.16+inside*.012+descent*.010*airScale;
-      forearmTarget.copy(riderRight).multiplyScalar(sideSign*foreOut)
+      forearmTarget.copy(riderRight).multiplyScalar(authoredOutSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
         .addScaledVector(riderForward,foreForward)
         .normalize();
