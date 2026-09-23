@@ -22,6 +22,14 @@ function phaseSummary(report,name){
     framesOver33ms:phase?.frames?.framesOver33ms??null,
     longTasks:phase?.frames?.longTasks?.count??null,
     longTaskTotalMs:phase?.frames?.longTasks?.totalDurationMs??null,
+    startSequence:{
+      timeToPlayingMs:phase?.startSequence?.timeToPlayingMs??null,
+      p50FrameMs:phase?.startSequence?.frames?.p50FrameMs??null,
+      p95FrameMs:phase?.startSequence?.frames?.p95FrameMs??null,
+      p99FrameMs:phase?.startSequence?.frames?.p99FrameMs??null,
+      longTasks:phase?.startSequence?.frames?.longTasks?.count??null,
+      longTaskTotalMs:phase?.startSequence?.frames?.longTasks?.totalDurationMs??null
+    },
     rendererCallsMedian:median('rendererCalls'),
     rendererTrianglesMedian:median('rendererTriangles'),
     courseTraversalMsMedian:median('perfCourseTraversalMs'),
