@@ -2,10 +2,10 @@ import * as THREE from 'three';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const _dummy=new THREE.Object3D();
-const _postGeometry=new THREE.CylinderGeometry(.115,.175,1.82,12);
+const _postGeometry=new THREE.CylinderGeometry(.125,.185,1.82,12);
 const _postCapGeometry=new THREE.CylinderGeometry(.165,.155,.12,12);
 const _postFootGeometry=new THREE.CylinderGeometry(.22,.19,.16,12);
-const _railGeometry=new THREE.BoxGeometry(.22,.18,1);
+const _railGeometry=new THREE.BoxGeometry(.24,.19,1);
 const _railSnowGeometry=new THREE.BoxGeometry(.205,.045,1);
 const _postSnowGeometry=new THREE.SphereGeometry(.18,12,7);
 const _boltGeometry=new THREE.SphereGeometry(.046,8,6);
@@ -23,18 +23,20 @@ export function createBoundaryMarkers({
   terrainHeight,
   limit=COURSE_FLAG_X,
   countPerSide=40,
-  spacing=7.2
+  spacing=7.2,
+  woodTexture=null,
+  decorativeShadows=true
 }){
   const postCount=countPerSide*2;
   const railCount=postCount*2;
   const postMaterial=new THREE.MeshStandardMaterial({
-    color:0x71472d,roughness:.76,metalness:0,flatShading:true
+    color:0x71472d,map:woodTexture,roughness:.76,metalness:0,flatShading:true
   });
   const railMaterial=new THREE.MeshStandardMaterial({
-    color:0x9a633c,roughness:.74,metalness:0,flatShading:true
+    color:0x9a633c,map:woodTexture,roughness:.74,metalness:0,flatShading:true
   });
   const capMaterial=new THREE.MeshStandardMaterial({
-    color:0x432b1d,roughness:.88,metalness:0,flatShading:true
+    color:0x432b1d,map:woodTexture,roughness:.88,metalness:0,flatShading:true
   });
   const snowMaterial=new THREE.MeshPhysicalMaterial({
     color:0xf8fcff,roughness:.76,metalness:0,
@@ -52,16 +54,49 @@ export function createBoundaryMarkers({
   const railSnow=new THREE.InstancedMesh(_railSnowGeometry,snowMaterial,railCount);
   const bolts=new THREE.InstancedMesh(_boltGeometry,boltMaterial,postCount*2);
 
-  for(const mesh of [posts,caps,feet,rails,postSnow,railSnow,bolts]){
-    mesh.castShadow=true;
+  const allMeshes=[posts,caps,feet,rails,postSnow,railSnow,bolts];
+  const shadowMeshes=[posts,caps,feet,rails];
+  for(const mesh of allMeshes){
+    mesh.castShadow=false;
     mesh.receiveShadow=true;
     mesh.frustumCulled=false;
     world.add(mesh);
   }
 
+  function setDecorativeShadows(enabled=true){
+    const active=!!enabled;
+    for(const mesh of shadowMeshes)mesh.castShadow=active;
+    postSnow.castShadow=false;
+    railSnow.castShadow=false;
+    bolts.castShadow=false;
+    return active;
+  }
+  setDecorativeShadows(decorativeShadows);
+
+  const tint=new THREE.Color();
+  for(let i=0;i<countPerSide;i++){
+    const postShade=.92+(i%5)*.018;
+    const railShade=.94+((i+2)%4)*.018;
+    for(let sideIndex=0;sideIndex<2;sideIndex++){
+      const postIndex=sideIndex*countPerSide+i;
+      tint.copy(postMaterial.color).multiplyScalar(postShade);
+      posts.setColorAt(postIndex,tint);
+      tint.copy(capMaterial.color).multiplyScalar(.96+(i%3)*.016);
+      caps.setColorAt(postIndex,tint);
+      feet.setColorAt(postIndex,tint);
+      const railBase=postIndex*2;
+      tint.copy(railMaterial.color).multiplyScalar(railShade);
+      rails.setColorAt(railBase,tint);
+      rails.setColorAt(railBase+1,tint);
+    }
+  }
+  for(const mesh of [posts,caps,feet,rails]){
+    if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+  }
+
   const zPositions=new Float32Array(countPerSide);
   const fenceOffset=.24;
-  const railLength=spacing+.30;
+  const railLength=spacing+.42;
   let travel=0;
 
   function update(dt,worldSpeed){
@@ -128,6 +163,8 @@ export function createBoundaryMarkers({
     postMaterial,
     railMaterial,
     snowMaterial,
+    setDecorativeShadows,
+    setShadowEnabled:setDecorativeShadows,
     // Compatibility aliases for callers that previously tinted left/right flags.
     blueMaterial:railMaterial,
     redMaterial:railMaterial
