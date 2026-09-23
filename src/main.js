@@ -511,7 +511,9 @@ function resumeGame(){
 function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
   clearActiveRamp();
-  tricks.clearRampArm();
+  const interruptedTrick=kind==='trick'?null:tricks.abort({reason:'collision'});
+  if(interruptedTrick)resolveTrickAudio(scoreTrickFailure(state,interruptedTrick));
+  tricks.reset();
   const runDistance=Math.floor(state.distance);
   const previousBest=state.best;
   const newBest=runDistance>previousBest;
