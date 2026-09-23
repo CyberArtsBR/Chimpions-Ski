@@ -60,7 +60,7 @@ export const SKI_TUNING=Object.freeze({
   // Manual jump is immediate on press. Releasing within 140 ms applies a
   // variable-height jump cut; holding longer preserves the original full arc.
   MINI_JUMP_TAP_SECONDS:.14,
-  MINI_JUMP_RELEASE_VELOCITY:4.15,
+  MINI_JUMP_RELEASE_VELOCITY:3.60,
   MINI_JUMP_LANDING_REENGAGE_TIME:.10,
   RAMP_JUMP_BASE_VELOCITY:13.4,
   RAMP_JUMP_SPEED_FACTOR:.095,
