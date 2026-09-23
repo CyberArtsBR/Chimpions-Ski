@@ -1030,6 +1030,7 @@ window.chimpionsSki=()=>{
     ...environment.getQualityDiagnostics?.(),
     qualityProfile:quality.current,
     qualitySettings:quality.getSettings(),
+    rendererPixelRatio:renderer.getPixelRatio(),
     physicsSubsteps,
     activeRamp:!!activeRamp,
     activeRampState:activeRamp?(activeRamp.userData.consumed?'consumed':'engaged'):'none',
