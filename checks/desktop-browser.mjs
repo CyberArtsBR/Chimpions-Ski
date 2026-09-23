@@ -95,10 +95,10 @@ try{
 
   await page.waitForFunction(()=>window.chimpionsSki?.().ready,null,{timeout:30000});
   const state=await page.evaluate(()=>window.chimpionsSki());
-  assert(state.catalogSize>180);
+  assert.equal(state.catalogSize,10,'Desktop build must expose exactly 10 built-in Chimpions');
   assert.equal(state.mode,'menu');
-  assert.equal(state.skierFallback,false,'Desktop build must load a real Chimpion GLB');
-  assert.equal(state.rigReady,true,'Loaded Chimpion must expose the ski rig controller');
+  assert.equal(state.skierFallback,true,'Desktop boot must stay procedural until the player selects a GLB');
+  assert.equal(state.rigReady,false,'Fresh boot must not parse a Chimpion rig');
   assert.equal(await start.isEnabled(),true,'Start Game should enable after artwork and Chimpion are ready');
 
   await start.evaluate(button=>{button.click();button.click();});
@@ -116,8 +116,8 @@ try{
   }
   await page.setViewportSize({width:1440,height:900});
 
-  // Reuse whichever catalog rider actually completed boot so selector QA stays
-  // deterministic and does not trigger an unrelated second GLB download.
+  // The boot rider is approved metadata only; choosing it here performs the
+  // first rider GLB request needed for this run.
   const bootRiderName=await page.evaluate(()=>window.chimpionsSki?.().selectedAvatar||'');
   assert(bootRiderName,'Boot rider name was not exposed in runtime diagnostics');
   const search=selector.locator('#chimpion-search');
