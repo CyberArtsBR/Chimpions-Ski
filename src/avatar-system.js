@@ -6,6 +6,7 @@ import {
   getAvatarRenderTarget
 } from './avatar-selector-model.js';
 import {RIDE_MODE,normalizeRideMode} from './rideMode.js';
+import {MENU_ACTION,menuActionFromKeyboardEvent} from './menuNavigation.js';
 
 export async function loadAvatarCatalog(){
   // Use the browser's normal HTTP cache/revalidation rules. Deployment/versioned
@@ -111,10 +112,15 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   let visibleRecords=searchIndex;
   let renderedCount=0;
   let previewId='';
-  let prevButtons=[];
-  let axisLatchX=0,axisLatchY=0,padArmed=false;
-  const SELECTOR_CONFIRM_BUTTON=0; // A/Cross selects or chooses in selector context.
-  const SELECTOR_CANCEL_BUTTON=1; // B backs out or closes the selector.
+  let openReturnFocus=null;
+  let menuSelected=null;
+
+  function markMenuFocus(element){
+    if(menuSelected===element)return;
+    menuSelected?.classList?.remove('is-menu-selected');
+    menuSelected=element?.matches?.('button:not([disabled])')?element:null;
+    menuSelected?.classList?.add('is-menu-selected');
+  }
 
   const metrics={
     catalogSize:catalog.length,
@@ -299,104 +305,70 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   }
   function columns(){return Math.max(1,Math.floor(grid.clientWidth/155));}
 
-  function keyboardMove(event){
-    if(step==='ride'){
-      if(event.key==='Escape'){
-        event.preventDefault();
-        showAvatarStep();
-        return;
-      }
-      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)){
-        event.preventDefault();
-        const current=Math.max(0,rideButtons.indexOf(document.activeElement));
-        const direction=(event.key==='ArrowLeft'||event.key==='ArrowUp')?-1:1;
-        rideButtons[(current+direction+rideButtons.length)%rideButtons.length]?.focus();
-      }
-      return;
+  function handleMenuAction(action){
+    if(!dialog.open||loading||!action)return false;
+    if(action===MENU_ACTION.CANCEL){
+      if(step==='ride')showAvatarStep();
+      else dialog.close();
+      return true;
     }
-    if(!visibleRecords.length)return;
+    if(step==='ride'){
+      const active=document.activeElement;
+      const currentRideIndex=Math.max(0,rideButtons.indexOf(active));
+      if(action===MENU_ACTION.CONFIRM){
+        const target=rideButtons.includes(active)?active:(rideButtons.find(button=>button.dataset.rideMode===currentRideMode)||rideButtons[0]);
+        target?.click();
+        return true;
+      }
+      if(action===MENU_ACTION.DOWN&&rideButtons.includes(active)){rideBack.focus();return true;}
+      if(action===MENU_ACTION.UP&&active===rideBack){
+        (rideButtons.find(button=>button.dataset.rideMode===currentRideMode)||rideButtons[0])?.focus();
+        return true;
+      }
+      if([MENU_ACTION.LEFT,MENU_ACTION.RIGHT,MENU_ACTION.UP,MENU_ACTION.DOWN].includes(action)){
+        const direction=(action===MENU_ACTION.LEFT||action===MENU_ACTION.UP)?-1:1;
+        rideButtons[(currentRideIndex+direction+rideButtons.length)%rideButtons.length]?.focus();
+        return true;
+      }
+      return false;
+    }
+    if(action===MENU_ACTION.CONFIRM){
+      const active=document.activeElement;
+      if(active===search){focusCard(0);return true;}
+      if(active?.classList?.contains('chimpion-card')){active.click();return true;}
+      const selectedIndex=visibleRecords.findIndex(record=>record.id===currentSelectedId);
+      focusCard(selectedIndex>=0?selectedIndex:0);
+      return true;
+    }
+    if(!visibleRecords.length)return false;
     const active=document.activeElement;
     if(active===search){
-      if(event.key==='ArrowDown'){event.preventDefault();focusCard(0);}
-      return;
+      if(action===MENU_ACTION.DOWN){focusCard(0);return true;}
+      return false;
     }
     const index=activeCardIndex();
-    if(index<0)return;
+    if(index<0){focusCard(0);return true;}
     const columnCount=columns();
     let next=index;
-    if(event.key==='ArrowRight')next=index+1;
-    else if(event.key==='ArrowLeft')next=index-1;
-    else if(event.key==='ArrowDown')next=index+columnCount;
-    else if(event.key==='ArrowUp'){
-      if(index<columnCount){event.preventDefault();search.focus();return;}
+    if(action===MENU_ACTION.RIGHT)next=index+1;
+    else if(action===MENU_ACTION.LEFT)next=index-1;
+    else if(action===MENU_ACTION.DOWN)next=index+columnCount;
+    else if(action===MENU_ACTION.UP){
+      if(index<columnCount){search.focus();return true;}
       next=index-columnCount;
-    }else return;
-    event.preventDefault();
+    }else return false;
     focusCard(next);
+    return true;
   }
 
-  function updateGamepad(pad){
-    if(!dialog.open)return;
-    const buttons=pad?.buttons||[];
-    const neutral=!buttons[0]&&!buttons[1]&&!buttons[9]&&Math.abs(pad?.axis||0)<.35&&Math.abs(pad?.axisY||0)<.35;
-    if(!padArmed){
-      if(neutral)padArmed=true;
-      prevButtons=buttons.slice();
-      return;
+  function keyboardMove(event){
+    const editableSearch=document.activeElement===search;
+    const action=menuActionFromKeyboardEvent(event,{allowWASD:!editableSearch,allowSpace:!editableSearch});
+    if(!action)return;
+    if(handleMenuAction(action)){
+      event.preventDefault();
+      event.stopPropagation();
     }
-    const pressed=index=>!!buttons[index]&&!prevButtons[index];
-
-    if(pressed(SELECTOR_CANCEL_BUTTON)){
-      if(!loading){
-        if(step==='ride')showAvatarStep();
-        else dialog.close();
-      }
-      prevButtons=buttons.slice();
-      return;
-    }
-
-    if(pressed(SELECTOR_CONFIRM_BUTTON)){
-      if(step==='ride'){
-        const active=rideButtons.includes(document.activeElement)?document.activeElement:(rideButtons.find(button=>button.dataset.rideMode===currentRideMode)||rideButtons[0]);
-        active?.click();
-      }else{
-        const active=document.activeElement;
-        if(active===search)focusCard(0);
-        else if(active?.classList?.contains('chimpion-card'))active.click();
-        else{
-          const selectedIndex=visibleRecords.findIndex(record=>record.id===currentSelectedId);
-          focusCard(selectedIndex>=0?selectedIndex:0);
-        }
-      }
-    }
-
-    const x=pad?.axis||0,y=pad?.axisY||0;
-    if(Math.abs(x)<.35)axisLatchX=0;
-    if(Math.abs(y)<.35)axisLatchY=0;
-
-    if(step==='ride'){
-      const navAxis=Math.abs(x)>.62?x:(Math.abs(y)>.62?y:0);
-      const latched=Math.abs(x)>.62?axisLatchX:axisLatchY;
-      if(navAxis&&!latched){
-        if(Math.abs(x)>.62)axisLatchX=Math.sign(x);else axisLatchY=Math.sign(y);
-        const current=Math.max(0,rideButtons.indexOf(document.activeElement));
-        rideButtons[(current+Math.sign(navAxis)+rideButtons.length)%rideButtons.length]?.focus();
-      }
-    }else if(Math.abs(y)>.62&&!axisLatchY){
-      axisLatchY=Math.sign(y);
-      const index=activeCardIndex();
-      const columnCount=columns();
-      if(document.activeElement===search&&y>0)focusCard(0);
-      else if(index>=0){
-        if(y<0&&index<columnCount)search.focus();
-        else focusCard(index+Math.sign(y)*columnCount);
-      }else focusCard(0);
-    }else if(Math.abs(x)>.62&&!axisLatchX){
-      axisLatchX=Math.sign(x);
-      const index=activeCardIndex();
-      focusCard(index<0?0:index+Math.sign(x));
-    }
-    prevButtons=buttons.slice();
   }
 
   function setSelected(entryOrId,rideMode=currentRideMode){
@@ -413,6 +385,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   }
 
   search.addEventListener('input',()=>applyFilter('search'));
+  dialog.addEventListener('focusin',event=>markMenuFocus(event.target));
   dialog.addEventListener('keydown',keyboardMove);
   dialog.addEventListener('cancel',event=>{
     if(loading){event.preventDefault();return;}
@@ -424,9 +397,11 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     rideStep.hidden=true;
     search.hidden=false;
     grid.hidden=false;
-    padArmed=false;
-    prevButtons=[];
-    axisLatchX=axisLatchY=0;
+    menuSelected?.classList?.remove('is-menu-selected');
+    menuSelected=null;
+    const target=openReturnFocus;
+    openReturnFocus=null;
+    setTimeout(()=>{if(target?.isConnected&&!target.disabled)target.focus();},0);
   });
   rideBack.addEventListener('click',()=>{if(!loading)showAvatarStep();});
   rideStep.addEventListener('click',event=>{
@@ -470,15 +445,13 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
 
   function open(){
     if(loading)return;
+    openReturnFocus=document.activeElement;
     search.value='';
     pendingEntry=null;
     step='avatar';
     applyFilter('open');
     showAvatarStep({focusGrid:false});
     dialog.showModal();
-    padArmed=false;
-    prevButtons=[];
-    axisLatchX=axisLatchY=0;
     search.focus();
   }
 
@@ -486,7 +459,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     open,
     close:()=>dialog.close(),
     dialog,
-    updateGamepad,
+    handleMenuAction,
     setSelected,
     setLoading,
     getDiagnostics,

@@ -617,7 +617,7 @@ function crash(kind='tree',item=null){
   feedback.onCrash();
   if(!isTrickCrash)haptics.crash(state.crashType);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
-  ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
+  ui.showResults({distance:runDistance,score:state.score,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
 }
 addEventListener('keydown',e=>{
   if(state.mode!=='playing'||selector?.dialog?.open||e.target.closest?.('input,textarea,select,[contenteditable="true"]'))return;
@@ -710,6 +710,7 @@ function update(dt){
 
     if(!ridingRamp&&tryManualJump(state,groundY)){
       feedback.onManualTakeoff();
+      ui.showTrickHint?.();
       if(trickIntent==='BACKFLIP'){
         // Ground backflips get a dedicated vertical launch. Keep the full arc
         // even if the player releases Jump quickly so the rotation happens in air.
