@@ -263,7 +263,12 @@ function fillCourse(difficulty=0){
   const targetWorldZ=player.position.z-lookahead;
   let guard=0;
   while(courseEndZ+courseTravel>targetWorldZ&&guard++<24){
-    const section=courseDirector.next({startZ:courseEndZ-5.5,difficulty,speed:state.speed});
+    const section=courseDirector.next({
+      startZ:courseEndZ-5.5,
+      difficulty,
+      speed:state.speed,
+      postMaxTime:state.postMaxHazardTime
+    });
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
   }
@@ -295,13 +300,14 @@ let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectedRideMode=RIDE_MODE.SKI;
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
-const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 
 const audio=createSkiAudio();
 audio.setRideMode?.(selectedRideMode);
 const haptics=createHaptics();
 const ui=createGameUI({
   audio,
+  haptics,
   onStart:()=>beginRun(),
   onPause:()=>pauseGame(),
   onResume:()=>resumeGame(),
@@ -476,7 +482,7 @@ function control(pad){
 function resetRunState(mode='countdown'){
   if(state.rideMode!==selectedRideMode)applyRideProfileToState(selectedRideMode);
   const rideProfile=getRideProfile(state.rideMode);
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:rideProfile.baseSpeed,baseSpeed:rideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:rideProfile.baseSpeed,maxSpeed:rideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:rideProfile.baseSpeed,baseSpeed:rideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:rideProfile.baseSpeed,maxSpeed:rideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   skier?.userData?.setRideMode?.(state.rideMode);
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
@@ -628,6 +634,8 @@ function update(dt){
     state.frame++;
     courseFrame=state.frame;
     progressSpeed(state,dt);
+    if(!state.maxSpeedReached&&state.speed>=state.maxSpeed-.12)state.maxSpeedReached=true;
+    if(state.maxSpeedReached)state.postMaxHazardTime+=dt;
     const travelStep=state.speed*dt;
     state.distance+=travelStep*.74;
     state.travel+=travelStep;
@@ -778,6 +786,7 @@ function update(dt){
         removeCourseAt(i);
         state.bananas++;
         audio.play('banana');
+        haptics.banana?.();
         continue;
       }
 
@@ -908,6 +917,18 @@ function update(dt){
     air:state.air,
     intensity:state.difficulty,
     jumpSource:state.jumpSource,
+    time:state.time
+  });
+  haptics.update?.(dt,{
+    mode:state.mode,
+    speed:state.speed,
+    baseSpeed:state.baseSpeed,
+    maxSpeed:state.maxSpeed,
+    edge:state.edge,
+    air:state.air,
+    oilSlipTime:state.oilSlipTime,
+    groundRoll:state.groundRoll,
+    groundPitch:state.groundPitch,
     time:state.time
   });
   feedback.update(state,dt);
