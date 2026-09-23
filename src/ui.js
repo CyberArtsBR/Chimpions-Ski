@@ -455,6 +455,17 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       menuInput.reset();
       return;
     }
+    if(mode==='playing'){
+      if(pad?.edges?.pressed?.menu){
+        menuInput.reset();
+        onPause?.();
+      }else menuInput.reset();
+      return;
+    }
+    if(!activeRoot()){
+      menuInput.reset();
+      return;
+    }
     menuInput.update(pad);
   }
 
