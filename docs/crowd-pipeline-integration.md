@@ -72,3 +72,10 @@ The dedicated `window.chimpionsSkiPrepareFullCrowd()` instrumentation hook is us
 Natural gameplay release remains part of runtime (`playing && start-crowd z >= 30`), but an automated no-input skier may crash before that threshold. The benchmark therefore records whether natural release happened, while using a query-gated `?crowdBenchmark=1` teardown hook to verify scene destruction and warm reconstruction deterministically. The hook is not installed during normal gameplay.
 
 This separation prevents course randomness from being mistaken for a crowd-cache failure. The release implementation itself remains covered by static lifecycle invariants and by the benchmark's real teardown/rebuild cycle.
+
+
+## Rider-selection priority
+
+Crowd parsing no longer starts merely because the selector opened. The selected rider GLB is interaction-critical, so `setAvatar()` completes first. Only then does the selector confirmation start the crowd's critical-subset warmup and schedule `beginRun()`.
+
+This prevents spectator parsing from delaying the selected rider, selector close, or ride confirmation. The crowd still retains 50 production slots and the same cache/placeholder strategy; only acquisition priority changed.

@@ -59,3 +59,7 @@ console.log(JSON.stringify({
   staleCallbackGuard:true,
   assetBudgetTooling:true
 }));
+
+const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+assert(!main.includes('requestAnimationFrame(()=>{\n      setTimeout(()=>{\n        startCrowd.setSpectators(catalog)'),'selector-open path must not start crowd parsing before rider selection');
+assert(main.includes("await setAvatar(entry,rideMode);\n        // Rider selection has priority."),'selected rider must finish loading before crowd warmup starts');
