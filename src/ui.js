@@ -142,7 +142,6 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     clearControllerSelection(leaveConfirm);
     leaveConfirm.hidden=true;
     leaveReturnFocus=null;
-    haptics?.menuConfirm?.();
     onGiveUp?.();
   }
 
