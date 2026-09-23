@@ -47,3 +47,12 @@ The parsed-template cache owns template geometry, materials, textures and templa
 Run `npm run audit:crowd` after changing the production spectator pool. The audit is non-destructive and reads the master GLBs; it does not rewrite `public/model/characters`. It enforces the 50-source contract and byte budgets, and consumes `docs/avatar-asset-audit.json` when available to report texture and geometry outliers. Any future generated crowd LOD assets should live in a separate generated web directory rather than replacing master/source character files.
 
 For browser/GPU measurement against the real 50-character path, start the production preview and run `npm run benchmark:crowd`. The benchmark intentionally does not use `?test=1`. It first measures a fresh-context cold full preparation and requires all 50 real crowd models to load, then uses a second fresh context for quick-start plus repeated warm-restart measurements. It records GLB request/failure events, Resource Timing bytes, start blocking time, frame timing, JS heap when available, and aggregate renderer geometry/texture counters.
+
+
+## Measured CI baseline before countdown protection
+
+GitHub Actions run `35884412626` on commit `7b0451659c7cef02d6d4a99da99229333616aed9` exercised the real 50-spectator path, not `?test=1`. In the cold full-population probe, only 27 of 50 GLBs completed within the time-boxed run: 31 GLB requests were observed, 48,429,072 transfer bytes were reported, and no GLB request failed. The 2-second frame sampler captured severe main-thread stalls while parsing: mean 1232.47 ms, p95 1833.20 ms, max 1866.70 ms.
+
+That result confirms the actual bottleneck is not source selection correctness or 404 churn; it is decoding/parsing many distinct rigged GLBs on the main thread. The runtime therefore keeps full progressive preparation available while the selector is open, but once the player commits to a run it stops claiming new progressive GLBs after the start-critical wave. Already-started requests may finish; all remaining slots keep the lightweight instanced placeholder representation. This protects countdown/gameplay frame pacing without pretending the 50-source production path is cheap.
+
+The benchmark defaults to profiling mode: incomplete full population is reported, not mislabeled as success. Set `CHIMPIONS_SKI_CROWD_STRICT_FULL=1` when a release environment explicitly requires all 50 real GLBs to complete within the configured full-population timeout.

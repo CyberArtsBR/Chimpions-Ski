@@ -16,3 +16,6 @@ assert(crowd.includes('Parsed templates intentionally remain in assetCache for w
 assert(cache.includes('lifecycleGeneration++'),'full cache teardown invalidates pending async loads');
 assert(main.includes('await startCrowd.ensureLoaded(catalog)'),'existing main integration reuses bounded crowd readiness API');
 assert(main.includes('startCrowdReleased:startCrowd.released'),'runtime diagnostics expose crowd release state');
+
+assert(main.includes('startCrowdCacheStats:startCrowd.cacheStats'),'runtime diagnostics expose crowd cache/fetch/parse counters');
+assert(main.includes('startCrowdProgressivePaused:startCrowd.progressivePaused'),'runtime diagnostics expose whether progressive parsing is paused for a run');

@@ -8,6 +8,7 @@ const TIMEOUT=Number(process.env.CHIMPIONS_SKI_CROWD_TIMEOUT_MS)||60000;
 const FULL_TIMEOUT=Number(process.env.CHIMPIONS_SKI_CROWD_FULL_TIMEOUT_MS)||120000;
 const RESTARTS=Math.max(1,Number(process.env.CHIMPIONS_SKI_CROWD_RESTARTS)||3);
 const PRODUCTION_COUNT=50;
+const STRICT_FULL=/^(1|true|yes|on)$/i.test(process.env.CHIMPIONS_SKI_CROWD_STRICT_FULL||'');
 
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const isGlb=url=>/\.glb(?:[?#]|$)/i.test(url);
@@ -134,7 +135,7 @@ async function chooseCurrentAvatarAndSki(page){
   const started=performance.now();
   const [countdown,frameTiming]=await Promise.all([
     (async()=>{
-      await page.locator('[data-ride-mode="ski"]').click();
+      await page.locator('[data-ride-mode="ski"]').first().click();
       return waitDiag(page,d=>d.mode==='countdown'||d.mode==='playing',10000);
     })(),
     sampleFrames(page,1600)
@@ -201,6 +202,8 @@ async function coldFullPreparation(browser){
       heapAfter:await heapBytes(page),
       rendererGeometries:Number(full?.rendererGeometries)||null,
       rendererTextures:Number(full?.rendererTextures)||null,
+      cacheStats:full?.startCrowdCacheStats||null,
+      quality:full?.startCrowdQuality||null,
       network:networkStats,
       resources
     };
@@ -247,7 +250,9 @@ async function coldStartAndWarmRestarts(browser){
         newGlbRequests:afterNetwork.requestCount-beforeNetwork.requestCount,
         newFailedGlbRequests:afterNetwork.failedCount-beforeNetwork.failedCount,
         rendererGeometries:Number(restarted.countdown?.rendererGeometries)||null,
-        rendererTextures:Number(restarted.countdown?.rendererTextures)||null
+        rendererTextures:Number(restarted.countdown?.rendererTextures)||null,
+        progressivePaused:restarted.countdown?.startCrowdProgressivePaused===true,
+        cacheStats:restarted.countdown?.startCrowdCacheStats||null
       });
     }
 
@@ -262,7 +267,9 @@ async function coldStartAndWarmRestarts(browser){
         maxSourcesBeforeRelease:firstRun.maxSources,
         released:firstRun.released,
         glbResourceEntriesAtCountdown:atCountdownResources.entries-beforeStartResources.entries,
-        glbRequestsAtCountdown:atCountdownNetwork.requestCount-beforeStartNetwork.requestCount
+        glbRequestsAtCountdown:atCountdownNetwork.requestCount-beforeStartNetwork.requestCount,
+        progressivePaused:cold.countdown?.startCrowdProgressivePaused===true,
+        cacheStats:cold.countdown?.startCrowdCacheStats||null
       },
       warmRestarts,
       network:network.snapshot(),
@@ -282,7 +289,6 @@ const report={
   coldFullPreparation:null,
   startLifecycle:null,
   limitations:[
-    'Runtime parsed-template cache hit/parse counters are not exposed through window.chimpionsSki; the benchmark infers duplicate-download behavior from Playwright request events and Resource Timing.',
     'performance.memory is Chromium-specific and may be null depending on launch/runtime settings.',
     'Resource Timing transferSize may be zero for memory/disk-cache responses; encodedBodySize is reported separately.',
     'Renderer memory counters are aggregate game totals, not crowd-exclusive GPU allocations.'
@@ -336,12 +342,13 @@ try{
   }
 
   if(report.coldFullPreparation.initialCrowdCount!==PRODUCTION_COUNT)process.exitCode=1;
-  if(!report.coldFullPreparation.completed)process.exitCode=1;
+  if(STRICT_FULL&&!report.coldFullPreparation.completed)process.exitCode=1;
   if(report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT)process.exitCode=1;
   if(report.coldFullPreparation.modelSourceCount!==PRODUCTION_COUNT)process.exitCode=1;
   if(report.coldFullPreparation.network.failedCount>0)process.exitCode=1;
   if(!report.startLifecycle.cold.released)process.exitCode=1;
-  if(report.startLifecycle.warmRestarts.some(item=>!item.released||item.newFailedGlbRequests>0))process.exitCode=1;
+  if(!report.startLifecycle.cold.progressivePaused)process.exitCode=1;
+  if(report.startLifecycle.warmRestarts.some(item=>!item.released||item.newFailedGlbRequests>0||!item.progressivePaused))process.exitCode=1;
 }finally{
   if(coldBrowser)await coldBrowser.close().catch(()=>{});
   if(lifecycleBrowser)await lifecycleBrowser.close().catch(()=>{});

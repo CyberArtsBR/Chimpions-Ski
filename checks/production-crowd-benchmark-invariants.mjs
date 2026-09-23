@@ -15,5 +15,9 @@ assert(benchmark.includes('failedCount'),'benchmark records failed/404 GLB reque
 assert(benchmark.includes('heapBytes'),'benchmark samples JS heap where Chromium exposes performance.memory');
 assert(benchmark.includes('rendererGeometries'),'benchmark captures renderer memory diagnostics');
 assert(benchmark.includes('frameTiming'),'benchmark samples frame timing during the start sequence');
+assert(benchmark.includes("first().click()"),'benchmark resolves duplicate ride-mode controls deterministically');
+assert(benchmark.includes('CHIMPIONS_SKI_CROWD_STRICT_FULL'),'full-population completion can be made a strict release gate without making profiling mode lie about success');
+assert(benchmark.includes('startCrowdCacheStats'),'benchmark captures parsed-template cache/fetch/parse instrumentation');
+assert(benchmark.includes('progressivePaused'),'benchmark verifies progressive parsing stops when a run is committed');
 assert(benchmark.includes('limitations'),'benchmark reports metrics that browser APIs cannot guarantee');
 console.log(JSON.stringify({check:'production-crowd-benchmark-invariants',realProductionCrowd:true,coldFull:true,restarts:true,network:true,memory:true,frameTiming:true}));

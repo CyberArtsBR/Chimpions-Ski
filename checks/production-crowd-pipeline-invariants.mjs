@@ -29,6 +29,8 @@ assert(crowd.includes('startWaitMs:900'),'run-start wait has a bounded timeout')
 assert(crowd.includes('new THREE.InstancedMesh'),'unloaded spectators keep a lightweight visible placeholder representation');
 assert(crowd.includes('const job=startLoad(entries);'),'ensureLoaded starts or reuses progressive preparation');
 assert(crowd.includes('return waitForStartReady(job);'),'run start waits only for the critical subset, not all 50 assets');
+assert(crowd.includes('job.stopAfterStartReady=true'),'run commitment stops new progressive parses after the start-critical wave');
+assert(crowd.includes('job.stopAfterStartReady&&job.cursor>=startReadyLimit'),'progressive workers honor the start gate before claiming another GLB');
 assert(crowd.includes('Parsed templates intentionally remain in assetCache for warm restart.'),'scene destruction preserves the parsed-template cache');
 assert(crowd.includes("if(mode==='playing'&&root.position.z>=30)"),'crowd actors are released once safely behind the camera');
 assert(crowd.includes('generation!==loadGeneration||released||!built'),'stale async callbacks cannot attach to a destroyed/new crowd');
@@ -50,6 +52,7 @@ console.log(JSON.stringify({
   uniqueSources:selected.length,
   startCriticalCount:10,
   progressive:true,
+  progressivePausesAtStart:true,
   parsedTemplateCache:true,
   warmRestart:true,
   staleCallbackGuard:true,

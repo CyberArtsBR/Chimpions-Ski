@@ -409,11 +409,13 @@ export function createStartCrowd({
     const sources=chooseCrowdSources(lastEntries,crowdCount);
     modelSourceCount=sources.length;
     const generation=++loadGeneration;
-    const job={generation,sources,cursor:0,done:false,fullPromise:null};
+    const job={generation,sources,cursor:0,done:false,fullPromise:null,stopAfterStartReady:false};
     activeJob=job;
 
     const worker=async()=>{
       while(generation===loadGeneration&&!released){
+        const startReadyLimit=Math.min(qualityState.startReadyCount,sources.length);
+        if(job.stopAfterStartReady&&job.cursor>=startReadyLimit)break;
         const index=job.cursor++;
         if(index>=sources.length)break;
         const entry=sources[index];
@@ -459,10 +461,12 @@ export function createStartCrowd({
   }
 
   async function ensureLoaded(entries=lastEntries){
-    if(!released&&built&&loadedCount>=Math.min(qualityState.startReadyCount,crowdCount))return loadedCount;
     const job=startLoad(entries);
-    // Gameplay waits only for the start-critical subset (or the bounded timeout).
-    // The remaining unique Chimpions keep filling progressively in the background.
+    // Once the player commits to a run, do not begin more progressive GLB parses.
+    // Any already-started request may finish and populate its slot, while the
+    // remaining actors stay represented by the two-draw-call placeholder crowd.
+    job.stopAfterStartReady=true;
+    if(!released&&built&&loadedCount>=Math.min(qualityState.startReadyCount,crowdCount))return loadedCount;
     return waitForStartReady(job);
   }
 
@@ -568,6 +572,7 @@ export function createStartCrowd({
     get startReady(){return loadedCount>=Math.min(qualityState.startReadyCount,Math.max(1,modelSourceCount||crowdCount));},
     get fullReady(){return modelSourceCount>0&&loadedCount>=modelSourceCount;},
     get cacheStats(){return assetCache.getStats();},
+    get progressivePaused(){return !!activeJob?.stopAfterStartReady;},
     get quality(){return {...qualityState};},
     get visible(){return root.visible;},
     get released(){return released;}
