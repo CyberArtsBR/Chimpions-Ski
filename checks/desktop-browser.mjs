@@ -28,7 +28,7 @@ try{
   await page.waitForFunction(()=>{
     const image=document.querySelector('.start-screen-art');
     return image?.complete&&image.naturalWidth>0&&image.naturalHeight>0;
-  },{timeout:30000});
+  },null,{timeout:30000});
 
   const artMetrics=await art.evaluate(image=>({
     naturalWidth:image.naturalWidth,
@@ -74,7 +74,7 @@ try{
   assert.equal(still?.distance??0,before?.distance??0,'Gameplay advanced behind start artwork');
   assert.equal(still?.travel??0,before?.travel??0,'World travel advanced behind start artwork');
 
-  await page.waitForFunction(()=>window.chimpionsSki?.().ready,{timeout:30000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().ready,null,{timeout:30000});
   const state=await page.evaluate(()=>window.chimpionsSki());
   assert(state.catalogSize>180);
   assert.equal(state.mode,'menu');
@@ -83,20 +83,24 @@ try{
   assert.equal(await start.isEnabled(),true,'Start Game should enable after artwork and Chimpion are ready');
 
   await start.evaluate(button=>{button.click();button.click();});
-  await page.waitForFunction(()=>document.querySelector('.start-screen')?.hidden===true,{timeout:5000});
+  await page.waitForFunction(()=>document.querySelector('.start-screen')?.hidden===true,null,{timeout:5000});
   const selector=page.locator('#chimpion-selector');
   await selector.waitFor({state:'visible',timeout:5000});
   assert.equal((await page.evaluate(()=>window.chimpionsSki())).mode,'menu','START GAME must not begin a random run before selection');
 
-  const firstChimpion=selector.locator('.chimpion-card').first();
+  // Keep this smoke focused on selector/run flow. Reuse the lightweight rider
+  // already selected during boot instead of turning CI into an arbitrary GLB
+  // download benchmark for whichever catalog entry happens to render first.
+  const selectedChimpion=selector.locator('.chimpion-card.is-selected').first();
+  const firstChimpion=(await selectedChimpion.count())?selectedChimpion:selector.locator('.chimpion-card').first();
   await firstChimpion.waitFor({state:'visible',timeout:5000});
   await firstChimpion.evaluate(button=>button.click());
   const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await skiChoice.evaluate(button=>button.click());
 
-  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,{timeout:5000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:12000});
+  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:5000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:12000});
   assert.equal(await page.locator('.start-screen').isVisible(),false);
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
@@ -117,7 +121,7 @@ try{
   await leaveConfirm.waitFor({state:'hidden',timeout:5000});
   assert.equal(await pauseOverlay.isVisible(),true,'NO did not return to pause menu');
   await page.getByRole('button',{name:'RESUME',exact:true}).click();
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:5000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000});
 
   console.log('PASS desktop browser integrated start screen / gameplay / leave confirmation');
 }finally{
