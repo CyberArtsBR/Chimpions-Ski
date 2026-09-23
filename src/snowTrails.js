@@ -45,6 +45,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
   const prevZ=new Float32Array(skiCount);
   const hasPrev=new Uint8Array(skiCount);
   const contact=new THREE.Vector3();
+  const contactB=new THREE.Vector3();
 
   for(let i=0;i<segmentCount;i++){
     const v=i*4;
@@ -94,7 +95,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     alphas[v]=alphas[v+1]=alphas[v+2]=alphas[v+3]=0;
   }
 
-  function writeSegment(skiIndex,x,y,z,edge){
+  function writeSegment(skiIndex,x,y,z,edge,snowboard=false){
     const base=skiIndex*capacity;
     const index=base+cursors[skiIndex];
     cursors[skiIndex]=(cursors[skiIndex]+1)%capacity;
@@ -104,10 +105,14 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     const sideSign=skiIndex===0?-1:1;
     const carve=Math.abs(edge);
     const outside=Math.max(0,-sideSign*edge);
-    const halfWidth=(.044+carve*.008+outside*.006);
+    const halfWidth=snowboard
+      ?.18+carve*.055
+      :(.044+carve*.008+outside*.006);
     const px=-dz/length*halfWidth;
     const pz=dx/length*halfWidth;
-    const strength=.28+carve*.14+outside*.15;
+    const strength=snowboard
+      ?.34+carve*.22
+      :.28+carve*.14+outside*.15;
     const v=index*4;
 
     setVertex(v,prevX[skiIndex]-px,prevY[skiIndex],prevZ[skiIndex]-pz,strength);
@@ -120,27 +125,48 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     strengths[index]=strength;
   }
 
-  function emit({x,z,travel,heading=0,edge=0,spacing=.245,skis}){
+  function emit({x,z,travel,heading=0,edge=0,spacing=.245,skis,rideMode='ski'}){
     const c=Math.cos(heading);
     const s=Math.sin(heading);
-    for(let skiIndex=0;skiIndex<skiCount;skiIndex++){
-      const sideSign=skiIndex===0?-1:1;
-      const ski=skis?.[skiIndex];
-      if(ski){
-        ski.updateWorldMatrix(true,false);
-        ski.localToWorld(contact.set(0,0,.48));
-      }
-      const sx=ski?contact.x:x+sideSign*spacing*c;
-      const sz=ski?contact.z:z+.48+sideSign*spacing*s;
-      const sy=terrainHeight(sx,sz-travel)+TRACK_Y_OFFSET;
+    const snowboard=rideMode==='snowboard';
 
-      if(hasPrev[skiIndex]){
-        writeSegment(skiIndex,sx,sy,sz,edge);
+    if(snowboard){
+      const left=skis?.[0];
+      const right=skis?.[1];
+      let sx=x;
+      let sz=z+.48;
+      if(left&&right){
+        left.updateWorldMatrix(true,false);
+        right.updateWorldMatrix(true,false);
+        left.localToWorld(contact.set(0,0,.48));
+        right.localToWorld(contactB.set(0,0,.48));
+        sx=(contact.x+contactB.x)*.5;
+        sz=(contact.z+contactB.z)*.5;
       }
-      prevX[skiIndex]=sx;
-      prevY[skiIndex]=sy;
-      prevZ[skiIndex]=sz;
-      hasPrev[skiIndex]=1;
+      const sy=terrainHeight(sx,sz-travel)+TRACK_Y_OFFSET;
+      if(hasPrev[0])writeSegment(0,sx,sy,sz,edge,true);
+      prevX[0]=sx;prevY[0]=sy;prevZ[0]=sz;hasPrev[0]=1;
+      // Slot 1 is reserved for the second ski groove and must stay broken
+      // while riding a snowboard.
+      hasPrev[1]=0;
+    }else{
+      for(let skiIndex=0;skiIndex<skiCount;skiIndex++){
+        const sideSign=skiIndex===0?-1:1;
+        const ski=skis?.[skiIndex];
+        if(ski){
+          ski.updateWorldMatrix(true,false);
+          ski.localToWorld(contact.set(0,0,.48));
+        }
+        const sx=ski?contact.x:x+sideSign*spacing*c;
+        const sz=ski?contact.z:z+.48+sideSign*spacing*s;
+        const sy=terrainHeight(sx,sz-travel)+TRACK_Y_OFFSET;
+
+        if(hasPrev[skiIndex])writeSegment(skiIndex,sx,sy,sz,edge,false);
+        prevX[skiIndex]=sx;
+        prevY[skiIndex]=sy;
+        prevZ[skiIndex]=sz;
+        hasPrev[skiIndex]=1;
+      }
     }
     positionAttribute.needsUpdate=true;
     alphaAttribute.needsUpdate=true;
