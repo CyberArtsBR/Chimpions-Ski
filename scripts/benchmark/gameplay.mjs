@@ -5,6 +5,8 @@ async function clickStart(page){
   const diag=await readDiagnostics(page);
   if(diag?.mode==='playing')return {status:'PASS',alreadyPlaying:true};
   const started=Date.now();
+  const frameStart=await frameMark(page);
+  const before=await runtimeSnapshot(page,'start-sequence-before');
   const action=await page.evaluate(()=>{
     const startScreen=document.querySelector('.start-screen');
     const startScreenPlay=startScreen?.querySelector('.start-screen-play');
@@ -19,7 +21,14 @@ async function clickStart(page){
   }catch{
     return pending('Start control was invoked but gameplay did not reach mode=playing');
   }
-  return {status:'PASS',action,timeToPlayingMs:Date.now()-started};
+  return {
+    status:'PASS',
+    action,
+    timeToPlayingMs:Date.now()-started,
+    frames:await frameSummarySince(page,frameStart),
+    before,
+    after:await runtimeSnapshot(page,'start-sequence-playing')
+  };
 }
 
 async function releaseSteering(page,current){
@@ -108,6 +117,7 @@ export async function benchmarkGameplay(page,seconds,{trickHeavy=false,label='ga
     observedSeconds:round((Date.now()-wallStart)/1000,2),
     recoveries,
     jumpAttempts,
+    startSequence:start,
     frames,
     course:analyzeCourse(samples),
     hotspots:{
