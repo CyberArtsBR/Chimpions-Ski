@@ -297,6 +297,7 @@ const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
 let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
+let selectorReady=false;
 let selectedRideMode=RIDE_MODE.SKI;
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
@@ -423,9 +424,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     selector?.setSelected(entry,selectedRideMode);
   }finally{
     if(request===avatarRequest){
-      ready=!!skier;
+      ready=!!skier&&selectorReady;
       startScreen.setReady(ready);
-      ui.setAvatarLoading(!ready);
+      ui.setAvatarLoading(!skier);
     }
   }
 }
@@ -454,6 +455,10 @@ async function setAvatar(entry,rideMode=selectedRideMode){
       if(initialSelectionFlow)initialSelectionFlow=false;
     });
     selector.setSelected(initialAvatar,selectedRideMode);
+    selectorReady=true;
+    ready=!!skier;
+    startScreen.setReady(ready);
+    ui.setAvatarLoading(!ready);
   }catch(error){
     console.warn(error);
     const previousSkier=skier;
@@ -467,9 +472,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     ui.setAvatar(selectedAvatar);
     syncRideModePresentation();
   }finally{
-    ready=true;
-    startScreen.setReady(true);
-    ui.setAvatarLoading(false);
+    ready=!!skier&&selectorReady;
+    startScreen.setReady(ready);
+    ui.setAvatarLoading(!ready);
   }
 })();
 
@@ -1043,6 +1048,7 @@ window.chimpionsSki=()=>{
     playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,
     courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,
     ready,
+    selectorReady,
     catalogSize:catalog.length,
     selectedAvatar:selectedAvatar?.name||'',
     rideMode:selectedRideMode,
