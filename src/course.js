@@ -374,10 +374,15 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
   }
 
-  function spacing(intense=false){
-    return intense
-      ?rand(T.COURSE_INTENSE_SPACING_MIN,T.COURSE_INTENSE_SPACING_MAX)
-      :rand(T.COURSE_NORMAL_SPACING_MIN,T.COURSE_NORMAL_SPACING_MAX);
+  function spacing(speed,intense=false,scale=1){
+    const speed01=getSpeedProgress(speed);
+    const min=intense?T.COURSE_INTENSE_SPACING_MIN:T.COURSE_NORMAL_SPACING_MIN;
+    const max=intense?T.COURSE_INTENSE_SPACING_MAX:T.COURSE_NORMAL_SPACING_MAX;
+    // At high speed the same geometric row spacing reads much denser in time.
+    // Scale longitudinal breathing room with speed while preserving each
+    // section family's authored intensity.
+    const speedScale=lerp(.94,1.20,speed01);
+    return rand(min,max)*speedScale*scale;
   }
 
   function addSpecialHazard(placements,startZ,length,safeHint=0,chance=.64,progress=0,postMaxPressure=0){
@@ -636,6 +641,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     if(difficulty>.42&&lastType==='OPEN CARVE'&&random()<.22)options.push('LOG JUMP');
     if(lastType!=='RECOVERY'&&random()<.12)options.push('RAMP');
+    // Advanced runs can chain another jump after a genuinely clear recovery
+    // section, so the player lands, regains line choice, then sees the next lip.
+    if(lastType==='RECOVERY'&&difficulty>.66&&random()<.48){
+      options.push('RAMP','LOG JUMP');
+    }
 
     return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
@@ -711,76 +721,111 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     let length=86;
 
     if(type==='OPEN CARVE'){
-      length=96;
-      let z=startZ-18;
-      for(let i=0;i<5;i++){
-        const safeX=safeAt(z,currentSpeed,anchor,3.8);
-        addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['tree','rock'],hazardProgress,.85),intensity:.35});
-        z-=spacing(false);
+      length=112;
+      let z=startZ-20;
+      const sequence=['ISOLATED','DIAGONAL','ISOLATED','OFFSET_GATE'];
+      for(let i=0;i<sequence.length;i++){
+        const desired=clamp(anchor+Math.sin(phase+i*.92)*4.6,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const safeX=safeRoute.constrain(desired,z,currentSpeed);
+        addFormation(
+          placements,
+          sequence[i],
+          z,
+          safeX,
+          {kinds:progressiveHazardKinds(['tree','rock'],hazardProgress,.62),intensity:.28}
+        );
+        z-=spacing(currentSpeed,false,1.12);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.82,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.70);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.54,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.58,hazardProgress,postMaxPressure);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.68);
     }
 
     if(type==='GATE'){
-      length=110;
+      length=116;
       const rows=6;
       let z=startZ-18;
       for(let i=0;i<rows;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.86)*4.0,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const direction=i%2===0?1:-1;
+        const desired=clamp(anchor+direction*(2.5+Math.sin(phase+i*.61)*1.8),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
-        const formation=i===0?'OFFSET_GATE':chooseFormation(type);
-        addFormation(placements,formation,z,safeX,{kinds:progressiveHazardKinds(i%2?['tree','rock']:['rock','tree'],hazardProgress,.85),intensity:.58});
-        z-=spacing(false);
+        const formation=i===3?'DIAGONAL':'OFFSET_GATE';
+        addFormation(
+          placements,
+          formation,
+          z,
+          safeX,
+          {kinds:progressiveHazardKinds(i%2?['tree','rock']:['rock','tree'],hazardProgress,.78),intensity:.60}
+        );
+        z-=spacing(currentSpeed,false,.94);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.74,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.62);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.58,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.66,hazardProgress,postMaxPressure);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.60);
     }
 
     if(type==='BANANA LINE'){
-      length=100;
-      let z=startZ-20;
-      for(let i=0;i<5;i++){
-        const safeX=safeAt(z,currentSpeed,anchor,3.2);
-        addFormation(placements,i===0?'ISOLATED':chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['rock','tree'],hazardProgress,.75),intensity:.38});
-        z-=spacing(false);
+      length=108;
+      let z=startZ-22;
+      const sequence=['ISOLATED','DIAGONAL','ISOLATED','SCATTER'];
+      for(let i=0;i<sequence.length;i++){
+        const safeX=safeAt(z,currentSpeed,anchor,3.0);
+        addFormation(
+          placements,
+          sequence[i],
+          z,
+          safeX,
+          {kinds:progressiveHazardKinds(['rock','tree'],hazardProgress,.58),intensity:.30}
+        );
+        z-=spacing(currentSpeed,false,1.08);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.58,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.94);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.44,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.50,hazardProgress,postMaxPressure);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.98);
     }
 
     if(type==='FOREST'){
-      length=120;
+      length=128;
       const rows=7;
-      let z=startZ-16;
+      let z=startZ-18;
       for(let i=0;i<rows;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.70)*4.1,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(anchor+Math.sin(phase+i*.86)*4.8,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
-        addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['tree','tree','rock'],hazardProgress,1.10),intensity:.72});
-        z-=spacing(true);
+        const formation=i%3===1?'STAGGER':'OFFSET_GATE';
+        addFormation(
+          placements,
+          formation,
+          z,
+          safeX,
+          {kinds:progressiveHazardKinds(['tree','tree','tree','rock'],hazardProgress,.92),intensity:.68}
+        );
+        z-=spacing(currentSpeed,true,1.02);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.88,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.54);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.54,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.76,hazardProgress,postMaxPressure);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.50);
     }
 
     if(type==='ROCK SLALOM'){
-      length=118;
+      length=126;
       const rows=7;
-      let z=startZ-16;
+      let z=startZ-18;
       let desired=anchor;
       for(let i=0;i<rows;i++){
-        desired=clamp(desired+(i%2?1:-1)*rand(3.1,5.0),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        desired=clamp(desired+(i%2?1:-1)*rand(3.6,5.2),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
-        addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['rock','rock','tree'],hazardProgress,.70),intensity:.78});
-        z-=spacing(true);
+        addFormation(
+          placements,
+          'OFFSET_GATE',
+          z,
+          safeX,
+          {kinds:progressiveHazardKinds(['rock','rock','rock','tree'],hazardProgress,.56),intensity:.84}
+        );
+        z-=spacing(currentSpeed,true,.98);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.72,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.86,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.58);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.50,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.70,hazardProgress,postMaxPressure);
+      addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.56);
     }
 
     if(type==='RAMP'||type==='LOG JUMP'){
@@ -855,27 +900,27 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
-      length=96;
-      let z=startZ-16;
+      length=108;
+      // Recovery is deliberately hazard-free. It acts as a visual and input
+      // reset after jumps/dense sections while still advancing the safe route.
+      let z=startZ-24;
+      let safeX=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
+      placements.push(banana(z,safeX,safeX));
 
-      // Keep first recovery decision reachable from the predicted landing route.
-      const firstSafe=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
-      addFormation(placements,'ISOLATED',z,firstSafe,{kinds:progressiveHazardKinds(['rock','tree'],hazardProgress,.55),intensity:.26});
+      z-=spacing(currentSpeed,false,1.18);
+      safeX=safeRoute.constrain(recoveryAnchor*.45,z,currentSpeed);
+      placements.push(banana(z,safeX,safeX));
 
-      z-=spacing(false);
-      const secondSafe=safeAt(z,currentSpeed,firstSafe,2.7);
-      addFormation(placements,chooseFormation(type),z,secondSafe,{kinds:progressiveHazardKinds(['tree','rock'],hazardProgress,.65),intensity:.38});
-
-      addSpecialHazard(placements,startZ,length,secondSafe,.52,hazardProgress,postMaxPressure);
-      addSideHazardPressure(placements,startZ,length,secondSafe,.52,hazardProgress,postMaxPressure);
-      addBananaEvent(placements,startZ,length,secondSafe,.74);
+      z-=spacing(currentSpeed,false,1.12);
+      safeX=safeRoute.constrain(0,z,currentSpeed);
+      if(random()<.78)placements.push(banana(z,safeX,safeX));
       pendingLanding=null;
     }
 
     // Once 300 km/h has been reached, fill otherwise-empty longitudinal
     // patches gradually. Jump sections keep their existing protected flight /
     // landing envelopes and are intentionally excluded from this density pass.
-    if(type!=='RAMP'&&type!=='LOG JUMP'){
+    if(type!=='RAMP'&&type!=='LOG JUMP'&&type!=='RECOVERY'){
       addSparseGapPressure(
         placements,
         startZ,
