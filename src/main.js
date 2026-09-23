@@ -1,11 +1,11 @@
 import * as THREE from 'three';
 import './style.css';
-import {loadRiderAsset} from './skier.js';
+import {createFallbackSkier,loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
 import {createSkiAudio} from './audio.js';
 import {createSkiEnvironment,decorateCourseObject} from './environment.js';
 import {createBananaVisual} from './collectibleVisuals.js';
-import {loadAvatarCatalog,randomAvatar,createAvatarSelector,disposeAvatarObject} from './avatar-system.js';
+import {loadAvatarCatalog,createAvatarSelector,disposeAvatarObject} from './avatar-system.js';
 import {createGameUI} from './ui.js';
 import {progressSpeed,stepCarving,updateJumpAssist,tryManualJump,stepAir,launchRamp} from './skiPhysics.js';
 import {createCourseDirector,getCourseDifficulty} from './course.js';
@@ -30,6 +30,7 @@ import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
 import {quality,QUALITY_PROFILE_NAMES} from './renderQuality.js';
+import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from './avatarRoster.js';
 import {createPerformanceTelemetry} from './performanceTelemetry.js';
 
 const app=document.querySelector('#app');
@@ -296,19 +297,13 @@ trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
 const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
-const smokeTestMode=new URLSearchParams(window.location.search).has('test');
-const startCrowd=createStartCrowd({
-  world,
-  terrainHeight,
-  // CI/browser smoke tests validate flow with a tiny crowd; production keeps
-  // the full 50 unique Chimpion start line enforced by START_CROWD_COUNT.
-  maxSpectators:smokeTestMode?4:undefined
-});
+const startCrowd=createStartCrowd({world,terrainHeight});
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
 let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectorReady=false;
+let avatarCommitted=false;
 let selectedRideMode=RIDE_MODE.SKI;
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
@@ -342,7 +337,6 @@ const ui=createGameUI({
 // Integration bridge: one authoritative quality profile drives every scalable subsystem.
 ui.configureQuality?.({mode:quality.current,options:QUALITY_PROFILE_NAMES,onChange:profile=>quality.setProfile(profile)});
 function applyRuntimeQuality(settings=quality.getSettings()){
-  startCrowd.setQuality?.({maxSpectators:smokeTestMode?4:settings.crowdMaxSpectators});
   environment.applyQuality?.(settings);
 }
 quality.subscribe(applyRuntimeQuality,{immediate:true});
@@ -412,7 +406,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   if(!entry)return;
   const nextRideMode=normalizeRideMode(rideMode);
 
-  if(selectedAvatar?.id===entry.id&&skier){
+  if(avatarCommitted&&selectedAvatar?.id===entry.id&&skier){
     selectedRideMode=nextRideMode;
     audio.setRideMode?.(selectedRideMode);
     skier.userData.setRideMode?.(selectedRideMode);
@@ -427,7 +421,8 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   startScreen.setReady(false);
   ui.setAvatarLoading(true);
   try{
-    const nextSkier=await loadRiderAsset('/'+entry.url,{rideMode:nextRideMode});
+    const sourceUrl=entry.localOnly?entry.localObjectUrl:'/'+entry.url;
+    const nextSkier=await loadRiderAsset(sourceUrl,{rideMode:nextRideMode,requireGameplayRig:!!entry.localOnly,compatibilityInput:entry.name});
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     const previousSkier=skier;
     skier=nextSkier;
@@ -437,6 +432,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
       disposeAvatarObject(previousSkier);
     }
     selectedAvatar=entry;
+    avatarCommitted=true;
     selectedRideMode=nextRideMode;
     audio.setRideMode?.(selectedRideMode);
     skier.userData.setRideMode?.(selectedRideMode);
@@ -452,59 +448,56 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     }
   }
 }
+async function validateLocalAvatarEntry(entry){
+  const candidate=await loadRiderAsset(entry.localObjectUrl,{
+    rideMode:selectedRideMode,
+    requireGameplayRig:true,
+    compatibilityInput:entry.name
+  });
+  disposeAvatarObject(candidate);
+  return true;
+}
+
+function installAvatarSelector(initialAvatar){
+  selector=createAvatarSelector({
+    catalog,
+    onValidateLocalAvatar:validateLocalAvatarEntry,
+    onSelect:async(entry,rideMode)=>{
+      await setAvatar(entry,rideMode);
+      if(initialSelectionFlow){
+        initialSelectionFlow=false;
+        setTimeout(()=>beginRun(),0);
+      }
+    },
+    selectedId:initialAvatar.id,
+    selectedRideMode
+  });
+  selector.dialog.addEventListener('close',()=>{
+    if(initialSelectionFlow)initialSelectionFlow=false;
+  });
+  selector.setSelected(initialAvatar,selectedRideMode);
+  selectorReady=true;
+  ready=!!skier;
+  startScreen.setReady(ready);
+  ui.setAvatarLoading(!ready);
+}
+
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    // START GAME always opens the selector, so do not gamble boot time on a
-    // random heavyweight GLB that the player has not chosen. Use a known light
-    // collection model only as the invisible boot/rig seed; the player's actual
-    // choice replaces it before the run begins.
-    const initialAvatar=
-      catalog.find(entry=>entry?.name==='The Drownsy')||
-      catalog.find(entry=>String(entry?.id)==='56')||
-      catalog[0]||
-      randomAvatar(catalog);
-    await setAvatar(initialAvatar,RIDE_MODE.SKI);
-    selector=createAvatarSelector({
-      catalog,
-      onSelect:async(entry,rideMode)=>{
-        await setAvatar(entry,rideMode);
-        // Rider selection has priority. Only after its GLB is ready do we give
-        // the start crowd a chance to warm the critical subset before beginRun().
-        startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
-        if(initialSelectionFlow){
-          initialSelectionFlow=false;
-          setTimeout(()=>beginRun(),0);
-        }
-      },
-      selectedId:initialAvatar.id,
-      selectedRideMode
-    });
-    selector.dialog.addEventListener('close',()=>{
-      if(initialSelectionFlow)initialSelectionFlow=false;
-    });
-    selector.setSelected(initialAvatar,selectedRideMode);
-    selectorReady=true;
-    ready=!!skier;
-    startScreen.setReady(ready);
-    ui.setAvatarLoading(!ready);
   }catch(error){
     console.warn(error);
-    const previousSkier=skier;
-    skier=await loadRiderAsset('/models/default.glb',{rideMode:selectedRideMode});
-    trickVisualPivot.add(skier);
-    if(previousSkier){
-      trickVisualPivot.remove(previousSkier);
-      disposeAvatarObject(previousSkier);
-    }
-    selectedAvatar={name:'Fallback skier',image:''};
-    ui.setAvatar(selectedAvatar);
-    syncRideModePresentation();
-  }finally{
-    ready=!!skier&&selectorReady;
-    startScreen.setReady(ready);
-    ui.setAvatarLoading(!ready);
+    catalog=BUILTIN_AVATAR_NAMES.map(name=>createBuiltinAvatarEntry(name));
   }
+
+  const initialAvatar=catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
+  skier=createFallbackSkier({rideMode:RIDE_MODE.SKI});
+  trickVisualPivot.add(skier);
+  selectedAvatar=initialAvatar;
+  avatarCommitted=false;
+  ui.setAvatar(initialAvatar);
+  syncRideModePresentation();
+  installAvatarSelector(initialAvatar);
 })();
 
 resetAirborneScoring(state);
@@ -573,12 +566,13 @@ function startRaceCountdown(){
 }
 async function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden||runPreparing)return false;
+  if(!avatarCommitted){
+    selector?.open();
+    return false;
+  }
   runPreparing=true;
   ui.showRunLoading?.();
   try{
-    // The start crowd is fully disposed once the previous race is underway.
-    // Rehydrate it only when a new run is explicitly requested.
-    await startCrowd.ensureLoaded(catalog);
     if(!ready||selector?.dialog?.open||document.hidden)return false;
     audio.unlock();
     audio.play('menu',.38);
@@ -1113,6 +1107,7 @@ window.chimpionsSki=()=>{
     selectorReady,
     catalogSize:catalog.length,
     selectedAvatar:selectedAvatar?.name||'',
+    selectedAvatarLocal:!!selectedAvatar?.localOnly,
     rideMode:selectedRideMode,
     baseSpeed:getRideProfile(selectedRideMode).baseSpeed,
     maxSpeed:getRideProfile(selectedRideMode).maxSpeed,
@@ -1127,13 +1122,3 @@ window.chimpionsSki=()=>{
   };
 };
 
-
-// Destructive crowd lifecycle controls are exposed only for dedicated production benchmarks.
-if(new URLSearchParams(window.location.search).has('crowdBenchmark')){
-  window.chimpionsSkiCrowdBenchmark={
-    prepareFull:()=>startCrowd.prepareFull(catalog),
-    prepareStart:()=>startCrowd.setSpectators(catalog),
-    release:()=>startCrowd.release(),
-    restart:()=>beginRun()
-  };
-}

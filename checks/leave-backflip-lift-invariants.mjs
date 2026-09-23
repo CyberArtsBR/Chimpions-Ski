@@ -2,24 +2,14 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const crowd=readFileSync(new URL('../src/startCrowd.js',import.meta.url),'utf8');
-const manifest=readFileSync(new URL('../src/crowdManifest.js',import.meta.url),'utf8');
-const cache=readFileSync(new URL('../src/crowdAssetCache.js',import.meta.url),'utf8');
 const ui=readFileSync(new URL('../src/ui.js',import.meta.url),'utf8');
 const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const tuning=readFileSync(new URL('../src/gameplayTuning.js',import.meta.url),'utf8');
 const startScreen=readFileSync(new URL('../src/startScreen.js',import.meta.url),'utf8');
 
-assert(manifest.includes('export const START_CROWD_COUNT=50'),'start crowd is not configured for 50 Chimpions');
-assert(manifest.includes('export const CROWD_LIGHTWEIGHT_IDS=Object.freeze(['),'crowd does not keep an explicit lightweight unique GLB pool');
-assert(crowd.includes('maxSpectators:START_CROWD_COUNT'),'production crowd default is not the full 50');
-assert(main.includes('maxSpectators:smokeTestMode?4:undefined'),'browser smoke override is not isolated from production crowd count');
-assert(ui.includes('Loading 50 unique Chimpions'),'production crowd preparation state is not communicated to the player');
-assert(manifest.includes('const seen=new Set()'),'crowd source selection does not deduplicate catalog entries');
-assert(!crowd.includes('templates[index%templates.length]'),'crowd still repeats source templates');
-assert(cache.includes("import {clone as cloneSkeleton}"),'crowd clones cached skinned templates safely with SkeletonUtils');
-assert(crowd.includes('const armOutwardSigns=new Map()'),'crowd cheering pose does not derive authored arm direction');
-assert(crowd.includes('model.worldToLocal(sideProbe)'),'crowd arm side is not derived from GLB rest pose');
-assert(crowd.includes('authoredOutSign'),'crowd cheering arm target does not use authored outward sign');
+assert(crowd.includes('export const START_CROWD_COUNT=0'),'real Chimpion start crowd is not disabled');
+assert(!crowd.includes('GLTFLoader')&&!crowd.includes('crowdAssetCache'),'disabled crowd still owns character loading code');
+assert(main.includes('const startCrowd=createStartCrowd({world,terrainHeight});'),'main crowd compatibility hook changed unexpectedly');
 
 assert(ui.includes('GIVE UP AND LEAVE TO GAME SELECTION'),'give-up option missing from pause/game-over UI');
 assert((ui.match(/GIVE UP AND LEAVE TO GAME SELECTION/g)||[]).length===2,'give-up option must exist in both pause and game-over menus');
@@ -35,11 +25,4 @@ assert(main.includes('state.jumpCutApplied=true'),'backflip takeoff can still co
 assert(main.includes("state.jumpProfile='backflip'"),'backflip launch profile is not marked as aerial');
 assert(main.includes('state.vy=Math.max(state.vy,SKI_TUNING.BACKFLIP_MANUAL_JUMP_VELOCITY)'),'backflip does not raise vertical velocity');
 
-console.log(JSON.stringify({
-  check:'leave-crowd50-backflip-lift-invariants',
-  crowdCount:50,
-  uniqueCrowd:true,
-  cachedSkinnedClone:true,
-  leaveConfirm:true,
-  backflipLift:true
-}));
+console.log(JSON.stringify({check:'leave-backflip-lift-invariants',crowdCount:0,leaveConfirm:true,backflipLift:true}));

@@ -8,15 +8,17 @@ import {
 import {RIDE_MODE,normalizeRideMode} from './rideMode.js';
 import {AVATAR_COMPATIBILITY_STATUS,getAvatarCompatibility} from './avatarCompatibility.js';
 import {MENU_ACTION,menuActionFromKeyboardEvent} from './menuNavigation.js';
+import {BUILTIN_AVATAR_NAMES,canonicalizeBuiltinCatalog} from './avatarRoster.js';
+import {UPLOAD_AVATAR_ACTION,createLocalAvatarEntry,isUploadAvatarAction,validateLocalGlbFile} from './localAvatarUpload.js';
 
 export async function loadAvatarCatalog(){
-  // Use the browser's normal HTTP cache/revalidation rules. Deployment/versioned
-  // responses can still revalidate via ETag/Last-Modified without forcing a full
-  // avatars.json transfer on every load.
+  // Metadata/thumbnails are cheap; GLBs remain lazy and are loaded only after a
+  // concrete rider selection.
   const response=await fetch('/avatars.json');
   if(!response.ok)throw new Error('Could not load Chimpion catalog');
-  const entries=(await response.json()).filter(entry=>entry?.url&&entry.id!=='steamboat-willie'&&entry.id!=='chimpion').map(entry=>({...entry,compatibility:getAvatarCompatibility(entry)}));
-  if(!entries.length)throw new Error('No playable Chimpions in catalog');
+  const entries=canonicalizeBuiltinCatalog(await response.json())
+    .map(entry=>({...entry,compatibility:getAvatarCompatibility(entry)}));
+  if(entries.length!==BUILTIN_AVATAR_NAMES.length)throw new Error('Built-in Chimpion roster is incomplete');
   return entries;
 }
 
@@ -83,12 +85,12 @@ function createPortrait(entry,className=''){
   return wrap;
 }
 
-export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRideMode=RIDE_MODE.SKI}) {
+export function createAvatarSelector({catalog,onSelect,onValidateLocalAvatar=async()=>true,selectedId='',selectedRideMode=RIDE_MODE.SKI}) {
   const dialog=document.createElement('dialog');
   dialog.id='chimpion-selector';
   dialog.className='selector-dialog';
   dialog.setAttribute('aria-labelledby','selector-title');
-  dialog.innerHTML='<form method="dialog" class="selector-shell"><header class="selector-head"><div><small>THE CHIMPIONS</small><h2 id="selector-title">Choose your Chimpion</h2></div><button class="selector-close" value="close" aria-label="Close Chimpion selector">×</button></header><div class="selector-featured"><span id="selector-preview-portrait" class="selector-preview-portrait">🐵</span><span><small id="selector-step-label">STEP 1 OF 2 · CHIMPION</small><strong id="selector-preview-name">Choose a Chimpion</strong><em id="selector-preview-tribe">The Chimpions</em></span></div><input id="chimpion-search" class="selector-search" type="search" placeholder="Search Chimpion..." autocomplete="off" aria-label="Search Chimpions"><div id="chimpion-grid" class="selector-grid" role="list"></div><section class="ride-mode-step" id="ride-mode-step" hidden aria-label="Choose ride mode"><div class="ride-mode-copy"><small>STEP 2 OF 2</small><strong>Choose Ride</strong><span>Same mountain. Different speed and stance.</span></div><div class="ride-mode-options"><button type="button" class="ride-mode-card" data-ride-mode="ski"><b>⛷</b><strong>SKI</strong><span>160 → 300 km/h</span></button><button type="button" class="ride-mode-card" data-ride-mode="snowboard"><b>🏂</b><strong>SNOWBOARD</strong><span>180 → 300 km/h</span></button></div><button type="button" class="ride-mode-back">BACK TO CHIMPIONS</button></section><div class="selector-help">D-PAD / STICK · Navigate &nbsp; A / ENTER · Select &nbsp; B / ESC · Back</div></form>';
+  dialog.innerHTML='<form method="dialog" class="selector-shell"><header class="selector-head"><div><small>THE CHIMPIONS</small><h2 id="selector-title">Choose your Chimpion</h2></div><button class="selector-close" value="close" aria-label="Close Chimpion selector">×</button></header><div class="selector-featured"><span id="selector-preview-portrait" class="selector-preview-portrait">🐵</span><span><small id="selector-step-label">STEP 1 OF 2 · CHIMPION</small><strong id="selector-preview-name">Choose a Chimpion</strong><em id="selector-preview-tribe">The Chimpions</em></span></div><input id="chimpion-search" class="selector-search" type="search" placeholder="Search Chimpion..." autocomplete="off" aria-label="Search Chimpions"><div id="chimpion-grid" class="selector-grid" role="list"></div><input id="local-glb-upload" type="file" accept=".glb,model/gltf-binary" hidden><p id="selector-status" class="selector-status" role="status" aria-live="polite" hidden></p><section class="ride-mode-step" id="ride-mode-step" hidden aria-label="Choose ride mode"><div class="ride-mode-copy"><small>STEP 2 OF 2</small><strong>Choose Ride</strong><span>Same mountain. Different speed and stance.</span></div><div class="ride-mode-options"><button type="button" class="ride-mode-card" data-ride-mode="ski"><b>⛷</b><strong>SKI</strong><span>160 → 300 km/h</span></button><button type="button" class="ride-mode-card" data-ride-mode="snowboard"><b>🏂</b><strong>SNOWBOARD</strong><span>180 → 300 km/h</span></button></div><button type="button" class="ride-mode-back">BACK TO CHIMPIONS</button></section><div class="selector-help">D-PAD / STICK · Navigate &nbsp; A / ENTER · Select &nbsp; B / ESC · Back</div></form>';
   document.body.append(dialog);
 
   const grid=dialog.querySelector('#chimpion-grid');
@@ -102,9 +104,18 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
   const rideStep=dialog.querySelector('#ride-mode-step');
   const rideButtons=Array.from(dialog.querySelectorAll('.ride-mode-card'));
   const rideBack=dialog.querySelector('.ride-mode-back');
+  const fileInput=dialog.querySelector('#local-glb-upload');
+  const status=dialog.querySelector('#selector-status');
 
-  const searchIndex=buildAvatarSearchIndex(catalog);
-  const entryById=new Map(searchIndex.map(record=>[record.id,record.entry]));
+  let customEntry=null;
+  let customObjectUrl='';
+  function selectorEntries(){return [...catalog,...(customEntry?[customEntry]:[]),UPLOAD_AVATAR_ACTION];}
+  let searchIndex=buildAvatarSearchIndex(selectorEntries());
+  let entryById=new Map(searchIndex.map(record=>[record.id,record.entry]));
+  function rebuildSearchIndex(){
+    searchIndex=buildAvatarSearchIndex(selectorEntries());
+    entryById=new Map(searchIndex.map(record=>[record.id,record.entry]));
+  }
   let currentSelectedId=String(selectedId||'');
   let currentRideMode=normalizeRideMode(selectedRideMode);
   let pendingEntry=null;
@@ -241,11 +252,13 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
 
   function cardFor(record,filteredIndex){
     const {entry}=record;
+    const uploadAction=isUploadAvatarAction(entry);
     const button=document.createElement('button');
     button.type='button';
     button.className='chimpion-card';
-    const compatibility=entry.compatibility||getAvatarCompatibility(entry);
-    if(compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED){
+    if(uploadAction)button.classList.add('is-upload-avatar');
+    const compatibility=uploadAction?null:(entry.compatibility||getAvatarCompatibility(entry));
+    if(compatibility?.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED){
       button.classList.add('is-unsupported');
       button.setAttribute('aria-disabled','true');
       button.title=compatibility.reason;
@@ -253,13 +266,19 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     button.dataset.avatarId=entry.id;
     button.dataset.filterIndex=String(filteredIndex);
     button.setAttribute('role','listitem');
-    const selected=String(entry.id)===currentSelectedId;
+    const selected=!uploadAction&&String(entry.id)===currentSelectedId;
     button.setAttribute('aria-pressed',String(selected));
     if(selected)button.classList.add('is-selected');
     if(loading)button.disabled=true;
-    button.append(createPortrait(entry));
+    if(uploadAction){
+      const portrait=document.createElement('span');
+      portrait.className='portrait local-upload-portrait';
+      portrait.innerHTML='<span class="portrait-fallback" aria-hidden="true">⬆</span>';
+      button.append(portrait);
+    }else button.append(createPortrait(entry));
     const name=document.createElement('strong');name.textContent=entry.name;
-    const tribe=document.createElement('small');tribe.textContent=compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED?'UNSUPPORTED · RIG':(entry.tribe||'Chimpion');
+    const tribe=document.createElement('small');
+    tribe.textContent=uploadAction?'LOCAL ONLY · NO UPLOAD':(compatibility?.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED?'UNSUPPORTED · RIG':(entry.tribe||'Chimpion'));
     button.append(name,tribe);
     metrics.cardNodesCreated++;
     return button;
@@ -422,6 +441,45 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     completeRide(button.dataset.rideMode);
   });
 
+  function showStatus(message='',isError=false){
+    status.textContent=message;
+    status.classList.toggle('is-error',!!isError);
+    status.hidden=!message;
+  }
+
+  async function handleLocalFile(file){
+    if(!file)return;
+    setLoading(true);
+    showStatus('Checking local GLB…');
+    let nextUrl='';
+    let nextEntry=null;
+    try{
+      await validateLocalGlbFile(file);
+      nextUrl=URL.createObjectURL(file);
+      nextEntry=createLocalAvatarEntry(file,nextUrl);
+      await onValidateLocalAvatar(nextEntry);
+      const oldUrl=customObjectUrl;
+      customEntry=nextEntry;
+      customObjectUrl=nextUrl;
+      nextUrl='';
+      if(oldUrl)URL.revokeObjectURL(oldUrl);
+      rebuildSearchIndex();
+      search.value='';
+      applyFilter('upload');
+      showStatus('Local GLB ready. It stays on this device for this session.');
+    }catch(error){
+      if(nextUrl)URL.revokeObjectURL(nextUrl);
+      showStatus(error?.message||'This GLB could not be used.',true);
+      nextEntry=null;
+    }finally{
+      fileInput.value='';
+      setLoading(false);
+    }
+    if(nextEntry)showRideStep(nextEntry);
+  }
+
+  fileInput.addEventListener('change',()=>handleLocalFile(fileInput.files?.[0]));
+
   // One delegated listener per interaction type instead of three listeners per card.
   grid.addEventListener('focusin',event=>{
     const button=event.target.closest?.('.chimpion-card');
@@ -439,7 +497,13 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     const button=event.target.closest?.('.chimpion-card');
     if(!button||!grid.contains(button))return;
     const record=visibleRecords[Number(button.dataset.filterIndex)];
-    if(record)showRideStep(record.entry);
+    if(!record)return;
+    if(isUploadAvatarAction(record.entry)){
+      showStatus('Choose a local .glb file (maximum 50 MB).');
+      fileInput.click();
+      return;
+    }
+    showRideStep(record.entry);
   });
   grid.addEventListener('error',event=>{
     const image=event.target;
@@ -459,6 +523,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     if(loading)return;
     openReturnFocus=document.activeElement;
     search.value='';
+    showStatus('');
     pendingEntry=null;
     step='avatar';
     applyFilter('open');
@@ -466,6 +531,8 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     dialog.showModal();
     search.focus();
   }
+
+  window.addEventListener('pagehide',()=>{if(customObjectUrl)URL.revokeObjectURL(customObjectUrl);},{once:true});
 
   return {
     open,

@@ -30,29 +30,7 @@ const SLOT_ALIASES=Object.freeze({
   Foot:['foot','ankle']
 });
 
-const RULES=Object.freeze({
-  'The Ritualist':Object.freeze({
-    status:AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED,
-    reason:'Two skins expose duplicated Mixamo-style skeleton aliases, so the intended gameplay skeleton cannot be selected deterministically yet.',
-    notes:'Fail closed until explicit Skin/Skeleton/root/bone-path metadata is authored from a verified render.',
-    rig:Object.freeze({skinIndex:null,skeletonRootPath:null,bonePaths:null})
-  }),
-  'The Ordained':Object.freeze({
-    status:AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED,
-    reason:'GLB has no usable skeleton for gameplay rigging.',
-    notes:'Legacy unavailable avatar retained as explicit compatibility metadata.'
-  }),
-  'The Inverted':Object.freeze({
-    status:AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED,
-    reason:'GLB exposes only one bone and cannot satisfy the gameplay rig contract.',
-    notes:'Legacy unavailable avatar retained as explicit compatibility metadata.'
-  }),
-  'The Rocker':Object.freeze({
-    status:AVATAR_COMPATIBILITY_STATUS.SUPPORTED,
-    reason:'Runtime rig slots map uniquely.',
-    notes:'Extreme authored bounds are a manual camera/equipment/trick risk only. No avatar-specific scale override is applied without rendered evidence.'
-  })
-});
+const RULES=Object.freeze({});
 
 function structuredCloneSafe(value){return value==null?value:JSON.parse(JSON.stringify(value));}
 function cloneRule(rule,name){

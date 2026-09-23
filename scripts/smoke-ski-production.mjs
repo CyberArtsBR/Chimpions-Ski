@@ -221,11 +221,9 @@ try{
 
   let ready=await waitDiag(page,d=>d.ready===true&&Number(d.catalogSize)>0,UI_TIMEOUT);
   report.diagnostics.ready=ready;
-  Number(ready?.catalogSize)>180?pass('AVATAR CATALOG','Catalog size '+ready.catalogSize):fail('AVATAR CATALOG','Expected >180 entries',ready?.catalogSize);
-  ready?.selectedAvatar&&ready.selectedAvatar!=='Fallback skier'&&!ready?.skierFallback?pass('AVATAR MODEL','Real Chimpion loaded: '+ready.selectedAvatar):fail('AVATAR MODEL','Fallback used unexpectedly',ready);
-  if(Object.prototype.hasOwnProperty.call(ready||{},'rigReady')){
-    ready.rigReady?pass('AVATAR RIG','rigReady=true'):warn('AVATAR RIG','rigReady=false; verify this model supports the production rig');
-  }else warn('AVATAR RIG','rigReady not exposed');
+  Number(ready?.catalogSize)===10?pass('AVATAR CATALOG','Canonical roster size '+ready.catalogSize):fail('AVATAR CATALOG','Expected exactly 10 built-in entries',ready?.catalogSize);
+  ready?.skierFallback?pass('AVATAR BOOT','Procedural rider keeps fresh boot GLB-free'):warn('AVATAR BOOT','Expected procedural rider before explicit selection',ready);
+  if(Object.prototype.hasOwnProperty.call(ready||{},'rigReady')&&ready.rigReady)warn('AVATAR RIG','Fresh boot unexpectedly has a committed GLB rig');
 
   if(await startButton.count()){
     try{
@@ -236,8 +234,17 @@ try{
       pass('START ACTION','Start Game entered runtime');
     }catch(error){fail('START ACTION','Could not leave start screen: '+short(error?.message||error));}
   }
-  let playing=await waitDiag(page,d=>d.mode==='playing',12000);
-  playing?.mode==='playing'?pass('RUN START','Gameplay reached playing state'):fail('RUN START','Gameplay did not reach playing state',playing);
+  let initialSelector=page.locator('#chimpion-selector[open]');
+  if(await initialSelector.count()){
+    const first=initialSelector.locator('.chimpion-card:not(.is-upload-avatar)').first();
+    if(await first.count()){
+      await first.click();
+      const skiChoice=initialSelector.locator('[data-ride-mode="ski"]');
+      if(await skiChoice.count())await skiChoice.click();
+    }
+  }
+  let playing=await waitDiag(page,d=>d.mode==='playing',20000);
+  playing?.mode==='playing'?pass('RUN START','Gameplay reached playing state after explicit rider selection'):fail('RUN START','Gameplay did not reach playing state',playing);
 
   let selector=await openSelector(page);
   if(selector){

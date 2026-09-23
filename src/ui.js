@@ -71,7 +71,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   runLoading.id='run-loading-overlay';
   runLoading.className='presentation-overlay run-loading-overlay';
   runLoading.hidden=true;
-  runLoading.innerHTML='<section class="presentation-card run-loading-card" role="status" aria-live="polite"><small class="eyebrow">START CREW</small><h2>PREPARING THE START LINE…</h2><p>Loading 50 unique Chimpions</p></section>';
+  runLoading.innerHTML='<section class="presentation-card run-loading-card" role="status" aria-live="polite"><small class="eyebrow">RIDER READY</small><h2>PREPARING THE RUN…</h2><p>Finalizing rider and course</p></section>';
   document.body.append(runLoading);
 
   const pause=document.createElement('div');

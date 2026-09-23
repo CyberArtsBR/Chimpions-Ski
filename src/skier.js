@@ -615,9 +615,9 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   return update;
 }
 
-export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI}={}){
+export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI,requireGameplayRig=false,compatibilityInput=url}={}){
   let loadedModel=null,loadedRoot=null;
-  const compatibility=assertAvatarPlayable(url);
+  const compatibility=assertAvatarPlayable(compatibilityInput);
   try{
     const gltf=await new GLTFLoader().loadAsync(url);
     const model=gltf.scene;loadedModel=model;
@@ -625,7 +625,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     fitModel(model);
     const rigResolution=resolveAvatarRig(model,compatibility);
     const updateRig=makeRigController(model,compatibility,rigResolution);
-    if(!updateRig&&isCatalogAvatarUrl(url)){
+    if(!updateRig&&(isCatalogAvatarUrl(url)||requireGameplayRig)){
       throw new AvatarCompatibilityError(`${compatibility.name||'Avatar'} cannot satisfy the gameplay rig contract.`,{
         code:'AVATAR_RIG_UNSUPPORTED',
         avatar:compatibility.name,
@@ -752,7 +752,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     return root;
   }catch(error){
     disposeAvatarObject(loadedRoot?.children.length?loadedRoot:loadedModel);
-    if(error instanceof AvatarCompatibilityError||isCatalogAvatarUrl(url))throw error;
+    if(error instanceof AvatarCompatibilityError||isCatalogAvatarUrl(url)||requireGameplayRig)throw error;
     console.info('Using procedural skier until a Chimpion GLB is installed:',error.message);
     return createFallbackSkier({rideMode});
   }
