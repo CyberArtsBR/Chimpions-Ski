@@ -30,7 +30,7 @@ import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
 import {quality,QUALITY_PROFILE_NAMES} from './renderQuality.js';
-import {DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from './avatarRoster.js';
+import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from './avatarRoster.js';
 import {createPerformanceTelemetry} from './performanceTelemetry.js';
 
 const app=document.querySelector('#app');
@@ -487,7 +487,7 @@ function installAvatarSelector(initialAvatar){
     catalog=await loadAvatarCatalog();
   }catch(error){
     console.warn(error);
-    catalog=[createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME)];
+    catalog=BUILTIN_AVATAR_NAMES.map(name=>createBuiltinAvatarEntry(name));
   }
 
   const initialAvatar=catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
