@@ -450,6 +450,7 @@ const keys=new Set();
 let jumpKeyPressed=false,lastPadJump=false;
 let last=performance.now();
 let physicsSubsteps=0;
+let runPreparing=false;
 
 function control(pad){
   const keyboard=Number(keys.has('ArrowRight')||keys.has('KeyD'))-Number(keys.has('ArrowLeft')||keys.has('KeyA'));
@@ -504,14 +505,23 @@ function startRaceCountdown(){
   });
   return true;
 }
-function beginRun(){
-  if(!ready||selector?.dialog?.open||document.hidden)return false;
-  audio.unlock();
-  audio.play('menu',.38);
-  resetRunState('countdown');
-  ui.prepareRun({best:state.best,speed:state.speed});
-  startCamera.begin(state,performance.now());
-  return true;
+async function beginRun(){
+  if(!ready||selector?.dialog?.open||document.hidden||runPreparing)return false;
+  runPreparing=true;
+  try{
+    // The start crowd is fully disposed once the previous race is underway.
+    // Rehydrate it only when a new run is explicitly requested.
+    await startCrowd.ensureLoaded(catalog);
+    if(!ready||selector?.dialog?.open||document.hidden)return false;
+    audio.unlock();
+    audio.play('menu',.38);
+    resetRunState('countdown');
+    ui.prepareRun({best:state.best,speed:state.speed});
+    startCamera.begin(state,performance.now());
+    return true;
+  }finally{
+    runPreparing=false;
+  }
 }
 function pauseGame(){
   if(state.mode!=='playing')return;
@@ -942,6 +952,7 @@ window.chimpionsSki=()=>{
     startCrowdPosedCount:startCrowd.posedCount,
     startCrowdModelSources:startCrowd.modelSourceCount,
     startCrowdVisible:startCrowd.visible,
+    startCrowdReleased:startCrowd.released,
     startCameraPhase:startCamera.phase,
     startCameraFrontHoldMs:START_CAMERA_FRONT_HOLD_MS,
     startCameraRotateMs:START_CAMERA_ROTATE_MS,
