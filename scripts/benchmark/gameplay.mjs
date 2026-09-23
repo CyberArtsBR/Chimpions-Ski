@@ -1,6 +1,50 @@
 import {CONFIG,analyzeCourse,analyzeMetric,frameMark,frameSummarySince,pending,readDiagnostics,round,runtimeSnapshot,sampleRuntime,speedBins} from './core.mjs';
 import {closeSelector,openSelector} from './selector.mjs';
 
+async function completeStartSelectionIfNeeded(page){
+  try{
+    await page.waitForFunction(()=>{
+      const d=window.chimpionsSki?.();
+      return d?.mode==='playing'||document.querySelector('#chimpion-selector')?.open===true;
+    },undefined,{timeout:5000});
+  }catch{return {status:'PENDING',reason:'Start flow did not reach gameplay or open the selector'};}
+
+  const mode=await readDiagnostics(page);
+  if(mode?.mode==='playing')return {status:'PASS',selectionRequired:false};
+
+  const avatar=await page.evaluate(()=>{
+    const dialog=document.querySelector('#chimpion-selector');
+    if(!dialog?.open)return {ok:false,reason:'Selector is not open'};
+    const card=dialog.querySelector('.chimpion-card.is-selected')||dialog.querySelector('.chimpion-card');
+    if(!card)return {ok:false,reason:'No Chimpion card is rendered'};
+    card.click();
+    return {ok:true,avatarId:card.dataset.avatarId||null};
+  });
+  if(!avatar.ok)return {status:'PENDING',reason:avatar.reason};
+
+  try{
+    await page.waitForFunction(()=>{
+      const step=document.querySelector('#ride-mode-step');
+      return !!step&&!step.hidden;
+    },undefined,{timeout:5000});
+  }catch{return {status:'PENDING',reason:'Ride-mode step did not open after selecting a Chimpion'};}
+
+  const ride=await page.evaluate(()=>{
+    const dialog=document.querySelector('#chimpion-selector');
+    const current=String(window.chimpionsSki?.().rideMode||'ski').toLowerCase();
+    const button=
+      dialog?.querySelector('.ride-mode-card.is-selected')||
+      dialog?.querySelector('.ride-mode-card[data-ride-mode="'+current+'"]')||
+      dialog?.querySelector('.ride-mode-card');
+    if(!button)return {ok:false,reason:'No ride-mode control is rendered'};
+    const rideMode=button.dataset.rideMode||null;
+    button.click();
+    return {ok:true,rideMode};
+  });
+  if(!ride.ok)return {status:'PENDING',reason:ride.reason};
+  return {status:'PASS',selectionRequired:true,avatarId:avatar.avatarId,rideMode:ride.rideMode};
+}
+
 async function clickStart(page){
   const diag=await readDiagnostics(page);
   if(diag?.mode==='playing')return {status:'PASS',alreadyPlaying:true};
@@ -16,6 +60,10 @@ async function clickStart(page){
     return null;
   });
   if(!action)return pending('No enabled start control was available');
+  const selection=action==='start-screen'
+    ?await completeStartSelectionIfNeeded(page)
+    :{status:'PASS',selectionRequired:false};
+  if(selection.status!=='PASS')return selection;
   try{
     await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});
   }catch{
@@ -24,6 +72,7 @@ async function clickStart(page){
   return {
     status:'PASS',
     action,
+    selection,
     timeToPlayingMs:Date.now()-started,
     frames:await frameSummarySince(page,frameStart),
     before,
