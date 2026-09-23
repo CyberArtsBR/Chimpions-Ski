@@ -190,7 +190,10 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         const x=clamp(obstacleLanes[i]+rand(-.78,.78),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         if(!isOutsideSafeCorridor(x,safeX,gap))continue;
         const alternating=(i%2===0?-1:1)*rand(1.25,2.85);
-        const localZ=z+phaseOffset+alternating+rand(-.45,.45);
+        // Add a gentle lane-wise longitudinal sweep so a filtered STAGGER can
+        // never collapse into a wide near-horizontal wall across the course.
+        const laneSweep=(i-(obstacleLanes.length-1)*.5)*.55;
+        const localZ=z+phaseOffset+alternating+laneSweep+rand(-.45,.45);
         placements.push(place(kindAt(i),x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
       }
       return;
