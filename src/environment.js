@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {makeSerratedFirGeometry,makeBarkTexture} from './alpineArt.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
@@ -602,15 +601,6 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   scene.background=new THREE.Color(0xd4edf8);
   scene.fog=new THREE.Fog(0xd8eef7,48,268);
   renderer.toneMappingExposure=1.11;
-
-  // Give metallic/dark Chimpions a stable reflected world without changing any
-  // character mesh or material. The PMREM is generated once at environment init.
-  const pmrem=new THREE.PMREMGenerator(renderer);
-  const reflectionScene=new RoomEnvironment();
-  const reflectionTarget=pmrem.fromScene(reflectionScene,.035);
-  scene.environment=reflectionTarget.texture;
-  scene.environmentIntensity=.72;
-  pmrem.dispose();
 
   const snowMaterials=createSnowMaterials(renderer);
 
