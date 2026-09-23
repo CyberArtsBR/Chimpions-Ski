@@ -29,6 +29,8 @@ import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFail
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
+import {quality} from './renderQuality.js';
+import {createPerformanceTelemetry} from './performanceTelemetry.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -64,7 +66,8 @@ camera.lookAt(0,1,-12);
 const skiCamera=createSkiCamera(camera);
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+const performanceTelemetry=createPerformanceTelemetry();
+renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -74,6 +77,7 @@ app.prepend(renderer.domElement);
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
+quality.subscribe(settings=>renderer.setPixelRatio(Math.min(devicePixelRatio,settings.dprCap)));
 const snowMat=environment.terrainMaterial;
 const {
   trunk:trunkMat,
@@ -298,7 +302,7 @@ const startCrowd=createStartCrowd({
   terrainHeight,
   // CI/browser smoke tests validate flow with a tiny crowd; production keeps
   // the full 50 unique Chimpion start line enforced by START_CROWD_COUNT.
-  maxSpectators:smokeTestMode?4:undefined
+  maxSpectators:smokeTestMode?4:quality.getSettings().crowdMaxSpectators
 });
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
@@ -647,6 +651,7 @@ function update(dt){
     lastPadJump=!!pad.jump;
     return;
   }
+  performanceTelemetry.beginFrame();
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
@@ -785,6 +790,7 @@ function update(dt){
       skiTrails.breakTrail();
     }
 
+    const courseTraversalStarted=performance.now();
     let nearestSectionItem=null;
     for(let i=course.length-1;i>=0;i--){
       const item=course[i];
@@ -910,6 +916,7 @@ function update(dt){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
+    performanceTelemetry.record('courseTraversal',performance.now()-courseTraversalStarted);
     }
     if(state.mode==='playing')fillCourse(state.difficulty);
   }else if(state.mode==='countdown'){
@@ -938,11 +945,15 @@ function update(dt){
       displaceTerrainChunk(tile.geometry,tile.position.z-state.travel);
     }
   }
+  const batchSyncStarted=performance.now();
   courseRenderBatches.sync(course,worldDistance!==0);
+  performanceTelemetry.record('courseBatchSync',performance.now()-batchSyncStarted);
   startCrowd.update(dt,{mode:state.mode,worldDistance,time:performance.now()/1000});
   startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
+  const environmentUpdateStarted=performance.now();
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
+  performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   scorePresentation.update({
@@ -975,6 +986,7 @@ function update(dt){
     time:state.time
   });
   feedback.update(state,dt);
+  performanceTelemetry.endFrame();
 }
 
 function render(now){
@@ -995,7 +1007,7 @@ requestAnimationFrame(render);
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+  renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 }
 addEventListener('resize',resize);
 
@@ -1014,6 +1026,10 @@ window.chimpionsSki=()=>{
   const pooledObjects=Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0);
   return {
     ...state,
+    ...performanceTelemetry.getFlatSnapshot(),
+    ...environment.getQualityDiagnostics?.(),
+    qualityProfile:quality.current,
+    qualitySettings:quality.getSettings(),
     physicsSubsteps,
     activeRamp:!!activeRamp,
     activeRampState:activeRamp?(activeRamp.userData.consumed?'consumed':'engaged'):'none',
