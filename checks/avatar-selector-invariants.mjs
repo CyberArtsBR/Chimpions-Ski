@@ -43,6 +43,11 @@ const searchMs=performance.now()-started;
 assert(checksum>0);
 
 const avatarSource=readFileSync(new URL('../src/avatar-system.js',import.meta.url),'utf8');
+const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+assert(mainSource.includes('initialSelectionFlow=true'),'initial START GAME no longer arms the character-selection flow');
+assert(mainSource.includes('selector.open();'),'initial START GAME does not open the character selector');
+assert(!/createStartScreen\s*\(\s*\{[\s\S]{0,320}onStart\s*:\s*\(\)\s*=>\s*beginRun\(\)/.test(mainSource),'start screen still launches a random run directly');
+assert(mainSource.includes('setTimeout(()=>beginRun(),0)'),'confirmed character/ride selection does not continue into the race');
 assert(!avatarSource.includes("cache:'no-store'"),'catalog fetch still forces no-store');
 assert(avatarSource.includes("fetch('/avatars.json')"),'catalog fetch should use normal browser caching/revalidation');
 assert(avatarSource.includes("image.loading='lazy'"),'card portraits are not lazy loaded');

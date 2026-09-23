@@ -293,6 +293,7 @@ const START_COUNTDOWN_DURATION_MS=2700;
 let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectedRideMode=RIDE_MODE.SKI;
+let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
 const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 
@@ -317,7 +318,14 @@ const feedback=createGameFeedback({audio,ui});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
 const startScreen=createStartScreen({
   audio,
-  onStart:()=>beginRun(),
+  onStart:()=>{
+    if(!ready||!selector)return false;
+    initialSelectionFlow=true;
+    state.mode='menu';
+    ui.showMenu();
+    selector.open();
+    return true;
+  },
   assetUrl:'/start/chimpions-ski-start.jpg'
 });
 startScreen.setReady(false);
@@ -417,9 +425,18 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
       catalog,
-      onSelect:setAvatar,
+      onSelect:async(entry,rideMode)=>{
+        await setAvatar(entry,rideMode);
+        if(initialSelectionFlow){
+          initialSelectionFlow=false;
+          setTimeout(()=>beginRun(),0);
+        }
+      },
       selectedId:initialAvatar.id,
       selectedRideMode
+    });
+    selector.dialog.addEventListener('close',()=>{
+      if(initialSelectionFlow)initialSelectionFlow=false;
     });
     selector.setSelected(initialAvatar,selectedRideMode);
   }catch(error){

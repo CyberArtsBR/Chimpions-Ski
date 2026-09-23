@@ -84,9 +84,21 @@ try{
 
   await start.evaluate(button=>{button.click();button.click();});
   await page.waitForFunction(()=>document.querySelector('.start-screen')?.hidden===true,{timeout:5000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:10000});
+  const selector=page.locator('#chimpion-selector');
+  await selector.waitFor({state:'visible',timeout:5000});
+  assert.equal((await page.evaluate(()=>window.chimpionsSki())).mode,'menu','START GAME must not begin a random run before selection');
+
+  const firstChimpion=selector.locator('.chimpion-card').first();
+  await firstChimpion.waitFor({state:'visible',timeout:5000});
+  await firstChimpion.click();
+  const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
+  await skiChoice.waitFor({state:'visible',timeout:5000});
+  await skiChoice.click();
+
+  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,{timeout:5000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:12000});
   assert.equal(await page.locator('.start-screen').isVisible(),false);
-  assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after starting');
+  assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
   const playing=await page.evaluate(()=>window.chimpionsSki());
   assert.equal(Math.round(playing.speed*3.6),160,'Run must begin at 160 km/h');
