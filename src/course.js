@@ -87,7 +87,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   }
 
   function pickRampBand(){
-    return weightedIndex([1.62,1.12,.90,.72,.90,1.12,1.62]);
+    // Keep every lane possible, but make center/inner ramps common enough to read
+    // as intentional gameplay choices instead of edge-biased scenery.
+    return weightedIndex([.78,1.05,1.36,1.82,1.36,1.05,.78]);
   }
 
   function contentX(z,bandIndex=pickBand(),strength=1){
@@ -207,7 +209,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     if(type==='ISOLATED'){
-      const count=random()<.68?1:2;
+      const count=random()<.52?1:2;
       for(let i=0;i<count;i++){
         let x=contentX(z+rand(-2,2),pickBand(),.98);
         if(!isOutsideSafeCorridor(x,safeX,gap)){
@@ -234,7 +236,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
 
     if(type==='SCATTER'){
-      const count=4+Math.floor(random()*3);
+      const count=5+Math.floor(random()*3);
       const placed=[];
       for(let attempt=0;attempt<18&&placed.length<count;attempt++){
         const kind=kindAt(attempt);
@@ -458,7 +460,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='OPEN CARVE'){
       length=96;
       let z=startZ-18;
-      for(let i=0;i<4;i++){
+      for(let i=0;i<5;i++){
         const safeX=safeAt(z,currentSpeed,anchor,3.8);
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:['tree','rock'],intensity:.35});
         z-=spacing(false);
@@ -469,7 +471,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     if(type==='GATE'){
       length=110;
-      const rows=5;
+      const rows=6;
       let z=startZ-18;
       for(let i=0;i<rows;i++){
         const desired=clamp(anchor+Math.sin(phase+i*.86)*4.0,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
@@ -485,7 +487,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='BANANA LINE'){
       length=100;
       let z=startZ-20;
-      for(let i=0;i<4;i++){
+      for(let i=0;i<5;i++){
         const safeX=safeAt(z,currentSpeed,anchor,3.2);
         addFormation(placements,i===0?'ISOLATED':chooseFormation(type),z,safeX,{kinds:['rock','tree'],intensity:.38});
         z-=spacing(false);
@@ -496,7 +498,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     if(type==='FOREST'){
       length=120;
-      const rows=6;
+      const rows=7;
       let z=startZ-16;
       for(let i=0;i<rows;i++){
         const desired=clamp(anchor+Math.sin(phase+i*.70)*4.1,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
@@ -510,7 +512,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     if(type==='ROCK SLALOM'){
       length=118;
-      const rows=6;
+      const rows=7;
       let z=startZ-16;
       let desired=anchor;
       for(let i=0;i<rows;i++){
