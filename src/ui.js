@@ -53,6 +53,13 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div><div class="countdown-control">GET READY · SPACE / A · JUMP AFTER GO</div>';
   document.body.append(countdown);
 
+  const runLoading=document.createElement('div');
+  runLoading.id='run-loading-overlay';
+  runLoading.className='presentation-overlay run-loading-overlay';
+  runLoading.hidden=true;
+  runLoading.innerHTML='<section class="presentation-card run-loading-card" role="status" aria-live="polite"><small class="eyebrow">START CREW</small><h2>PREPARING THE START LINE…</h2><p>Loading 50 unique Chimpions</p></section>';
+  document.body.append(runLoading);
+
   const pause=document.createElement('div');
   pause.id='pause-overlay';
   pause.className='presentation-overlay';
@@ -204,6 +211,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     bestDistance=Math.max(0,Number(best)||0);
     bestCelebrated=false;
     bestFlag.hidden=true;
+    runLoading.hidden=true;
     leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
@@ -266,6 +274,14 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     countdown.hidden=true;
     countdown.classList.remove('is-active','is-launching');
   }
+  function showRunLoading(){
+    clearControllerSelection();
+    runLoading.hidden=false;
+  }
+  function hideRunLoading(){
+    runLoading.hidden=true;
+  }
+
   function showPause(){
     cancelCountdown();
     leaveConfirm.hidden=true;
@@ -506,5 +522,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
 }
