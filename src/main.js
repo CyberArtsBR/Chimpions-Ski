@@ -292,7 +292,14 @@ trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
 const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
-const startCrowd=createStartCrowd({world,terrainHeight});
+const smokeTestMode=new URLSearchParams(window.location.search).has('test');
+const startCrowd=createStartCrowd({
+  world,
+  terrainHeight,
+  // CI/browser smoke tests validate flow with a tiny crowd; production keeps
+  // the full 50 unique Chimpion start line enforced by START_CROWD_COUNT.
+  maxSpectators:smokeTestMode?4:undefined
+});
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
 let startCountdownStarted=false;
@@ -557,6 +564,7 @@ function startRaceCountdown(){
 async function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden||runPreparing)return false;
   runPreparing=true;
+  ui.showRunLoading?.();
   try{
     // The start crowd is fully disposed once the previous race is underway.
     // Rehydrate it only when a new run is explicitly requested.
@@ -569,6 +577,7 @@ async function beginRun(){
     startCamera.begin(state,performance.now());
     return true;
   }finally{
+    ui.hideRunLoading?.();
     runPreparing=false;
   }
 }
