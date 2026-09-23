@@ -27,7 +27,7 @@ assert(crowd.includes('startReadyCount:10'),'start-critical crowd target is expl
 assert(crowd.includes('loadConcurrency:1'),'interactive crowd GLB parsing is serialized to protect main-thread frame pacing');
 assert(crowd.includes('startWaitMs:900'),'run-start wait has a bounded timeout');
 assert(crowd.includes('new THREE.InstancedMesh'),'unloaded spectators keep a lightweight visible placeholder representation');
-assert(crowd.includes('const job=startLoad(entries);'),'ensureLoaded starts or reuses progressive preparation');
+assert(crowd.includes("const job=startLoad(entries,{full:false});"),'interactive ensureLoaded starts or reuses the start-critical preparation path');
 assert(crowd.includes('return waitForStartReady(job);'),'run start waits only for the critical subset, not all 50 assets');
 assert(crowd.includes('job.claimLimit=Math.min(job.claimLimit,job.cursor)'),'run commitment freezes new GLB claims immediately');
 assert(crowd.includes('if(job.cursor>=job.claimLimit)break'),'workers honor the frozen claim limit before starting another asset');
