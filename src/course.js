@@ -485,14 +485,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let placed=false;
 
       for(const side of [preferredSide,-preferredSide]){
-        const minimum=Math.min(limit,Math.abs(safe)+routeGap+.35);
-        const outer=Math.min(limit,Math.max(minimum,T.SIDE_HAZARD_ZONE_START-.8));
         const candidate=clamp(
-          safe+side*(routeGap+rand(.45,Math.max(.55,Math.min(2.4,limit-routeGap)))),
+          safe+side*(routeGap+rand(.55,2.45)),
           -limit,
           limit
         );
-        const x=Math.abs(candidate)>=outer-.25?candidate:side*outer;
+        const x=candidate;
         if(Math.abs(x-safe)<=routeGap)continue;
         if(placements.some(p=>
           PHYSICAL_HAZARDS.has(p.kind)&&
