@@ -337,6 +337,14 @@ const startScreen=createStartScreen({
     state.mode='menu';
     ui.showMenu();
     selector.open();
+    // Only start warming the 50 unique spectator GLBs after the selector is
+    // already open. This keeps the initial screen and first selector frame
+    // responsive; beginRun() reuses this same in-flight load when confirmed.
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{
+        startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
+      },0);
+    });
     return true;
   },
   assetUrl:'/start/chimpions-ski-start.jpg'
@@ -455,11 +463,6 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     ready=!!skier;
     startScreen.setReady(ready);
     ui.setAvatarLoading(!ready);
-    // Let the first selector/start-screen frame paint before warming 50 unique
-    // spectator GLBs. beginRun() reuses the same in-flight promise if needed.
-    setTimeout(()=>{
-      startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
-    },250);
   }catch(error){
     console.warn(error);
     const previousSkier=skier;
