@@ -212,6 +212,59 @@ assert(lateTreeShare<earlyTreeShare,'trees did not reduce in relative frequency 
 assert(lateLateralShare>earlyLateralShare,'logs/oil did not increase in relative frequency over the run');
 assert(OBSTACLE_TUNING.log.length>2.2&&OBSTACLE_TUNING.wideLog.length>5.2,'logs were not lengthened');
 assert(OBSTACLE_TUNING.oil.visualScaleX>1.55,'oil puddles were not widened');
+assert(T.POST_MAX_HAZARD_RAMP_SECONDS>=120,'post-300 hazard ramp is too abrupt');
+assert(T.POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION>=2,'post-300 density ceiling is too low');
+
+function postMaxDensityStats(postMaxTime){
+  let hazards=0,postMaxHazards=0,wideLogs=0,specialWideLogs=0,specialLogs=0;
+  for(const seed of [11,23,37,59,83,127,191,251,331,419,509,607]){
+    const director=createCourseDirector({routeCenter,random:rng(seed)});
+    let z=-12;
+    for(let i=0;i<72;i++){
+      const section=director.next({
+        startZ:z,
+        difficulty:1,
+        speed:T.MAX_SPEED,
+        postMaxTime
+      });
+      for(const placement of section.placements){
+        if(!isHazard(placement))continue;
+        hazards++;
+        if(placement.kind==='wideLog')wideLogs++;
+        if(placement.special&&placement.kind==='wideLog')specialWideLogs++;
+        if(placement.special&&placement.kind==='log')specialLogs++;
+        if(placement.postMaxPressure){
+          postMaxHazards++;
+          const info=hazardInfo[placement.kind];
+          assert(
+            Math.abs(placement.x-placement.safeX)>info.radiusX+.36,
+            'post-300 density hazard invaded the safe route'
+          );
+          assert.notEqual(section.type,'RAMP','post-300 filler entered a ramp section');
+          assert.notEqual(section.type,'LOG JUMP','post-300 filler entered a log-jump section');
+        }
+      }
+      z=section.endZ;
+    }
+  }
+  return {hazards,postMaxHazards,wideLogs,specialWideLogs,specialLogs};
+}
+const preMaxDensity=postMaxDensityStats(0);
+const postMaxDensity=postMaxDensityStats(T.POST_MAX_HAZARD_RAMP_SECONDS);
+assert.equal(preMaxDensity.postMaxHazards,0,'post-300 filler appeared before reaching max speed');
+assert(postMaxDensity.postMaxHazards>0,'post-300 filler never added hazards');
+assert(
+  postMaxDensity.hazards>preMaxDensity.hazards*1.025,
+  'hazard density did not increase after sustained 300 km/h'
+);
+assert(
+  postMaxDensity.wideLogs>preMaxDensity.wideLogs,
+  'wide horizontal logs did not increase during post-300 escalation'
+);
+assert(
+  preMaxDensity.specialWideLogs>preMaxDensity.specialLogs,
+  'wide logs are not the dominant log type among special hazards'
+);
 
 // Streaming audit: generation must live well outside the ~280m far plane.
 const cameraFar=280;
@@ -271,6 +324,7 @@ console.log(JSON.stringify({
   maxLeftDrySections,
   maxRightDrySections,
   maxColumnStreak,
+  postMaxDensity:{preMaxDensity,postMaxDensity},
   obstacleMix:{
     earlyTreeShare:Number(earlyTreeShare.toFixed(3)),
     lateTreeShare:Number(lateTreeShare.toFixed(3)),
