@@ -175,7 +175,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     const ski=createStyledSki(fallbackSkiAssets);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;ski.userData.restPosition=ski.position.clone();equipmentRoot.add(ski);skis.push(ski);
     const pole=mesh(new THREE.CylinderGeometry(.018,.018,1.65,8),dark,equipmentRoot);pole.position.set(side*.58,.86,.15);pole.rotation.z=side*.18;pole.rotation.x=.18;poles.push(pole);
   }
-  const snowboard=createSnowboardEquipment({centerX:0,z:.04,topColor:0x7a3ec5,stanceHalfLength:.22});
+  const snowboard=createSnowboardEquipment({centerX:0,z:.04,boardY:.040,topColor:0x7a3ec5,stanceHalfLength:.24});
   riderVisual.add(snowboard.root);
 
   const pose={carve:0,air:0,landing:0,speed:0};
@@ -232,10 +232,10 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
       const side=index===0?-1:1;
       // Snowboard fallback uses a visibly open A-pose: arms sit below shoulder
       // height, stay separated from the torso and avoid sweeping into the chest.
-      const baseAngle=snowboardMode?.72:.61;
-      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.018)+pose.carve*.012,.16);
-      const armForward=snowboardMode?.035:.10;
-      arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.010-ascent*.030*airScale+apex*.012+descent*.018*airScale,.16);
+      const baseAngle=snowboardMode ? .62 : .54;
+      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.014)+pose.carve*.010,.16);
+      const armForward=snowboardMode ? .012 : .025;
+      arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.006-ascent*.022*airScale+apex*.008+descent*.012*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
@@ -343,18 +343,24 @@ function footBasedSkiPlacement(root,rig){
 const SNOWBOARD_SIDE_YAW=1.50;
 
 function footBasedSnowboardPlacement(root,rig){
-  const fallback={centerX:0,stanceHalfLength:.24,z:.02,leftFront:true};
+  const fallback={centerX:0,stanceHalfLength:.26,z:.02,y:.040,leftFront:true};
   if(!rig?.leftFoot||!rig?.rightFoot)return fallback;
   root.updateWorldMatrix(true,true);
   const left=root.worldToLocal(rig.leftFoot.getWorldPosition(new THREE.Vector3()));
   const right=root.worldToLocal(rig.rightFoot.getWorldPosition(new THREE.Vector3()));
   const halfLength=Math.abs(right.z-left.z)*.5;
+  const lowestFootY=Math.min(left.y,right.y);
+  // Fit board height from the actual rig rather than a fixed avatar-specific Y.
+  // Foot bones are usually at/above the ankle, so leave room for the boot sole
+  // and binding stack while keeping the deck visibly below both feet.
+  const boardY=THREE.MathUtils.clamp(lowestFootY-.135,.018,.078);
   return {
     // Center the board under the feet AFTER the avatar has been turned sideways.
     // This avoids carrying the ski-mode X/Z center into snowboard mode.
     centerX:(left.x+right.x)*.5,
-    stanceHalfLength:THREE.MathUtils.clamp(halfLength,.20,.38),
+    stanceHalfLength:THREE.MathUtils.clamp(halfLength,.19,.40),
     z:(left.z+right.z)*.5,
+    y:boardY,
     leftFront:left.z<=right.z
   };
 }
@@ -401,20 +407,32 @@ function makeRigController(model){
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const pose={carve:0,speed:0,air:0,landing:0};
 
-  // Arm aiming is derived from each mapped rig's actual rest limb direction,
-  // so different bone-axis conventions still converge on the same visual A-pose.
+  // Capture both bone-local and model-local limb directions from the untouched
+  // GLB rest pose. The local direction lets us aim bones without assuming axes;
+  // the model-space direction lets us retain each avatar's authored character
+  // while correcting only the amount needed to reach a safe, readable A-pose.
   const armRestDirections=new Map();
-  const limbSample=new THREE.Vector3();
+  const armRestModelDirections=new Map();
+  const limbStart=new THREE.Vector3(),limbEnd=new THREE.Vector3();
+  const boneWorldQ=new THREE.Quaternion(),inverseBoneWorldQ=new THREE.Quaternion();
+  const inverseModelWorldQ=new THREE.Quaternion();
   model.updateWorldMatrix(true,true);
+  model.getWorldQuaternion(inverseModelWorldQ).invert();
   for(const [key,childKey] of [
     ['leftUpperArm','leftForearm'],['rightUpperArm','rightForearm'],
     ['leftForearm','leftHand'],['rightForearm','rightHand']
   ]){
     const bone=rig[key],child=rig[childKey];
     if(!bone||!child)continue;
-    child.getWorldPosition(limbSample);
-    const direction=bone.worldToLocal(limbSample).normalize().clone();
-    if(direction.lengthSq()>.5)armRestDirections.set(key,direction);
+    bone.getWorldPosition(limbStart);
+    child.getWorldPosition(limbEnd);
+    const worldDirection=limbEnd.clone().sub(limbStart).normalize();
+    bone.getWorldQuaternion(boneWorldQ);
+    inverseBoneWorldQ.copy(boneWorldQ).invert();
+    const localDirection=worldDirection.clone().applyQuaternion(inverseBoneWorldQ).normalize();
+    const modelDirection=worldDirection.clone().applyQuaternion(inverseModelWorldQ).normalize();
+    if(localDirection.lengthSq()>.5)armRestDirections.set(key,localDirection);
+    if(modelDirection.lengthSq()>.5)armRestModelDirections.set(key,modelDirection);
   }
 
   const parentWorldQ=new THREE.Quaternion();
@@ -430,6 +448,8 @@ function makeRigController(model){
   const riderForward=new THREE.Vector3();
   const upperArmTarget=new THREE.Vector3();
   const forearmTarget=new THREE.Vector3();
+  const restArmDirection=new THREE.Vector3();
+  const canonicalArmTarget=new THREE.Vector3();
   let currentRideMode=RIDE_MODE.SKI;
   let snowboardSideSign=1;
 
@@ -460,6 +480,32 @@ function makeRigController(model){
     targetQ.copy(inverseParentQ).multiply(targetWorldQ);
     bone.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
     return true;
+  }
+
+  function blendRestArmTarget(key,target,sideSign,baseBlend,minOut,minDown,maxForward){
+    const authored=armRestModelDirections.get(key);
+    canonicalArmTarget.copy(target).normalize();
+    if(authored){
+      restArmDirection.copy(authored).applyQuaternion(riderWorldQ).normalize();
+      const similarity=THREE.MathUtils.clamp(restArmDirection.dot(canonicalArmTarget),-1,1);
+      const restDown=Math.max(0,-restArmDirection.dot(riderUp));
+      const targetDown=Math.max(.001,-canonicalArmTarget.dot(riderUp));
+      const dropNeed=THREE.MathUtils.clamp((targetDown-restDown)/targetDown,0,1);
+      const correction=THREE.MathUtils.clamp(baseBlend+(1-similarity)*.08+dropNeed*.12,baseBlend,.90);
+      target.copy(restArmDirection).lerp(canonicalArmTarget,correction).normalize();
+    }else target.copy(canonicalArmTarget);
+
+    // Final guardrails are expressed in rider space, not bone Euler angles:
+    // arms must slope down, remain on their own side, and never sweep far
+    // forward/backward enough for the hands to bunch at the torso.
+    const outward=target.dot(riderRight)*sideSign;
+    if(outward<minOut)target.addScaledVector(riderRight,sideSign*(minOut-outward));
+    const vertical=target.dot(riderUp);
+    if(vertical>-minDown)target.addScaledVector(riderUp,-minDown-vertical);
+    const forward=target.dot(riderForward);
+    const clampedForward=THREE.MathUtils.clamp(forward,-maxForward,maxForward);
+    if(forward!==clampedForward)target.addScaledVector(riderForward,clampedForward-forward);
+    return target.normalize();
   }
 
   const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',rideMode=currentRideMode}={})=>{
@@ -493,12 +539,12 @@ function makeRigController(model){
       // upper body only slightly downhill so the stance stays side-on.
       const downhillTurn=-snowboardSideSign;
       rotate('hips',hipFlex,carve*.020,hipLean,.22);
-      rotate('spine',-.065-speedCrouch*.03,downhillTurn*.07+carve*.010,carve*.045*stance,.18);
-      rotate('chest',-.035-speedCrouch*.018,downhillTurn*.10+carve*.010,carve*.030*stance,.18);
-      // Neck + head counter-rotate only part-way toward downhill. Combined with
-      // the torso opening this leaves the gaze diagonal, not fully front-facing.
-      rotate('neck',.025+speedCrouch*.01,downhillTurn*.18,-carve*.010,.17);
-      rotate('head',.012,downhillTurn*.34,-carve*.012,.15);
+      rotate('spine',-.065-speedCrouch*.03,downhillTurn*.050+carve*.010,carve*.045*stance,.18);
+      rotate('chest',-.035-speedCrouch*.018,downhillTurn*.075+carve*.010,carve*.030*stance,.18);
+      // Torso opens only a little toward downhill; neck/head add the remaining
+      // counter-turn so the gaze stays diagonal instead of becoming ski-forward.
+      rotate('neck',.025+speedCrouch*.01,downhillTurn*.17,-carve*.010,.17);
+      rotate('head',.012,downhillTurn*.31,-carve*.012,.15);
     }else{
       rotate('hips',hipFlex,0,hipLean,.22);
       rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
@@ -507,58 +553,57 @@ function makeRigController(model){
       rotate('head',.012,0,-carve*.014,.14);
     }
 
+    model.getWorldQuaternion(riderWorldQ);
+    riderRight.set(1,0,0).applyQuaternion(riderWorldQ).normalize();
+    riderUp.set(0,1,0).applyQuaternion(riderWorldQ).normalize();
+    riderForward.set(0,0,1).applyQuaternion(riderWorldQ).normalize();
+
     for(const [side,sideSign] of [['left',-1],['right',1]]){
       const outside=Math.max(0,carve*-sideSign);
       const inside=Math.max(0,carve*sideSign);
 
       const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.045-inside*.055;
       const shin=(snowboardMode?.62:.54)+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
-      const foot=-.20+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
+      const foot=(snowboardMode ? -.11 : -.20)+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
 
       rotate(side+'Thigh',thigh,snowboardMode?sideSign*.11*snowboardSideSign:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
       rotate(side+'Shin',shin,0,0,.22);
-      rotate(side+'Foot',foot,snowboardMode?sideSign*.06*snowboardSideSign:0,-carve*.035,.20);
+      rotate(side+'Foot',foot,snowboardMode ? sideSign*.045*snowboardSideSign : 0,-carve*.035,.20);
 
-      // Keep clavicles relaxed; solve the arm segments in avatar/world space so
-      // every imported rig converges on the same readable pose. Snowboard arms
-      // are deliberately semi-open (A-pose / slightly-below-T), with elbows
-      // softly bent and hands kept beside the body instead of meeting in front.
-      rotate(side+'Shoulder',0,0,carve*.006,.16);
-
-      model.getWorldQuaternion(riderWorldQ);
-      riderRight.set(1,0,0).applyQuaternion(riderWorldQ).normalize();
-      riderUp.set(0,1,0).applyQuaternion(riderWorldQ).normalize();
-      riderForward.set(0,0,1).applyQuaternion(riderWorldQ).normalize();
+      // Keep clavicles relaxed. Arms begin from the untouched GLB rest pose and
+      // receive only a constrained correction toward a natural A-pose. This is
+      // rig-axis agnostic and prevents hands crossing in front or folding behind.
+      rotate(side+'Shoulder',0,0,carve*.004,.16);
 
       const frontArm=snowboardMode&&side==='left';
       const rearArm=snowboardMode&&side==='right';
-      const upperOut=snowboardMode?(frontArm?.74:.70):.54;
+      const upperOut=snowboardMode ? (frontArm ? .68 : .64) : .58;
       const upperDown=snowboardMode
-        ?(.68+speedCrouch*.025+landingBlend*.020)
-        :(.82+speedCrouch*.035+landingBlend*.025);
-      const upperForward=snowboardMode?(frontArm?.08:(rearArm?.035:.06)):.12;
+        ?(.76+speedCrouch*.020+landingBlend*.018)
+        :(.84+speedCrouch*.028+landingBlend*.022);
+      const upperForward=snowboardMode ? (frontArm ? .025 : (rearArm ? -.010 : .010)) : .025;
       upperArmTarget.copy(riderRight).multiplyScalar(sideSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
-        .addScaledVector(riderForward,upperForward+outside*.012)
+        .addScaledVector(riderForward,upperForward+outside*.008)
         .normalize();
+      blendRestArmTarget(side+'UpperArm',upperArmTarget,sideSign,.62,snowboardMode ? .30 : .28,.46,.12);
 
-      // The forearm remains outward but drops more steeply than the upper arm,
-      // creating a small elbow bend while keeping both hands naturally apart.
-      const foreOut=snowboardMode?(frontArm?.38:.34):.14;
+      // Forearms stay mostly down/out rather than pointing toward the chest.
+      // That creates a mild elbow bend while preserving clear left/right hand spacing.
+      const foreOut=snowboardMode ? (frontArm ? .46 : .42) : .38;
       const foreDown=snowboardMode
-        ?(.86+speedCrouch*.025+landingBlend*.018)
-        :(.70+speedCrouch*.030+landingBlend*.020);
-      const foreForward=snowboardMode?(frontArm?.21:(rearArm?.16:.18)):.68;
+        ?(.90+speedCrouch*.020+landingBlend*.016)
+        :(.93+speedCrouch*.024+landingBlend*.018);
+      const foreForward=snowboardMode ? (frontArm ? .045 : (rearArm ? .015 : .025)) : .050;
       forearmTarget.copy(riderRight).multiplyScalar(sideSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
-        .addScaledVector(riderForward,foreForward+inside*.012)
+        .addScaledVector(riderForward,foreForward+inside*.008)
         .normalize();
+      blendRestArmTarget(side+'Forearm',forearmTarget,sideSign,.68,snowboardMode ? .22 : .20,.60,.14);
 
-      // Fallback to the old rest-driven path only if a mapped segment is absent.
-      if(!aimLimb(side+'UpperArm',upperArmTarget,.20))rotate(side+'UpperArm',0,0,sideSign*.62,.18);
-      if(!aimLimb(side+'Forearm',forearmTarget,.21))rotate(side+'Forearm',.20,0,0,.18);
-      // A neutral wrist inherits the corrected forearm direction without adding
-      // another local twist that could turn the hand behind the rider.
+      if(!aimLimb(side+'UpperArm',upperArmTarget,.20))rotate(side+'UpperArm',0,0,sideSign*.56,.18);
+      if(!aimLimb(side+'Forearm',forearmTarget,.21))rotate(side+'Forearm',.10,0,sideSign*.06,.18);
+      // Neutral wrist: no extra local twist that can turn a hand behind the rider.
       rotate(side+'Hand',0,0,0,.18);
     }
 
@@ -603,6 +648,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     const snowboard=createSnowboardEquipment({
       centerX:snowboardStance.placement.centerX,
       z:snowboardStance.placement.z,
+      boardY:snowboardStance.placement.y,
       topColor:0x7b3fc7,
       stanceHalfLength:snowboardStance.placement.stanceHalfLength
     });
