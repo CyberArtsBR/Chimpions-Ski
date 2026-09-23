@@ -4,7 +4,7 @@ export const RIDE_AUDIO_PROFILES=Object.freeze({
   ski:Object.freeze({
     mode:'ski',
     minSpeedKmh:160,
-    maxSpeedKmh:210,
+    maxSpeedKmh:300,
     feelFloor:.62,
     contactGain:1,
     carveGain:1,
@@ -17,7 +17,7 @@ export const RIDE_AUDIO_PROFILES=Object.freeze({
   snowboard:Object.freeze({
     mode:'snowboard',
     minSpeedKmh:180,
-    maxSpeedKmh:230,
+    maxSpeedKmh:300,
     feelFloor:.62,
     contactGain:1.07,
     carveGain:1.12,
