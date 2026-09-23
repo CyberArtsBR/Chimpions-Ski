@@ -175,41 +175,20 @@ async function forceBenchmarkRelease(page){
 }
 
 async function restartAfterTeardown(page){
-  let state=await diagnostics(page);
-  if(state?.mode!=='playing'&&state?.mode!=='crashed'){
-    state=await waitDiag(page,d=>d.mode==='playing'||d.mode==='crashed',14000);
-  }
   await forceBenchmarkRelease(page);
-
-  // Re-read after teardown. The no-input benchmark skier can collide between
-  // the pre-release snapshot and this point, so restart routing must follow the
-  // current mode instead of a stale observation.
-  state=await diagnostics(page);
-  let restartSelector='';
-  if(state?.mode==='crashed'){
-    restartSelector='#restart-result';
-    await page.locator(restartSelector).waitFor({state:'visible',timeout:3000});
-  }else{
-    if(state?.mode==='playing')await page.keyboard.press('Escape');
-    state=await waitDiag(page,d=>d.mode==='paused'||d.mode==='crashed',3000);
-    if(state?.mode==='crashed'){
-      restartSelector='#restart-result';
-    }else{
-      restartSelector='#restart-pause';
-    }
-    await page.locator(restartSelector).waitFor({state:'visible',timeout:3000});
-  }
-
+  const state=await diagnostics(page);
   const restartFrom=state?.mode||'unknown';
   const started=performance.now();
-  const [countdown,frameTiming]=await Promise.all([
-    (async()=>{
-      await page.locator(restartSelector).click();
-      return waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
-    })(),
-    sampleFrames(page,1400)
-  ]);
-  return {blockingMs:performance.now()-started,countdown,frameTiming,releasedBeforeRestart:true,restartFrom};
+  const frameTiming=sampleFrames(page,1400);
+  const restarted=await page.evaluate(async()=>{
+    const hook=window.chimpionsSkiCrowdBenchmark;
+    if(!hook?.restart)return false;
+    return hook.restart();
+  });
+  if(!restarted)throw new Error('Crowd benchmark restart hook could not start a run');
+  const countdown=await waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
+  if(!countdown||countdown.startCrowdReleased!==false)throw new Error('Crowd benchmark restart did not rebuild the crowd');
+  return {blockingMs:performance.now()-started,countdown,frameTiming:await frameTiming,releasedBeforeRestart:true,restartFrom};
 }
 
 async function coldFullPreparation(browser){

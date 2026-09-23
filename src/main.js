@@ -1097,6 +1097,7 @@ if(new URLSearchParams(window.location.search).has('crowdBenchmark')){
   window.chimpionsSkiCrowdBenchmark={
     prepareFull:()=>startCrowd.prepareFull(catalog),
     prepareStart:()=>startCrowd.setSpectators(catalog),
-    release:()=>startCrowd.release()
+    release:()=>startCrowd.release(),
+    restart:()=>beginRun()
   };
 }

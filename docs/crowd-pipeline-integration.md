@@ -82,3 +82,8 @@ This prevents spectator parsing from delaying the selected rider, selector close
 
 
 The warm-restart probe re-reads gameplay mode after deterministic crowd teardown. If the no-input skier crashes during the tiny transition window, the benchmark uses the results restart path; otherwise it pauses and uses the pause restart path. This avoids attributing a course collision race to crowd lifecycle.
+
+
+## Deterministic restart probe
+
+The production crowd benchmark uses the query-gated `window.chimpionsSkiCrowdBenchmark.restart()` hook to invoke the same `beginRun()` semantic action used by pause/result restart buttons. This avoids coupling crowd lifecycle measurements to transient pause/result overlay visibility when the no-input benchmark rider crashes between samples. The hook exists only when `?crowdBenchmark=1` is present and does not alter normal gameplay input or UI behavior.
