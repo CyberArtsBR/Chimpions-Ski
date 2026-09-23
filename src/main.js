@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import './style.css';
+import './floatingUI.css';
 import {createFallbackSkier,loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
 import {createSkiAudio} from './audio.js';
@@ -36,9 +37,9 @@ import {createPerformanceTelemetry} from './performanceTelemetry.js';
 const app=document.querySelector('#app');
 app.innerHTML=`
   <div class="hud" aria-label="Run statistics">
-    <div class="stat" aria-label="Distance"><small>DISTANCE</small><strong id="distance">0 m</strong></div>
-    <div class="stat is-banana" aria-label="Bananas"><small>BANANAS</small><strong id="bananas">0</strong></div>
-    <div class="stat" aria-label="Speed"><small>SPEED</small><strong id="speed">0 km/h</strong></div>
+    <div class="stat" aria-label="Distance"><small><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m2 20 7-14 4 7 3-5 6 12Z M6 12l3 2 2-2"/></svg>DISTANCE</small><strong id="distance">0 m</strong></div>
+    <div class="stat is-banana" aria-label="Bananas"><small><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 3c2 9-4 15-13 13 3 6 12 6 15-1 2-4 1-8-2-12Z M18 3l-1-1"/></svg>BANANAS</small><strong id="bananas">0</strong></div>
+    <div class="stat" aria-label="Speed"><small><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19a10 10 0 1 1 16 0 M12 5v2 M5 9l2 1 M19 9l-2 1 M12 15l5-6"/><circle cx="12" cy="15" r="1.5"/></svg>SPEED</small><strong id="speed">0 km/h</strong></div>
   </div>
   <div class="overlay" id="overlay">
     <section class="card" aria-labelledby="game-title">
