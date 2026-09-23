@@ -13,6 +13,9 @@ assert(ui.includes('haptics?.menuMove?.()'),'gamepad menu movement has no tactil
 assert(ui.includes('haptics?.menuConfirm?.()'),'gamepad menu confirmation has no tactile feedback');
 assert(css.includes('.presentation-actions button.is-controller-selected'),'controller-selected button has no visual style');
 assert(css.includes('content:"▶"'),'controller selection pointer is missing');
+assert(ui.includes("import {createMenuInputRepeat} from './menuInputRepeat.js';"),'UI is not consuming the controller-owned semantic menu repeat layer');
+assert(ui.includes('menuInput.update(pad);'),'semantic menu input adapter is not wired into the current UI');
+assert(main.includes('haptics.setActiveGamepad?.(pad.activeGamepad)'),'haptics are not targeted at the authoritative active controller');
 assert(main.includes('haptics.update?.(dt,{'),'continuous gameplay haptics are not updated from the main loop');
 assert(main.includes('haptics.banana?.()'),'banana pickup haptic cue is missing');
 
