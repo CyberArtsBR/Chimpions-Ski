@@ -52,6 +52,9 @@ const runner=readFileSync(new URL('../scripts/benchmark-ski-runtime.mjs',import.
 const core=readFileSync(new URL('../scripts/benchmark/core.mjs',import.meta.url),'utf8');
 assert((runner+core).includes('QUALITY_PROFILE'),'benchmark must support explicit quality profiles');
 assert(core.includes('longTasks'),'benchmark must capture long main-thread tasks');
+assert(core.includes('p50FrameMs'),'benchmark must expose p50 frame time');
+assert(core.includes('rendererPixelRatio'),'benchmark must sample effective renderer quality');
+assert(core.includes('activeSnowLayerParticles'),'benchmark must sample effective environment workload');
 assert(core.includes('perfCourseTraversalMs'),'benchmark must sample runtime hotspot telemetry');
 
 console.log(JSON.stringify({
