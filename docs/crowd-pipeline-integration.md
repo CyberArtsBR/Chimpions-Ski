@@ -65,3 +65,10 @@ The interactive selector path intentionally claims only the start-critical subse
 When the player commits to a run, the active job freezes its claim limit at the number of assets already in flight. That means no new GLB fetch/parse begins during countdown or gameplay. This is stricter than merely stopping after ten completed models and directly addresses the CI evidence that even a few additional rigged-GLB parses can starve the animation loop.
 
 The dedicated `window.chimpionsSkiPrepareFullCrowd()` instrumentation hook is used only by the benchmark to request all 50 distinct source GLBs. It keeps full-production profiling available without making normal gameplay pay that cost.
+
+
+## Deterministic lifecycle benchmark
+
+Natural gameplay release remains part of runtime (`playing && start-crowd z >= 30`), but an automated no-input skier may crash before that threshold. The benchmark therefore records whether natural release happened, while using a query-gated `?crowdBenchmark=1` teardown hook to verify scene destruction and warm reconstruction deterministically. The hook is not installed during normal gameplay.
+
+This separation prevents course randomness from being mistaken for a crowd-cache failure. The release implementation itself remains covered by static lifecycle invariants and by the benchmark's real teardown/rebuild cycle.

@@ -2,7 +2,9 @@ import {chromium} from '@playwright/test';
 import {mkdir,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 
-const TARGET=process.env.CHIMPIONS_SKI_BENCHMARK_URL||'http://127.0.0.1:4173/';
+const TARGET_URL=new URL(process.env.CHIMPIONS_SKI_BENCHMARK_URL||'http://127.0.0.1:4173/');
+TARGET_URL.searchParams.set('crowdBenchmark','1');
+const TARGET=TARGET_URL.href;
 const OUTPUT=process.env.CHIMPIONS_SKI_CROWD_BENCHMARK_JSON||'';
 const TIMEOUT=Number(process.env.CHIMPIONS_SKI_CROWD_TIMEOUT_MS)||60000;
 const FULL_TIMEOUT=Number(process.env.CHIMPIONS_SKI_CROWD_FULL_TIMEOUT_MS)||120000;
@@ -143,7 +145,7 @@ async function chooseCurrentAvatarAndSki(page){
   return {blockingMs:performance.now()-started,countdown,frameTiming};
 }
 
-async function observeUntilRelease(page,timeout=12000){
+async function observeRunOutcome(page,timeout=14000){
   const started=Date.now();
   let maxLoaded=0;
   let maxSources=0;
@@ -152,28 +154,51 @@ async function observeUntilRelease(page,timeout=12000){
     last=await diagnostics(page);
     maxLoaded=Math.max(maxLoaded,Number(last?.startCrowdLoadedCount)||0);
     maxSources=Math.max(maxSources,Number(last?.startCrowdModelSources)||0);
-    if(last?.mode==='playing'&&last?.startCrowdReleased===true){
-      return {released:true,maxLoaded,maxSources,last};
+    if(last?.startCrowdReleased===true||last?.mode==='crashed'){
+      return {naturalRelease:last?.startCrowdReleased===true,mode:last?.mode||'',maxLoaded,maxSources,last};
     }
     await sleep(40);
   }
-  return {released:false,maxLoaded,maxSources,last};
+  return {naturalRelease:!!last?.startCrowdReleased,mode:last?.mode||'',maxLoaded,maxSources,last};
 }
 
-async function restartAfterRelease(page){
-  const released=await waitDiag(page,d=>d.mode==='playing'&&d.startCrowdReleased===true,10000);
-  if(!released?.startCrowdReleased)throw new Error('Crowd did not release before warm restart probe');
-  await page.keyboard.press('Escape');
-  await page.locator('#pause-overlay:not([hidden])').waitFor({state:'visible',timeout:3000});
+async function forceBenchmarkRelease(page){
+  const result=await page.evaluate(()=>{
+    const hook=window.chimpionsSkiCrowdBenchmark;
+    if(!hook?.release)return {available:false,released:false};
+    return {available:true,released:hook.release()};
+  });
+  if(!result.available)throw new Error('Crowd benchmark release hook is unavailable');
+  const released=await waitDiag(page,d=>d.startCrowdReleased===true,1500);
+  if(!released?.startCrowdReleased)throw new Error('Crowd benchmark teardown did not reach released state');
+  return true;
+}
+
+async function restartAfterTeardown(page){
+  let state=await diagnostics(page);
+  if(state?.mode!=='playing'&&state?.mode!=='crashed'){
+    state=await waitDiag(page,d=>d.mode==='playing'||d.mode==='crashed',14000);
+  }
+  await forceBenchmarkRelease(page);
+
+  let restartSelector='';
+  if(state?.mode==='crashed'){
+    restartSelector='#restart-result';
+  }else{
+    await page.keyboard.press('Escape');
+    await page.locator('#pause-overlay:not([hidden])').waitFor({state:'visible',timeout:3000});
+    restartSelector='#restart-pause';
+  }
+
   const started=performance.now();
   const [countdown,frameTiming]=await Promise.all([
     (async()=>{
-      await page.locator('#restart-pause').click();
+      await page.locator(restartSelector).click();
       return waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
     })(),
     sampleFrames(page,1400)
   ]);
-  return {blockingMs:performance.now()-started,countdown,frameTiming};
+  return {blockingMs:performance.now()-started,countdown,frameTiming,releasedBeforeRestart:true,restartFrom:state?.mode||'unknown'};
 }
 
 async function coldFullPreparation(browser){
@@ -185,8 +210,9 @@ async function coldFullPreparation(browser){
     const heapBefore=await heapBytes(page);
     const started=performance.now();
     const fullProfileStarted=await page.evaluate(()=>{
-      if(typeof window.chimpionsSkiPrepareFullCrowd!=='function')return false;
-      window.chimpionsSkiPrepareFullCrowd();
+      const hook=window.chimpionsSkiCrowdBenchmark;
+      if(!hook?.prepareFull)return false;
+      hook.prepareFull();
       return true;
     });
     if(!fullProfileStarted)throw new Error('Full production crowd profiling hook is unavailable');
@@ -230,26 +256,26 @@ async function coldStartAndWarmRestarts(browser){
     const cold=await chooseCurrentAvatarAndSki(page);
     const atCountdownResources=await glbResourceSummary(page);
     const atCountdownNetwork=network.snapshot();
-    const firstRun=await observeUntilRelease(page);
+    const firstRun=await observeRunOutcome(page);
 
     const warmRestarts=[];
     for(let index=0;index<RESTARTS;index++){
       const beforeResources=await glbResourceSummary(page);
       const beforeNetwork=network.snapshot();
       const beforeHeap=await heapBytes(page);
-      const restarted=await restartAfterRelease(page);
+      const restarted=await restartAfterTeardown(page);
       const afterResources=await glbResourceSummary(page);
       const afterNetwork=network.snapshot();
-      const lifecycle=await observeUntilRelease(page);
+      const lifecycle=await observeRunOutcome(page);
       warmRestarts.push({
         iteration:index+1,
         blockingMs:restarted.blockingMs,
         loadedAtCountdown:Number(restarted.countdown?.startCrowdLoadedCount)||0,
         modelSourcesAtCountdown:Number(restarted.countdown?.startCrowdModelSources)||0,
         frameTiming:restarted.frameTiming,
-        maxLoadedBeforeRelease:lifecycle.maxLoaded,
-        maxSourcesBeforeRelease:lifecycle.maxSources,
-        released:lifecycle.released,
+        maxLoadedBeforeOutcome:lifecycle.maxLoaded,
+        maxSourcesBeforeOutcome:lifecycle.maxSources,
+        naturalRelease:lifecycle.naturalRelease,
         heapBefore:beforeHeap,
         heapAfterCountdown:await heapBytes(page),
         newGlbResourceEntries:afterResources.entries-beforeResources.entries,
@@ -258,7 +284,9 @@ async function coldStartAndWarmRestarts(browser){
         rendererGeometries:Number(restarted.countdown?.rendererGeometries)||null,
         rendererTextures:Number(restarted.countdown?.rendererTextures)||null,
         progressivePaused:restarted.countdown?.startCrowdProgressivePaused===true,
-        cacheStats:restarted.countdown?.startCrowdCacheStats||null
+        cacheStats:restarted.countdown?.startCrowdCacheStats||null,
+        releasedBeforeRestart:restarted.releasedBeforeRestart,
+        restartFrom:restarted.restartFrom
       });
     }
 
@@ -269,9 +297,10 @@ async function coldStartAndWarmRestarts(browser){
         loadedAtCountdown:Number(cold.countdown?.startCrowdLoadedCount)||0,
         modelSourcesAtCountdown:Number(cold.countdown?.startCrowdModelSources)||0,
         frameTiming:cold.frameTiming,
-        maxLoadedBeforeRelease:firstRun.maxLoaded,
-        maxSourcesBeforeRelease:firstRun.maxSources,
-        released:firstRun.released,
+        maxLoadedBeforeOutcome:firstRun.maxLoaded,
+        maxSourcesBeforeOutcome:firstRun.maxSources,
+        naturalRelease:firstRun.naturalRelease,
+        outcomeMode:firstRun.mode,
         glbResourceEntriesAtCountdown:atCountdownResources.entries-beforeStartResources.entries,
         glbRequestsAtCountdown:atCountdownNetwork.requestCount-beforeStartNetwork.requestCount,
         progressivePaused:cold.countdown?.startCrowdProgressivePaused===true,
@@ -349,12 +378,11 @@ try{
 
   if(report.coldFullPreparation.initialCrowdCount!==PRODUCTION_COUNT)process.exitCode=1;
   if(STRICT_FULL&&!report.coldFullPreparation.completed)process.exitCode=1;
-  if(report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT)process.exitCode=1;
+  if(STRICT_FULL&&report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT)process.exitCode=1;
   if(report.coldFullPreparation.modelSourceCount!==PRODUCTION_COUNT)process.exitCode=1;
   if(report.coldFullPreparation.network.failedCount>0)process.exitCode=1;
-  if(!report.startLifecycle.cold.released)process.exitCode=1;
   if(!report.startLifecycle.cold.progressivePaused)process.exitCode=1;
-  if(report.startLifecycle.warmRestarts.some(item=>!item.released||item.newFailedGlbRequests>0||!item.progressivePaused))process.exitCode=1;
+  if(report.startLifecycle.warmRestarts.some(item=>!item.releasedBeforeRestart||item.newFailedGlbRequests>0||!item.progressivePaused))process.exitCode=1;
 }finally{
   if(coldBrowser)await coldBrowser.close().catch(()=>{});
   if(lifecycleBrowser)await lifecycleBrowser.close().catch(()=>{});

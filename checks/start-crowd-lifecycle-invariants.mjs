@@ -19,4 +19,6 @@ assert(main.includes('startCrowdReleased:startCrowd.released'),'runtime diagnost
 
 assert(main.includes('startCrowdCacheStats:startCrowd.cacheStats'),'runtime diagnostics expose crowd cache/fetch/parse counters');
 assert(main.includes('startCrowdProgressivePaused:startCrowd.progressivePaused'),'runtime diagnostics expose whether progressive parsing is paused for a run');
-assert(main.includes('window.chimpionsSkiPrepareFullCrowd=()=>startCrowd.prepareFull(catalog)'),'main exposes an explicit full-production crowd profiling hook');
+assert(main.includes("has('crowdBenchmark')"),'destructive crowd benchmark hooks are query-gated');
+assert(main.includes('prepareFull:()=>startCrowd.prepareFull(catalog)'),'main exposes explicit full-production crowd preparation only inside the benchmark hook');
+assert(main.includes('release:()=>startCrowd.release()'),'benchmark hook can deterministically exercise crowd teardown');

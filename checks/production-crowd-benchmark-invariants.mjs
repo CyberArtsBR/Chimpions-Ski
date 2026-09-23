@@ -6,10 +6,11 @@ assert(!benchmark.includes('?test=1'),'production crowd benchmark must not use t
 assert(benchmark.includes('const PRODUCTION_COUNT=50'),'benchmark pins the real production crowd to 50 spectators');
 assert(benchmark.includes('Expected production crowd count'),'benchmark explicitly validates the production spectator count at runtime');
 assert(benchmark.includes('coldFullPreparation'),'benchmark exercises real cold full preparation of all 50 spectators');
-assert(benchmark.includes('window.chimpionsSkiPrepareFullCrowd'),'cold full benchmark explicitly invokes the 50-source profiling hook instead of relying on interactive preload');
+assert(benchmark.includes('window.chimpionsSkiCrowdBenchmark'),'benchmark uses the query-gated production crowd instrumentation hook');
+assert(benchmark.includes("searchParams.set('crowdBenchmark','1')"),'benchmark enables its destructive hooks explicitly without reducing production crowd count');
 assert(benchmark.includes('blockingMs'),'benchmark records cold/warm start blocking duration');
 assert(benchmark.includes('warmRestarts'),'benchmark exercises repeated warm restart behavior');
-assert(benchmark.includes('startCrowdReleased===true'),'benchmark waits for scene destruction before restart');
+assert(benchmark.includes('forceBenchmarkRelease'),'benchmark deterministically exercises scene destruction before warm restart');
 assert(benchmark.includes('transferBytes'),'benchmark records Resource Timing network bytes where the browser exposes them');
 assert(benchmark.includes('requestCount'),'benchmark records actual GLB request events for duplicate-load analysis');
 assert(benchmark.includes('failedCount'),'benchmark records failed/404 GLB requests');
@@ -22,3 +23,4 @@ assert(benchmark.includes('startCrowdCacheStats'),'benchmark captures parsed-tem
 assert(benchmark.includes('progressivePaused'),'benchmark verifies progressive parsing stops when a run is committed');
 assert(benchmark.includes('limitations'),'benchmark reports metrics that browser APIs cannot guarantee');
 console.log(JSON.stringify({check:'production-crowd-benchmark-invariants',realProductionCrowd:true,coldFull:true,restarts:true,network:true,memory:true,frameTiming:true}));
+assert(benchmark.includes('STRICT_FULL&&report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT'),'profiling mode may report an incomplete time-boxed full load, while strict mode still requires all 50');

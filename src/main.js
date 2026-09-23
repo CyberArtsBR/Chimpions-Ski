@@ -1093,7 +1093,12 @@ window.chimpionsSki=()=>{
   };
 };
 
-// Explicit profiling hook for the real 50-source crowd path. Runtime gameplay
-// never calls this; benchmark tooling uses it so production profiling cannot
-// accidentally pass on the reduced browser-smoke crowd.
-window.chimpionsSkiPrepareFullCrowd=()=>startCrowd.prepareFull(catalog);
+// Destructive crowd lifecycle controls are exposed only for the dedicated
+// production benchmark URL. Normal gameplay has no global teardown hook.
+if(new URLSearchParams(window.location.search).has('crowdBenchmark')){
+  window.chimpionsSkiCrowdBenchmark={
+    prepareFull:()=>startCrowd.prepareFull(catalog),
+    prepareStart:()=>startCrowd.setSpectators(catalog),
+    release:()=>startCrowd.release()
+  };
+}
