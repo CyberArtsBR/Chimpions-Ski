@@ -88,13 +88,19 @@ try{
   await selector.waitFor({state:'visible',timeout:5000});
   assert.equal((await page.evaluate(()=>window.chimpionsSki())).mode,'menu','START GAME must not begin a random run before selection');
 
-  // Keep this smoke focused on selector/run flow. Reuse the lightweight rider
-  // already selected during boot instead of turning CI into an arbitrary GLB
-  // download benchmark for whichever catalog entry happens to render first.
-  const selectedChimpion=selector.locator('.chimpion-card.is-selected').first();
-  const firstChimpion=(await selectedChimpion.count())?selectedChimpion:selector.locator('.chimpion-card').first();
-  await firstChimpion.waitFor({state:'visible',timeout:5000});
-  await firstChimpion.evaluate(button=>button.click());
+  // Keep this smoke focused on selector/run flow. The selector lazily renders
+  // only an initial card batch, so the boot-selected lightweight rider may not
+  // exist in the DOM yet. Materialize it by searching the runtime-selected name
+  // instead of falling back to an arbitrary/heavy first catalog entry.
+  const selectedName=(await page.evaluate(()=>window.chimpionsSki())).selectedAvatar;
+  let selectedChimpion=selector.locator('.chimpion-card.is-selected').first();
+  if(!await selectedChimpion.count()){
+    const search=selector.locator('#chimpion-search');
+    await search.fill(selectedName);
+    selectedChimpion=selector.locator('.chimpion-card').filter({hasText:selectedName}).first();
+  }
+  await selectedChimpion.waitFor({state:'visible',timeout:5000});
+  await selectedChimpion.evaluate(button=>button.click());
   const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await skiChoice.evaluate(button=>button.click());
