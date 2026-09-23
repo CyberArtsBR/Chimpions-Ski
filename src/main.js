@@ -779,7 +779,8 @@ function update(dt){
           heading:state.heading,
           edge:state.edge,
           spacing:skier?.userData?.skiTrackSpacing??.245,
-          skis:skier?.userData?.trailContacts??skier?.userData?.skis
+          skis:skier?.userData?.trailContacts??skier?.userData?.skis,
+          rideMode:state.rideMode
         });
         trailTimer=Math.max(.018,.038-state.speed*.00028);
       }
@@ -950,7 +951,7 @@ function update(dt){
   startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
   const environmentUpdateStarted=performance.now();
-  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
+  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode);
   performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});

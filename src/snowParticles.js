@@ -68,13 +68,14 @@ function createPool(scene,count,size,opacity){
   };
 }
 
-function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
+function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false,boardMode=false){
   if(pool.activeCount<=0||count<=0)return;
   const turnSign=Math.sign(edge);
+  const carve=Math.abs(edge);
   const speed01=THREE.MathUtils.clamp((speed-30)/30,0,1);
   const direction=turnSign===0?(hash(pool.cursor+3)>.5?1:-1):(inside?turnSign:-turnSign);
-  const lateral=turnSign===0?0:(inside?turnSign*.18:-turnSign*.34);
-  const strength=inside?.58:1;
+  const lateral=turnSign===0?0:(inside?turnSign*(boardMode?.12:.18):-turnSign*(boardMode?.52:.34));
+  const strength=(inside?.58:1)*(boardMode?(.90+carve*.38):1);
 
   for(let n=0;n<count;n++){
     const i=pool.cursor++%pool.activeCount;
@@ -82,7 +83,7 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
     const r1=hash(pool.cursor*1.17+n*2.3);
     const r2=hash(pool.cursor*2.71+n*5.1);
     const r3=hash(pool.cursor*4.33+n*7.9);
-    const spread=landing?1.18:(inside?.30:.60);
+    const spread=landing?1.18:(inside?.30:(boardMode?.78:.60));
 
     pool.positions[k]=(landing?x:x+lateral)+(r1-.5)*spread;
     pool.positions[k+1]=y+.035+r2*(landing?.32:(inside?.09:.15));
@@ -110,23 +111,27 @@ export function createSnowParticles({scene,densityMultiplier=1}={}){
   let lastLanding=0;
   let densityScale=1;
 
-  function spray(dt,x,y,z,speed,edge,air,landingPulse,running){
+  function spray(dt,x,y,z,speed,edge,air,landingPulse,running,rideMode='ski'){
     if(!running)return;
     const speed01=THREE.MathUtils.clamp((speed-30)/30,0,1);
+    const boardMode=rideMode==='snowboard';
 
     if(!air){
       const carve=Math.abs(edge);
-      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28))*densityScale;
-      const total=Math.min(22,Math.floor(emitCarry));
+      const boardCarveBoost=boardMode?1+carve*.34:1;
+      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28))*densityScale*boardCarveBoost;
+      const total=Math.min(boardMode?26:22,Math.floor(emitCarry));
       if(total>0){
-        const inside=carve>.20?Math.max(1,Math.floor(total*(.14+carve*.08))):0;
+        // Skis leave a small inside plume from the second edge. Snowboard
+        // carving reads more clearly as one stronger outside-edge fan.
+        const inside=!boardMode&&carve>.20?Math.max(1,Math.floor(total*(.14+carve*.08))):0;
         const outside=total-inside;
-        emit(mist,x,y,z,edge,speed,Math.max(1,outside),false,false);
-        if(inside>0)emit(mist,x,y,z,edge,speed,inside,false,true);
+        emit(mist,x,y,z,edge,speed,Math.max(1,outside),false,false,boardMode);
+        if(inside>0)emit(mist,x,y,z,edge,speed,inside,false,true,false);
 
         if(carve>.28||speed01>.58){
-          const chunkCount=Math.max(1,Math.floor(total*(.12+carve*.10+speed01*.05)));
-          emit(chunks,x,y,z,edge,speed,chunkCount,false,false);
+          const chunkCount=Math.max(1,Math.floor(total*(.12+carve*.10+speed01*.05+(boardMode?carve*.035:0))));
+          emit(chunks,x,y,z,edge,speed,chunkCount,false,false,boardMode);
         }
         emitCarry-=total;
       }
@@ -135,13 +140,13 @@ export function createSnowParticles({scene,densityMultiplier=1}={}){
       if(bumpCarry>=1){
         bumpCarry-=1;
         const bumpCount=Math.max(1,Math.round((2+Math.floor(speed01*3))*densityScale));
-        emit(chunks,x,y,z,edge,speed,bumpCount,false,false);
+        emit(chunks,x,y,z,edge,speed,bumpCount,false,false,boardMode);
       }
     }
 
     if(landingPulse>.18&&lastLanding<=.18){
-      emit(mist,x,y,z,edge,speed,Math.max(1,Math.round((54+Math.floor(speed01*28))*densityScale)),true,false);
-      emit(chunks,x,y,z,edge,speed,Math.max(1,Math.round((22+Math.floor(speed01*15))*densityScale)),true,false);
+      emit(mist,x,y,z,edge,speed,Math.max(1,Math.round((54+Math.floor(speed01*28))*densityScale)),true,false,boardMode);
+      emit(chunks,x,y,z,edge,speed,Math.max(1,Math.round((22+Math.floor(speed01*15))*densityScale)),true,false,boardMode);
     }
     lastLanding=landingPulse;
   }
@@ -175,8 +180,10 @@ export function createSnowParticles({scene,densityMultiplier=1}={}){
   }
 
   function update(dt,worldSpeed){
-    updatePool(mist,dt,worldSpeed,4.2);
-    updatePool(chunks,dt,worldSpeed,5.4);
+    // Keep the low snow wake visually attached to forward motion without
+    // making the camera or whole environment feel turbulent.
+    updatePool(mist,dt,worldSpeed*1.10,4.2);
+    updatePool(chunks,dt,worldSpeed*1.04,5.4);
   }
 
   function resetPool(pool){

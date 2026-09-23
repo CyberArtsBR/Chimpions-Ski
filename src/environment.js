@@ -424,7 +424,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     dayCycle.apply(0);
     snowMaterials.setTravel(0);
   }
-  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time){
+  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time,rideMode='ski'){
     time+=dt;
     visualTravel+=worldSpeed*dt;
     sky.position.copy(camera.position);
@@ -499,7 +499,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       }
     }
 
-    snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running);
+    snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running,rideMode);
     snowParticles.update(dt,worldSpeed);
     surfaceDetail.update(dt,worldSpeed);
 
