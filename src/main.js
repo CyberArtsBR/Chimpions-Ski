@@ -292,11 +292,19 @@ trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
 const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
-const startCrowd=createStartCrowd({world,terrainHeight});
+const smokeTestMode=new URLSearchParams(window.location.search).has('test');
+const startCrowd=createStartCrowd({
+  world,
+  terrainHeight,
+  // CI/browser smoke tests validate flow with a tiny crowd; production keeps
+  // the full 50 unique Chimpion start line enforced by START_CROWD_COUNT.
+  maxSpectators:smokeTestMode?4:undefined
+});
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
 let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
+let selectorReady=false;
 let selectedRideMode=RIDE_MODE.SKI;
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
@@ -318,6 +326,12 @@ const ui=createGameUI({
     keys.clear();
     ui.showMenu();
     selector?.open();
+  },
+  onGiveUp:()=>{
+    keys.clear();
+    jumpKeyPressed=false;
+    audio.update({mode:'menu'});
+    window.location.assign(startScreen.gameSelectionUrl);
   }
 });
 const feedback=createGameFeedback({audio,ui});
@@ -330,6 +344,14 @@ const startScreen=createStartScreen({
     state.mode='menu';
     ui.showMenu();
     selector.open();
+    // Only start warming the 50 unique spectator GLBs after the selector is
+    // already open. This keeps the initial screen and first selector frame
+    // responsive; beginRun() reuses this same in-flight load when confirmed.
+    requestAnimationFrame(()=>{
+      setTimeout(()=>{
+        startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
+      },0);
+    });
     return true;
   },
   assetUrl:'/start/chimpions-ski-start.jpg'
@@ -417,17 +439,24 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     selector?.setSelected(entry,selectedRideMode);
   }finally{
     if(request===avatarRequest){
-      ready=!!skier;
+      ready=!!skier&&selectorReady;
       startScreen.setReady(ready);
-      ui.setAvatarLoading(!ready);
+      ui.setAvatarLoading(!skier);
     }
   }
 }
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    await startCrowd.setSpectators(catalog);
-    const initialAvatar=randomAvatar(catalog);
+    // START GAME always opens the selector, so do not gamble boot time on a
+    // random heavyweight GLB that the player has not chosen. Use a known light
+    // collection model only as the invisible boot/rig seed; the player's actual
+    // choice replaces it before the run begins.
+    const initialAvatar=
+      catalog.find(entry=>entry?.name==='The Drownsy')||
+      catalog.find(entry=>String(entry?.id)==='56')||
+      catalog[0]||
+      randomAvatar(catalog);
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
       catalog,
@@ -445,6 +474,10 @@ async function setAvatar(entry,rideMode=selectedRideMode){
       if(initialSelectionFlow)initialSelectionFlow=false;
     });
     selector.setSelected(initialAvatar,selectedRideMode);
+    selectorReady=true;
+    ready=!!skier;
+    startScreen.setReady(ready);
+    ui.setAvatarLoading(!ready);
   }catch(error){
     console.warn(error);
     const previousSkier=skier;
@@ -458,9 +491,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     ui.setAvatar(selectedAvatar);
     syncRideModePresentation();
   }finally{
-    ready=true;
-    startScreen.setReady(true);
-    ui.setAvatarLoading(false);
+    ready=!!skier&&selectorReady;
+    startScreen.setReady(ready);
+    ui.setAvatarLoading(!ready);
   }
 })();
 
@@ -531,6 +564,7 @@ function startRaceCountdown(){
 async function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden||runPreparing)return false;
   runPreparing=true;
+  ui.showRunLoading?.();
   try{
     // The start crowd is fully disposed once the previous race is underway.
     // Rehydrate it only when a new run is explicitly requested.
@@ -543,6 +577,7 @@ async function beginRun(){
     startCamera.begin(state,performance.now());
     return true;
   }finally{
+    ui.hideRunLoading?.();
     runPreparing=false;
   }
 }
@@ -675,6 +710,14 @@ function update(dt){
 
     if(!ridingRamp&&tryManualJump(state,groundY)){
       feedback.onManualTakeoff();
+      if(trickIntent==='BACKFLIP'){
+        // Ground backflips get a dedicated vertical launch. Keep the full arc
+        // even if the player releases Jump quickly so the rotation happens in air.
+        state.vy=Math.max(state.vy,SKI_TUNING.BACKFLIP_MANUAL_JUMP_VELOCITY);
+        state.jumpVelocity=state.vy;
+        state.jumpProfile='backflip';
+        state.jumpCutApplied=true;
+      }
       if(trickIntent&&tricks.start(trickIntent,{
         source:'manual',
         startTime:state.time,
@@ -1026,6 +1069,7 @@ window.chimpionsSki=()=>{
     playableHalfWidth:SKI_TUNING.PLAYER_HALF_WIDTH,
     courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,
     ready,
+    selectorReady,
     catalogSize:catalog.length,
     selectedAvatar:selectedAvatar?.name||'',
     rideMode:selectedRideMode,

@@ -72,6 +72,9 @@ export const SKI_TUNING=Object.freeze({
   // Shared jump physics. Preserve manual and monster-ramp strength.
   GRAVITY:17.8,
   MANUAL_JUMP_VELOCITY:5.9,
+  // A ground-triggered backflip needs a visibly higher launch arc than a normal
+  // hop so the full rotation reads as an aerial trick rather than a ground spin.
+  BACKFLIP_MANUAL_JUMP_VELOCITY:8.6,
   // Manual jump is immediate on press. Releasing within 140 ms applies a
   // variable-height jump cut; holding longer preserves the original full arc.
   MINI_JUMP_TAP_SECONDS:.14,

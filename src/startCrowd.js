@@ -1,14 +1,25 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 
-export const START_CROWD_COUNT=20;
-const SOURCE_MODEL_COUNT=4;
+export const START_CROWD_COUNT=50;
+const SOURCE_MODEL_COUNT=START_CROWD_COUNT;
+// These are the 50 smallest distinct GLBs in the current collection. Keeping
+// the crowd on this lightweight pool preserves 50 unique 3D Chimpions while
+// avoiding the very large character files during the short start sequence.
+const CROWD_LIGHTWEIGHT_IDS=new Set([
+  '56','53','179','185','181','208','124','114','100','13',
+  '75','95','136','180','166','73','86','6','141','50',
+  '126','extra-thefirstborn','182','142','67','109','149','20','189','165',
+  '130','52','155','157','41','15','21','209','203','218',
+  '99','145','94','28','37','159','89','88','113','116'
+]);
 const CROWD_HEIGHT=1.72;
 const ROWS=[
-  {count:7,z:6.35,rise:.28},
-  {count:7,z:7.78,rise:.72},
-  {count:6,z:9.22,rise:1.16}
+  {count:10,z:6.05,rise:.22},
+  {count:10,z:7.42,rise:.61},
+  {count:10,z:8.79,rise:1.00},
+  {count:10,z:10.16,rise:1.39},
+  {count:10,z:11.53,rise:1.78}
 ];
 
 const ARM_ALIASES={
@@ -100,6 +111,22 @@ function poseCheeringArms(model){
   up.set(0,1,0).applyQuaternion(modelQ).normalize();
   forward.set(0,0,1).applyQuaternion(modelQ).normalize();
 
+  // Different Chimpion rigs do not all author LEFT/RIGHT on the same local X.
+  // Derive each arm's outward side from the untouched GLB rest pose, exactly
+  // like the playable rider, so cheering never folds hands across the chest.
+  const armOutwardSigns=new Map();
+  const sideProbe=new THREE.Vector3();
+  for(const [side,fallback] of [['left',-1],['right',1]]){
+    const upper=rig[side+'UpperArm']||rig[side+'Shoulder'];
+    if(!upper){
+      armOutwardSigns.set(side,fallback);
+      continue;
+    }
+    upper.getWorldPosition(sideProbe);
+    model.worldToLocal(sideProbe);
+    armOutwardSigns.set(side,Math.sign(sideProbe.x)||fallback);
+  }
+
   function aim(key,target){
     const bone=rig[key],restDirection=restDirections.get(key);
     if(!bone?.parent||!restDirection)return false;
@@ -116,16 +143,17 @@ function poseCheeringArms(model){
   }
 
   for(const [side,sideSign] of [['left',-1],['right',1]]){
+    const authoredOutSign=armOutwardSigns.get(side)??sideSign;
     const shoulder=rig[side+'Shoulder'];
     if(shoulder&&rest.has(shoulder))shoulder.quaternion.copy(rest.get(shoulder));
 
-    desired.copy(right).multiplyScalar(sideSign*.78)
+    desired.copy(right).multiplyScalar(authoredOutSign*.78)
       .addScaledVector(up,1.02)
       .addScaledVector(forward,.08)
       .normalize();
     aim(side+'UpperArm',desired);
 
-    desired.copy(right).multiplyScalar(sideSign*.62)
+    desired.copy(right).multiplyScalar(authoredOutSign*.62)
       .addScaledVector(up,1.08)
       .addScaledVector(forward,.06)
       .normalize();
@@ -138,14 +166,33 @@ function poseCheeringArms(model){
   return true;
 }
 
-function chooseSources(entries=[]){
-  const usable=entries.filter(entry=>entry?.url);
+
+function chooseSources(entries=[],count=SOURCE_MODEL_COUNT){
+  const seen=new Set();
+  const usable=[];
+  for(const entry of entries){
+    const key=String(entry?.id||entry?.url||'');
+    if(!entry?.url||!key||seen.has(key))continue;
+    seen.add(key);
+    usable.push(entry);
+  }
   if(!usable.length)return [];
-  const count=Math.min(SOURCE_MODEL_COUNT,usable.length);
-  return Array.from({length:count},(_,index)=>usable[Math.floor(index*usable.length/count)]);
+
+  const lightweight=[];
+  const fallback=[];
+  for(const entry of usable){
+    if(CROWD_LIGHTWEIGHT_IDS.has(String(entry.id)))lightweight.push(entry);
+    else fallback.push(entry);
+  }
+
+  // Preserve the exact 50 lightweight distinct characters when the current
+  // catalog contains them. Fallback remains unique and only fills missing IDs.
+  const selected=[...lightweight,...fallback].slice(0,Math.min(count,usable.length));
+  return selected;
 }
 
-export function createStartCrowd({world,terrainHeight=()=>0}={}){
+export function createStartCrowd({world,terrainHeight=()=>0,maxSpectators=START_CROWD_COUNT}={}){
+  const crowdCount=Math.max(1,Math.min(START_CROWD_COUNT,Math.floor(Number(maxSpectators)||START_CROWD_COUNT)));
   const root=new THREE.Group();
   root.name='start-crowd';
   world?.add(root);
@@ -160,6 +207,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   let built=false;
   let released=false;
   let lastEntries=[];
+  let loadingPromise=null;
 
   function collectMaterialTextures(material,textures){
     if(!material)return;
@@ -202,8 +250,8 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
 
     const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x7b5638,roughness:.86,metalness:.01});
     const railMaterial=new THREE.MeshStandardMaterial({color:0xdce8ec,roughness:.42,metalness:.58});
-    const seatGeometry=new THREE.BoxGeometry(17,.18,1.02);
-    const railGeometry=new THREE.BoxGeometry(17,.08,.08);
+    const seatGeometry=new THREE.BoxGeometry(18.4,.18,1.02);
+    const railGeometry=new THREE.BoxGeometry(18.4,.08,.08);
 
     let actorIndex=0;
     for(let rowIndex=0;rowIndex<ROWS.length;rowIndex++){
@@ -221,15 +269,17 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       rearRail.position.set(0,deckY+1.95,row.z+.55);
       root.add(rearRail);
 
-      for(const railX of [-8.35,8.35]){
+      for(const railX of [-9.05,9.05]){
         const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,2,.08),railMaterial);
         upright.position.set(railX,deckY+.96,row.z+.55);
         root.add(upright);
       }
 
       for(let column=0;column<row.count;column++){
+        if(actorIndex>=crowdCount)break;
         const t=row.count===1?.5:column/(row.count-1);
-        const x=THREE.MathUtils.lerp(-7.35,7.35,t)+(rowIndex===1?.16:rowIndex===2?-.11:0);
+        const rowOffset=rowIndex%2===0?-.10:.10;
+        const x=THREE.MathUtils.lerp(-8.05,8.05,t)+rowOffset;
         const actor=new THREE.Group();
         actor.name='start-spectator-'+actorIndex;
         const baseY=deckY+.10;
@@ -276,17 +326,31 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     modelSourceCount=0;
   }
 
-  async function setSpectators(entries=[]){
+  async function loadSpectators(entries=[]){
     lastEntries=Array.isArray(entries)?entries:lastEntries;
     buildStructure();
 
     const generation=++loadGeneration;
-    const sources=chooseSources(lastEntries);
+    const sources=chooseSources(lastEntries,crowdCount);
     let templates=[];
 
     if(sources.length){
-      const settled=await Promise.allSettled(sources.map(loadTemplate));
-      templates=settled.filter(result=>result.status==='fulfilled').map(result=>result.value);
+      const results=new Array(sources.length);
+      let cursor=0;
+      const workerCount=Math.min(8,sources.length);
+      const workers=Array.from({length:workerCount},async()=>{
+        while(generation===loadGeneration){
+          const index=cursor++;
+          if(index>=sources.length)break;
+          try{results[index]=await loadTemplate(sources[index]);}
+          catch{}
+          // Parsing rigged GLBs is main-thread heavy. Yield between models so
+          // selector/menu rendering never freezes behind the 50-model preload.
+          await new Promise(resolve=>setTimeout(resolve,0));
+        }
+      });
+      await Promise.all(workers);
+      templates=results.filter(Boolean);
     }
     if(!templates.length){
       try{templates=[await loadTemplate({url:'models/default.glb'})];}
@@ -298,24 +362,40 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     }
 
     clearActorModels({dispose:true});
-    modelSourceCount=templates.length;
-    actors.forEach((actor,index)=>{
-      const instance=cloneSkeleton(templates[index%templates.length]);
+    const uniqueTemplates=templates.slice(0,actors.length);
+    modelSourceCount=uniqueTemplates.length;
+    for(let index=0;index<uniqueTemplates.length;index++){
+      if(generation!==loadGeneration)break;
+      const instance=uniqueTemplates[index];
+      const actor=actors[index];
       instance.name='crowd-glb-'+index;
       const scaleJitter=.94+(index%5)*.025;
       instance.scale.multiplyScalar(scaleJitter);
       actor.add(instance);
       if(poseCheeringArms(instance))posedCount++;
       loadedCount++;
-    });
+      if(index%4===3)await new Promise(resolve=>setTimeout(resolve,0));
+    }
     root.updateMatrixWorld(true);
     released=false;
     root.visible=true;
     return loadedCount;
   }
 
+  function setSpectators(entries=[]){
+    if(loadingPromise)return loadingPromise;
+    const pending=loadSpectators(entries);
+    let wrapped=null;
+    wrapped=pending.finally(()=>{
+      if(loadingPromise===wrapped)loadingPromise=null;
+    });
+    loadingPromise=wrapped;
+    return wrapped;
+  }
+
   async function ensureLoaded(entries=lastEntries){
-    if(!released&&built&&loadedCount===START_CROWD_COUNT)return loadedCount;
+    if(!released&&built&&loadedCount===crowdCount)return loadedCount;
+    if(loadingPromise)return loadingPromise;
     return setSpectators(entries);
   }
 

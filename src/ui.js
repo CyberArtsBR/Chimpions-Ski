@@ -7,7 +7,7 @@ function buttonList(root){
   return Array.from(root.querySelectorAll('button:not([disabled]),[role="button"][tabindex]:not([aria-disabled="true"])')).filter(isVisible);
 }
 
-export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,onChoose}){
+export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,onChoose,onGiveUp}){
   const overlay=byId('overlay');
   const startButton=byId('start');
   const chooseButton=byId('choose');
@@ -53,19 +53,33 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   countdown.innerHTML='<div class="countdown-avatar"><span id="countdown-avatar-image">🐵</span><strong id="countdown-avatar-name">Chimpion</strong></div><div class="countdown-number" id="countdown-number">3</div><div class="countdown-control">GET READY · SPACE / A · JUMP AFTER GO</div>';
   document.body.append(countdown);
 
+  const runLoading=document.createElement('div');
+  runLoading.id='run-loading-overlay';
+  runLoading.className='presentation-overlay run-loading-overlay';
+  runLoading.hidden=true;
+  runLoading.innerHTML='<section class="presentation-card run-loading-card" role="status" aria-live="polite"><small class="eyebrow">START CREW</small><h2>PREPARING THE START LINE…</h2><p>Loading 50 unique Chimpions</p></section>';
+  document.body.append(runLoading);
+
   const pause=document.createElement('div');
   pause.id='pause-overlay';
   pause.className='presentation-overlay';
   pause.hidden=true;
-  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>← → / LEFT STICK</b> Carve</span><span><b>SPACE / A · CROSS</b> Jump</span><span><b>ESC / START · MENU</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button></div><p class="controller-hint">Controller and keyboard ready</p></section>';
+  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>← → / LEFT STICK</b> Carve</span><span><b>SPACE / A · CROSS</b> Jump</span><span><b>ESC / START · MENU</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="leave-game-button" id="give-up-pause">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">Controller and keyboard ready</p></section>';
   document.body.append(pause);
 
   const results=document.createElement('div');
   results.id='result-overlay';
   results.className='presentation-overlay';
   results.hidden=true;
-  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><p class="controller-hint">ENTER / A · Restart &nbsp; · &nbsp; SPACE / A · Jump during run</p></section>';
+  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">ENTER / A · Restart &nbsp; · &nbsp; SPACE / A · Jump during run</p></section>';
   document.body.append(results);
+
+  const leaveConfirm=document.createElement('div');
+  leaveConfirm.id='leave-confirm-overlay';
+  leaveConfirm.className='presentation-overlay leave-confirm-overlay';
+  leaveConfirm.hidden=true;
+  leaveConfirm.innerHTML='<section class="presentation-card leave-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="leave-confirm-title"><small class="eyebrow">LEAVE RUN</small><h2 id="leave-confirm-title">Do you really want to leave the game?</h2><div class="presentation-actions"><button class="secondary" id="leave-confirm-no">NO</button><button class="leave-confirm-yes" id="leave-confirm-yes">YES</button></div></section>';
+  document.body.append(leaveConfirm);
 
   const resumeButton=byId('resume-game');
   const restartPause=byId('restart-pause');
@@ -73,6 +87,10 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   const chooseResult=byId('choose-result');
   const sfxButton=byId('toggle-sfx');
   const musicButton=byId('toggle-music');
+  const giveUpPause=byId('give-up-pause');
+  const giveUpResult=byId('give-up-result');
+  const leaveNo=byId('leave-confirm-no');
+  const leaveYes=byId('leave-confirm-yes');
 
   let mode='menu';
   let countdownToken=0;
@@ -85,6 +103,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   let axisLatchX=0;
   let axisLatchY=0;
   let controllerSelected=null;
+  let leaveReturnFocus=null;
 
   function setControllerSelection(element){
     const next=element?.matches?.('button:not([disabled])')?element:null;
@@ -103,6 +122,34 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     controllerSelected.classList.remove('is-controller-selected');
     controllerSelected.removeAttribute('data-controller-selected');
     controllerSelected=null;
+  }
+
+  function showLeaveConfirm(origin=null){
+    leaveReturnFocus=origin||document.activeElement;
+    leaveConfirm.hidden=false;
+    setTimeout(()=>{
+      leaveNo?.focus();
+      setControllerSelection(leaveNo);
+    },0);
+  }
+  function hideLeaveConfirm(){
+    if(leaveConfirm.hidden)return;
+    clearControllerSelection(leaveConfirm);
+    leaveConfirm.hidden=true;
+    const target=leaveReturnFocus;
+    leaveReturnFocus=null;
+    setTimeout(()=>{
+      if(target?.isConnected&&!target.disabled){
+        target.focus();
+        setControllerSelection(target);
+      }
+    },0);
+  }
+  function confirmLeave(){
+    clearControllerSelection(leaveConfirm);
+    leaveConfirm.hidden=true;
+    leaveReturnFocus=null;
+    onGiveUp?.();
   }
 
   function setMode(next){
@@ -164,6 +211,8 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     bestDistance=Math.max(0,Number(best)||0);
     bestCelebrated=false;
     bestFlag.hidden=true;
+    runLoading.hidden=true;
+    leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     overlay.classList.add('is-leaving');
@@ -225,8 +274,17 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     countdown.hidden=true;
     countdown.classList.remove('is-active','is-launching');
   }
+  function showRunLoading(){
+    clearControllerSelection();
+    runLoading.hidden=false;
+  }
+  function hideRunLoading(){
+    runLoading.hidden=true;
+  }
+
   function showPause(){
     cancelCountdown();
+    leaveConfirm.hidden=true;
     pause.hidden=false;
     results.hidden=true;
     setMode('paused');
@@ -244,6 +302,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   function showResults({distance=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
     clearTimeout(resultTimer);
     resultTimer=setTimeout(()=>{
+      leaveConfirm.hidden=true;
       byId('result-distance').textContent=Math.floor(distance)+' m';
       byId('result-bananas').textContent=String(bananas);
       byId('result-best').textContent=Math.floor(best)+' m';
@@ -264,6 +323,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     resultTimer=0;
     cancelCountdown();
     clearControllerSelection();
+    leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     overlay.hidden=false;
@@ -330,6 +390,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     }
   }
   function activeRoot(){
+    if(!leaveConfirm.hidden)return leaveConfirm;
     if(!pause.hidden)return pause;
     if(!results.hidden)return results;
     if(overlay&&!overlay.hidden)return overlay;
@@ -374,6 +435,22 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       return;
     }
     const pressed=index=>!!buttons[index]&&!padButtons[index];
+    if(!leaveConfirm.hidden){
+      if(pressed(1)){
+        hideLeaveConfirm();
+        padButtons=buttons.slice();
+        return;
+      }
+      const root=leaveConfirm;
+      if(pressed(0))clickFocused(root);
+      const x=pad.axis||0,y=pad.axisY||0;
+      if(Math.abs(x)<.35)axisLatchX=0;
+      if(Math.abs(y)<.35)axisLatchY=0;
+      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
+      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
+      padButtons=buttons.slice();
+      return;
+    }
     if(pressed(9)){
       if(mode==='playing')onPause?.();
       else if(mode==='paused')onResume?.();
@@ -395,7 +472,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     padButtons=buttons.slice();
   }
 
-  for(const root of [pause,results]){
+  for(const root of [pause,results,leaveConfirm]){
     root.addEventListener('focusin',event=>{
       const button=event.target.closest?.('button:not([disabled])');
       if(button&&root.contains(button))setControllerSelection(button);
@@ -408,6 +485,10 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   restartPause?.addEventListener('click',()=>onRestart?.());
   restartResult?.addEventListener('click',()=>onRestart?.());
   chooseResult?.addEventListener('click',()=>onChoose?.());
+  giveUpPause?.addEventListener('click',()=>showLeaveConfirm(giveUpPause));
+  giveUpResult?.addEventListener('click',()=>showLeaveConfirm(giveUpResult));
+  leaveNo?.addEventListener('click',hideLeaveConfirm);
+  leaveYes?.addEventListener('click',confirmLeave);
   sfxButton?.addEventListener('click',()=>{
     const next=!audio.getSettings().sfxEnabled;
     audio.setSfxEnabled(next);syncAudioButtons();
@@ -425,7 +506,10 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(document.body.classList.contains('start-screen-active'))return;
     if(document.querySelector('.selector-dialog[open]'))return;
     if(event.code==='Escape'){
-      if(mode==='playing'){event.preventDefault();onPause?.();}
+      if(!leaveConfirm.hidden){
+        event.preventDefault();
+        hideLeaveConfirm();
+      }else if(mode==='playing'){event.preventDefault();onPause?.();}
       else if(mode==='paused'){event.preventDefault();onResume?.();}
       return;
     }
@@ -438,5 +522,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
 }
