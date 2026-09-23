@@ -21,6 +21,13 @@ export const SKI_TUNING=Object.freeze({
   MAX_SPEED:83.3333,
   SPEED_RESPONSE:2.2,
 
+  // Once the rider reaches the 300 km/h cap, speed stops increasing but the
+  // mountain keeps escalating. Hazard density ramps toward its maximum over
+  // three minutes while the guaranteed navigable route remains unchanged.
+  POST_MAX_HAZARD_RAMP_SECONDS:180,
+  POST_MAX_HAZARD_START_PRESSURE:.16,
+  POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION:3,
+
   // Ground carving.
   INPUT_DEADZONE:.022,
   CONTROLLER_DEADZONE:.14,
