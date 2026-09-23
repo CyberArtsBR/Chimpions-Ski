@@ -120,10 +120,16 @@ export function createBoundaryMarkers({
     bolts.instanceMatrix.needsUpdate=true;
   }
 
+  function setShadowEnabled(enabled){
+    const cast=!!enabled;
+    for(const mesh of [posts,caps,feet,rails,postSnow,railSnow,bolts])mesh.castShadow=cast;
+  }
+
   reset();
   return {
     update,
     reset,
+    setShadowEnabled,
     limit,
     postMaterial,
     railMaterial,
