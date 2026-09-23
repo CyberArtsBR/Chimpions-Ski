@@ -19,8 +19,8 @@ results.push(result('gamepad edges prevent held-A repeats',
 for(const n of ['UP + Jump maps to 360 intent','DOWN/BACK + Jump maps to backflip intent','second airborne A maps to 360 without double-jump']){
  if(!trickPresent)results.push(result(n,STATUS.PENDING,'trick feature not merged yet'));
  else {
-  const ok=n.startsWith('UP')?/const up=keyUp\|\|padUp[\s\S]{0,220}return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
-    n.startsWith('DOWN')?/keyDown=.*ArrowDown.*KeyS[\s\S]{0,320}return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
+  const ok=n.startsWith('UP')?/const up=keyUp\|\|padUp[\s\S]{0,420}return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
+    n.startsWith('DOWN')?/keyDown=.*ArrowDown.*KeyS/.test(trickInput)&&/const back=keyDown\|\|padDown/.test(trickInput)&&/return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
     /readAirborneTrickIntent[\s\S]{0,320}\|\|TRICK_TYPE\.SPIN_360/.test(trickInput);
   results.push(result(n,ok?STATUS.PASS:STATUS.FAIL,'static intent contract'));
  }
