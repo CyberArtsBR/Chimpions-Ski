@@ -12,7 +12,7 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
-import {createStartCameraSequence,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
+import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS} from './startCameraSequence.js';
 import {createStartCrowd} from './startCrowd.js';
 import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
@@ -284,6 +284,8 @@ const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
 const startCrowd=createStartCrowd({world,terrainHeight});
 const startGate=createStartGateScene({world,terrainHeight});
+const START_COUNTDOWN_DURATION_MS=2700;
+let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectedRideMode=RIDE_MODE.SKI;
 const initialRideProfile=getRideProfile(selectedRideMode);
@@ -405,7 +407,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    startCrowd.setSpectators(catalog);
+    await startCrowd.setSpectators(catalog);
     const initialAvatar=randomAvatar(catalog);
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
@@ -459,6 +461,7 @@ function resetRunState(mode='countdown'){
   tricks.reset();
   audio.resetRun?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
+  startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
   keys.clear();
@@ -479,6 +482,23 @@ function resetRunState(mode='countdown'){
   });
   jumpKeyPressed=false;lastPadJump=false;
 }
+function startRaceCountdown(){
+  if(startCountdownStarted||state.mode!=='countdown')return false;
+  startCountdownStarted=true;
+  startCamera.finish(state);
+  ui.startCountdown({
+    entry:selectedAvatar,
+    durationMs:START_COUNTDOWN_DURATION_MS,
+    onGo:()=>{
+      if(state.mode!=='countdown')return;
+      state.mode='playing';
+      keys.clear();jumpKeyPressed=false;
+      ui.setMode('playing');
+      last=performance.now();
+    }
+  });
+  return true;
+}
 function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden)return false;
   audio.unlock();
@@ -486,18 +506,6 @@ function beginRun(){
   resetRunState('countdown');
   ui.prepareRun({best:state.best,speed:state.speed});
   startCamera.begin(state,performance.now());
-  ui.startCountdown({
-    entry:selectedAvatar,
-    durationMs:START_CAMERA_SEQUENCE_MS,
-    onGo:()=>{
-      if(state.mode!=='countdown')return;
-      startCamera.finish(state);
-      state.mode='playing';
-      keys.clear();jumpKeyPressed=false;
-      ui.setMode('playing');
-      last=performance.now();
-    }
-  });
   return true;
 }
 function pauseGame(){
@@ -551,7 +559,7 @@ function suspendInput(){
   keys.clear();jumpKeyPressed=false;
   if(state.mode==='playing')pauseGame();
   else if(state.mode==='countdown'){
-    state.mode='menu';startCamera.reset();ui.showMenu();
+    state.mode='menu';startCountdownStarted=false;startCamera.reset();ui.showMenu();
   }
   audio.update({mode:state.mode});
 }
@@ -877,8 +885,12 @@ function render(now){
   update(dt);
   if(startScreen.isActive){
     // Hold the 3D presentation completely still behind the artwork/fade.
-  }else if(state.mode==='countdown')startCamera.update(state,now);
-  else if(state.mode!=='paused')skiCamera.update(state,dt);
+  }else if(state.mode==='countdown'){
+    if(startCamera.active){
+      const cameraMoving=startCamera.update(state,now);
+      if(!cameraMoving)startRaceCountdown();
+    }else if(!startCountdownStarted)startRaceCountdown();
+  }else if(state.mode!=='paused')skiCamera.update(state,dt);
   renderer.render(scene,camera);
   requestAnimationFrame(render);
 }
@@ -920,7 +932,15 @@ window.chimpionsSki=()=>{
     courseBatchCapacity:batch.capacity,
     courseBatchComponentCounts,
     startCrowdCount:startCrowd.count,
+    startCrowdLoadedCount:startCrowd.loadedCount,
+    startCrowdPosedCount:startCrowd.posedCount,
+    startCrowdModelSources:startCrowd.modelSourceCount,
     startCrowdVisible:startCrowd.visible,
+    startCameraPhase:startCamera.phase,
+    startCameraFrontHoldMs:START_CAMERA_FRONT_HOLD_MS,
+    startCameraRotateMs:START_CAMERA_ROTATE_MS,
+    startCountdownDurationMs:START_COUNTDOWN_DURATION_MS,
+    startCountdownStarted,
     startGateVisible:startGate.visible,
     courseAhead:Math.max(0,player.position.z-courseWorldEndZ),
     courseLookaheadTarget:getCourseLookahead(state.speed),
