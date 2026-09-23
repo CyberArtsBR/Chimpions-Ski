@@ -1,9 +1,17 @@
 export const SKI_TUNING=Object.freeze({
-  // Practical ski corridor. Preserve current integrated width.
-  PLAYER_HALF_WIDTH:11.3,
-  COURSE_OBJECT_HALF_WIDTH:11.05,
-  SAFE_ROUTE_HALF_WIDTH:9.7,
-  CONTENT_BAND_HALF_WIDTH:10.7,
+  // Wider gameplay corridor. Keep the guaranteed route more central than the
+  // full carve envelope so the outer shoulders can carry tactical risk.
+  PLAYER_HALF_WIDTH:13.8,
+  COURSE_OBJECT_HALF_WIDTH:13.45,
+  SAFE_ROUTE_HALF_WIDTH:10.35,
+  CONTENT_BAND_HALF_WIDTH:13.0,
+
+  // Extreme-side pressure. Obstacles authored beyond this X are deliberately
+  // shoulder hazards: dangerous enough to punish fence-hugging, but staggered
+  // so they never become an unavoidable horizontal wall.
+  SIDE_HAZARD_ZONE_START:10.75,
+  SIDE_HAZARD_SECTION_CHANCE:.72,
+  SIDE_HAZARD_SECOND_CHANCE:.28,
 
   // 160 km/h opening pace, +10 km/h every 30 seconds, 300 km/h cap.
   // Preserve the original ramp-up cadence so the opening remains controllable.

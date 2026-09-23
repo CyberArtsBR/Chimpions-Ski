@@ -136,9 +136,11 @@ export function createDayCycle({
   scene,sky,fog,hemisphere,sun,rim,fill,snowMaterials,atmosphere
 }){
   const atmosphereMaterials=[];
+  const seenAtmosphereMaterials=new Set();
   atmosphere?.traverse?.(object=>{
     const material=object.material;
-    if(!material?.color)return;
+    if(!material?.color||seenAtmosphereMaterials.has(material))return;
+    seenAtmosphereMaterials.add(material);
     material.userData.baseDayColor??=material.color.clone();
     atmosphereMaterials.push(material);
   });
