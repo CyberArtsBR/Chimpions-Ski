@@ -3,7 +3,8 @@ import {parseArgs,getRoot,read,result,finish,STATUS} from './integration-check-u
 const args=parseArgs(),root=getRoot(args);
 const input=read(root,'src/input.js'),main=read(root,'src/main.js');
 const selector=read(root,'src/avatar-system.js')+read(root,'src/rideMode.js');
-const trick=read(root,'src/trickInput.js')+read(root,'src/trickSystem.js')+main;
+const trickInput=read(root,'src/trickInput.js');
+const trick=trickInput+read(root,'src/trickSystem.js')+main;
 const trickPresent=/backflip|\b360\b|trickType|trickState/i.test(trick);
 const ridePresent=/snowboard|ride.?mode/i.test(selector+main);
 const results=[];
@@ -15,12 +16,12 @@ results.push(result('D-pad / stick expose vertical intent for UP/DOWN tricks',
 results.push(result('gamepad edges prevent held-A repeats',
  /edges/.test(input)&&/pressed/.test(input)?STATUS.PASS:STATUS.FAIL,'edge-triggered semantic input'));
 
-for(const n of ['UP + Jump maps to backflip intent','DOWN + Jump maps to 360 intent','second airborne A maps to 360 without double-jump']){
+for(const n of ['UP + Jump maps to 360 intent','DOWN/BACK + Jump maps to backflip intent','second airborne A maps to 360 without double-jump']){
  if(!trickPresent)results.push(result(n,STATUS.PENDING,'trick feature not merged yet'));
  else {
-  const ok=n.startsWith('UP')?/(up|axisY)[\s\S]{0,360}(backflip|flip)/i.test(trick):
-    n.startsWith('DOWN')?/(down|axisY)[\s\S]{0,360}(360|spin)/i.test(trick):
-    /(air|airborne)[\s\S]{0,600}(jump|pressed)[\s\S]{0,320}(360|spin)/i.test(trick);
+  const ok=n.startsWith('UP')?/const up=keyUp\|\|padUp[\s\S]{0,220}return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
+    n.startsWith('DOWN')?/keyDown=.*ArrowDown.*KeyS[\s\S]{0,320}return up\?TRICK_TYPE\.SPIN_360:TRICK_TYPE\.BACKFLIP/.test(trickInput):
+    /readAirborneTrickIntent[\s\S]{0,320}\|\|TRICK_TYPE\.SPIN_360/.test(trickInput);
   results.push(result(n,ok?STATUS.PASS:STATUS.FAIL,'static intent contract'));
  }
 }
