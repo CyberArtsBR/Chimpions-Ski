@@ -24,3 +24,5 @@ assert(benchmark.includes('progressivePaused'),'benchmark verifies progressive p
 assert(benchmark.includes('limitations'),'benchmark reports metrics that browser APIs cannot guarantee');
 console.log(JSON.stringify({check:'production-crowd-benchmark-invariants',realProductionCrowd:true,coldFull:true,restarts:true,network:true,memory:true,frameTiming:true}));
 assert(benchmark.includes('STRICT_FULL&&report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT'),'profiling mode may report an incomplete time-boxed full load, while strict mode still requires all 50');
+assert(benchmark.includes('state=await diagnostics(page);\n  let restartSelector'),'warm restart routing re-reads mode after crowd teardown to avoid play/crash races');
+assert(benchmark.includes("d.mode==='paused'||d.mode==='crashed'"),'restart benchmark handles a collision racing the pause transition');

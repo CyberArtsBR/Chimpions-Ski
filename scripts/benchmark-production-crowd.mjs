@@ -181,15 +181,26 @@ async function restartAfterTeardown(page){
   }
   await forceBenchmarkRelease(page);
 
+  // Re-read after teardown. The no-input benchmark skier can collide between
+  // the pre-release snapshot and this point, so restart routing must follow the
+  // current mode instead of a stale observation.
+  state=await diagnostics(page);
   let restartSelector='';
   if(state?.mode==='crashed'){
     restartSelector='#restart-result';
+    await page.locator(restartSelector).waitFor({state:'visible',timeout:3000});
   }else{
-    await page.keyboard.press('Escape');
-    await page.locator('#pause-overlay:not([hidden])').waitFor({state:'visible',timeout:3000});
-    restartSelector='#restart-pause';
+    if(state?.mode==='playing')await page.keyboard.press('Escape');
+    state=await waitDiag(page,d=>d.mode==='paused'||d.mode==='crashed',3000);
+    if(state?.mode==='crashed'){
+      restartSelector='#restart-result';
+    }else{
+      restartSelector='#restart-pause';
+    }
+    await page.locator(restartSelector).waitFor({state:'visible',timeout:3000});
   }
 
+  const restartFrom=state?.mode||'unknown';
   const started=performance.now();
   const [countdown,frameTiming]=await Promise.all([
     (async()=>{
@@ -198,7 +209,7 @@ async function restartAfterTeardown(page){
     })(),
     sampleFrames(page,1400)
   ]);
-  return {blockingMs:performance.now()-started,countdown,frameTiming,releasedBeforeRestart:true,restartFrom:state?.mode||'unknown'};
+  return {blockingMs:performance.now()-started,countdown,frameTiming,releasedBeforeRestart:true,restartFrom};
 }
 
 async function coldFullPreparation(browser){

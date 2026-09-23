@@ -79,3 +79,6 @@ This separation prevents course randomness from being mistaken for a crowd-cache
 Crowd parsing no longer starts merely because the selector opened. The selected rider GLB is interaction-critical, so `setAvatar()` completes first. Only then does the selector confirmation start the crowd's critical-subset warmup and schedule `beginRun()`.
 
 This prevents spectator parsing from delaying the selected rider, selector close, or ride confirmation. The crowd still retains 50 production slots and the same cache/placeholder strategy; only acquisition priority changed.
+
+
+The warm-restart probe re-reads gameplay mode after deterministic crowd teardown. If the no-input skier crashes during the tiny transition window, the benchmark uses the results restart path; otherwise it pauses and uses the pause restart path. This avoids attributing a course collision race to crowd lifecycle.
