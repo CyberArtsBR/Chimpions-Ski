@@ -230,9 +230,11 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     headPivot.rotation.z=mix(headPivot.rotation.z,pose.carve*.018,.14);
     arms.forEach((arm,index)=>{
       const side=index===0?-1:1;
-      const baseAngle=snowboardMode?.62:.70;
-      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.035)+pose.carve*.025,.16);
-      arm.rotation.x=mix(arm.rotation.x,-.08-ascent*.10*airScale+apex*.025+descent*.055*airScale,.16);
+      // Procedural fallback: keep the arm around a 32–35° A-pose and bias it
+      // slightly toward the chest/front plane instead of sweeping behind it.
+      const baseAngle=snowboardMode?.56:.61;
+      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.020)+pose.carve*.015,.16);
+      arm.rotation.x=mix(arm.rotation.x,.10+pose.speed*.015-ascent*.035*airScale+apex*.015+descent*.020*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
@@ -397,6 +399,36 @@ function makeRigController(model){
   const targetQ=new THREE.Quaternion(),delta=new THREE.Quaternion();
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const pose={carve:0,speed:0,air:0,landing:0};
+
+  // Arm aiming is derived from each mapped rig's actual rest limb direction,
+  // so different bone-axis conventions still converge on the same visual A-pose.
+  const armRestDirections=new Map();
+  const limbSample=new THREE.Vector3();
+  model.updateWorldMatrix(true,true);
+  for(const [key,childKey] of [
+    ['leftUpperArm','leftForearm'],['rightUpperArm','rightForearm'],
+    ['leftForearm','leftHand'],['rightForearm','rightHand']
+  ]){
+    const bone=rig[key],child=rig[childKey];
+    if(!bone||!child)continue;
+    child.getWorldPosition(limbSample);
+    const direction=bone.worldToLocal(limbSample).normalize().clone();
+    if(direction.lengthSq()>.5)armRestDirections.set(key,direction);
+  }
+
+  const parentWorldQ=new THREE.Quaternion();
+  const inverseParentQ=new THREE.Quaternion();
+  const baseWorldQ=new THREE.Quaternion();
+  const targetWorldQ=new THREE.Quaternion();
+  const alignWorldQ=new THREE.Quaternion();
+  const riderWorldQ=new THREE.Quaternion();
+  const baselineDirection=new THREE.Vector3();
+  const desiredDirection=new THREE.Vector3();
+  const riderRight=new THREE.Vector3();
+  const riderUp=new THREE.Vector3();
+  const riderForward=new THREE.Vector3();
+  const upperArmTarget=new THREE.Vector3();
+  const forearmTarget=new THREE.Vector3();
   let currentRideMode=RIDE_MODE.SKI;
   let snowboardSideSign=1;
 
@@ -409,6 +441,24 @@ function makeRigController(model){
     targetQ.multiply(delta.setFromAxisAngle(axisY,y));
     targetQ.multiply(delta.setFromAxisAngle(axisZ,z));
     b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
+  }
+
+  function aimLimb(key,targetDirection,response=.20){
+    const bone=rig[key],restDirection=armRestDirections.get(key);
+    if(!bone||!bone.parent||!restDirection)return false;
+
+    // Preserve each bone's original twist, changing only the direction of the
+    // limb segment. This avoids local-Euler inversions across different rigs.
+    bone.parent.getWorldQuaternion(parentWorldQ);
+    baseWorldQ.copy(parentWorldQ).multiply(rest.get(bone));
+    baselineDirection.copy(restDirection).applyQuaternion(baseWorldQ).normalize();
+    desiredDirection.copy(targetDirection).normalize();
+    alignWorldQ.setFromUnitVectors(baselineDirection,desiredDirection);
+    targetWorldQ.copy(alignWorldQ).multiply(baseWorldQ);
+    inverseParentQ.copy(parentWorldQ).invert();
+    targetQ.copy(inverseParentQ).multiply(targetWorldQ);
+    bone.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
+    return true;
   }
 
   const update=({dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,verticalVelocity=0,jumpSource='',rideMode=currentRideMode}={})=>{
@@ -468,14 +518,41 @@ function makeRigController(model){
       rotate(side+'Shin',shin,0,0,.22);
       rotate(side+'Foot',foot,snowboardMode?sideSign*.06*snowboardSideSign:0,-carve*.035,.20);
 
-      // Rest rigs are commonly T-posed. ~0.8 rad Z rotation lowers upper arms
-      // into a stable A-pose with hands around waist/upper-hip height.
-      const armPull=speedCrouch*.055;
-      const aPose=snowboardMode?.74:.86;
-      rotate(side+'Shoulder',0,0,sideSign*.035+carve*.012,.17);
-      rotate(side+'UpperArm',-.20-armPull-ascent*.10*airScale+apex*.035+descent*.045*airScale+outside*.025,0,sideSign*(aPose-armPull*.10)+carve*.014,.18);
-      rotate(side+'Forearm',-.42-speedCrouch*.035+ascent*.045*airScale+apex*.070*airScale+descent*.060*airScale-inside*.045,0,0,.18);
-      rotate(side+'Hand',.035,0,sideSign*carve*.008,.16);
+      // Relax clavicles instead of using them to lift the arms. Upper-arm and
+      // forearm direction are then solved in avatar/world space, independent of
+      // the imported bone axes. The targets keep hands low, forward-side and
+      // around waist/hip height rather than behind the torso.
+      rotate(side+'Shoulder',0,0,carve*.006,.16);
+
+      model.getWorldQuaternion(riderWorldQ);
+      riderRight.set(1,0,0).applyQuaternion(riderWorldQ).normalize();
+      riderUp.set(0,1,0).applyQuaternion(riderWorldQ).normalize();
+      riderForward.set(0,0,1).applyQuaternion(riderWorldQ).normalize();
+
+      const frontArm=snowboardMode&&side==='left';
+      const rearArm=snowboardMode&&side==='right';
+      const upperOut=snowboardMode?(frontArm?.50:.47):.54;
+      const upperDown=.82+speedCrouch*.035+landingBlend*.025;
+      const upperForward=snowboardMode?(frontArm?.24:(rearArm?.18:.21)):.12;
+      upperArmTarget.copy(riderRight).multiplyScalar(sideSign*upperOut)
+        .addScaledVector(riderUp,-upperDown)
+        .addScaledVector(riderForward,upperForward+outside*.018)
+        .normalize();
+
+      const foreOut=snowboardMode?(frontArm?.12:.10):.14;
+      const foreDown=.70+speedCrouch*.030+landingBlend*.020;
+      const foreForward=snowboardMode?(frontArm?.72:.67):.68;
+      forearmTarget.copy(riderRight).multiplyScalar(sideSign*foreOut)
+        .addScaledVector(riderUp,-foreDown)
+        .addScaledVector(riderForward,foreForward+inside*.020)
+        .normalize();
+
+      // Fallback to the old rest-driven path only if a mapped segment is absent.
+      if(!aimLimb(side+'UpperArm',upperArmTarget,.20))rotate(side+'UpperArm',0,0,sideSign*.62,.18);
+      if(!aimLimb(side+'Forearm',forearmTarget,.21))rotate(side+'Forearm',.20,0,0,.18);
+      // A neutral wrist inherits the corrected forearm direction without adding
+      // another local twist that could turn the hand behind the rider.
+      rotate(side+'Hand',0,0,0,.18);
     }
 
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.010+apex*.010*airScale;
