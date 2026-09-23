@@ -1,4 +1,10 @@
 import * as THREE from 'three';
+import {
+  TRICK_LANDING_SAFETY_MARGIN,
+  TRICK_TIMING,
+  estimateRemainingAirTime,
+  evaluateTrickTiming
+} from './trickTiming.js';
 
 const TAU=Math.PI*2;
 const COMPLETE_EPSILON=THREE.MathUtils.degToRad(8);
@@ -17,8 +23,9 @@ export const TRICK_TYPE=Object.freeze({
 });
 
 export const TRICK_TUNING=Object.freeze({
-  SPIN_360_DEGREES_PER_SECOND:620,
-  BACKFLIP_DEGREES_PER_SECOND:300,
+  SPIN_360_DEGREES_PER_SECOND:TRICK_TIMING[TRICK_TYPE.SPIN_360].degreesPerSecond,
+  BACKFLIP_DEGREES_PER_SECOND:TRICK_TIMING[TRICK_TYPE.BACKFLIP].degreesPerSecond,
+  LANDING_SAFETY_MARGIN:TRICK_LANDING_SAFETY_MARGIN,
   COMPLETE_EPSILON_DEGREES:8
 });
 
@@ -44,11 +51,24 @@ export function createTrickSystem({visualTarget=null}={}){
     startTime:0,
     source:'',
     completed:false,
-    landingValid:true
+    landingValid:true,
+    tricksThisAir:0,
+    remainingAirTime:0,
+    trickAllowed:false,
+    pendingTrick:'',
+    lastCompletedType:'',
+    lastRejectedType:'',
+    rejectionReason:''
   };
-  const landingResult={hadTrick:false,success:false,type:'',source:'',completed:false,landingValid:true};
   let visualPivot=null;
   let pendingRampType=null;
+  let completion=null;
+  let completionId=0;
+  let previousAir=false;
+
+  function isActive(){
+    return snapshot.state===TRICK_STATE.SPIN_360||snapshot.state===TRICK_STATE.BACKFLIP;
+  }
 
   function normalizeVisual(){
     if(visualPivot?.quaternion)visualPivot.quaternion.copy(baseQuaternion);
@@ -59,25 +79,73 @@ export function createTrickSystem({visualTarget=null}={}){
     visualPivot=next||null;
     if(visualPivot?.quaternion)baseQuaternion.copy(visualPivot.quaternion);
     else baseQuaternion.identity();
-    if(snapshot.state!==TRICK_STATE.NONE&&snapshot.state!==TRICK_STATE.FAILED)applyVisual();
+    if(isActive())applyVisual();
   }
 
   function applyVisual(){
-    if(!visualPivot?.quaternion)return;
-    if(snapshot.completed||snapshot.state===TRICK_STATE.COMPLETED){
-      visualPivot.quaternion.copy(baseQuaternion);
-      return;
-    }
+    if(!visualPivot?.quaternion||!isActive())return;
     const axis=snapshot.type===TRICK_TYPE.BACKFLIP?axisX:axisY;
     const angle=snapshot.type===TRICK_TYPE.BACKFLIP?-snapshot.rotation:snapshot.rotation;
     trickQuaternion.setFromAxisAngle(axis,angle);
     visualPivot.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
   }
 
-  function canStart(){return snapshot.state===TRICK_STATE.NONE;}
+  function beginAirIfNeeded(physicsState){
+    const air=!!physicsState?.air;
+    if(air&&!previousAir){
+      snapshot.tricksThisAir=0;
+      snapshot.lastCompletedType='';
+      snapshot.lastRejectedType='';
+      snapshot.rejectionReason='';
+    }
+    previousAir=air;
+  }
 
-  function start(type,{source='manual',startTime=0}={}){
-    if(!canStart()||!SPEED[type])return false;
+  function updateTiming(physicsState,{landingHeight=0,gravity}={}){
+    beginAirIfNeeded(physicsState);
+    snapshot.remainingAirTime=estimateRemainingAirTime(physicsState,{landingHeight,gravity});
+    if(!physicsState?.air){
+      snapshot.trickAllowed=false;
+      snapshot.remainingAirTime=0;
+    }
+    return snapshot.remainingAirTime;
+  }
+
+  function evaluateStart(type,physicsState,{landingHeight=0,gravity,landingSafetyMargin=TRICK_LANDING_SAFETY_MARGIN}={}){
+    beginAirIfNeeded(physicsState);
+    const timing=evaluateTrickTiming(type,physicsState,{landingHeight,gravity,landingSafetyMargin});
+    snapshot.remainingAirTime=timing.remainingAirTime;
+    snapshot.trickAllowed=!isActive()&&timing.allowed;
+    snapshot.lastRejectedType='';
+    snapshot.rejectionReason='';
+    if(isActive()){
+      snapshot.trickAllowed=false;
+      snapshot.lastRejectedType=type||'';
+      snapshot.rejectionReason='busy';
+    }else if(!timing.allowed){
+      snapshot.lastRejectedType=type||'';
+      snapshot.rejectionReason=physicsState?.air?'insufficient-airtime':'not-airborne';
+    }
+    return {...timing,allowed:snapshot.trickAllowed};
+  }
+
+  function start(type,{
+    source='manual',
+    startTime=0,
+    physicsState=null,
+    landingHeight=0,
+    gravity,
+    landingSafetyMargin=TRICK_LANDING_SAFETY_MARGIN
+  }={}){
+    if(!SPEED[type]){
+      snapshot.trickAllowed=false;
+      snapshot.lastRejectedType=type||'';
+      snapshot.rejectionReason='unknown-trick';
+      return false;
+    }
+    const timing=evaluateStart(type,physicsState,{landingHeight,gravity,landingSafetyMargin});
+    if(!timing.allowed)return false;
+
     snapshot.state=activeState(type);
     snapshot.type=type;
     snapshot.progress=0;
@@ -86,71 +154,70 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.source=source||'manual';
     snapshot.completed=false;
     snapshot.landingValid=true;
+    snapshot.trickAllowed=true;
     normalizeVisual();
     return true;
   }
 
+  function requestAirborne(type,physicsState,options={}){
+    if(!physicsState?.air)return false;
+    // Consume the airborne Jump request regardless of acceptance. This prevents
+    // rejected/late trick input from surviving as a landing bounce/double jump.
+    physicsState.jumpBufferTime=0;
+    physicsState.jumpBuffered=false;
+    return start(type,{
+      ...options,
+      source:options.source||physicsState.jumpSource||'manual',
+      startTime:options.startTime??physicsState.time??0,
+      physicsState
+    });
+  }
+
+  function startSecondPress360(physicsState,options={}){
+    return requestAirborne(TRICK_TYPE.SPIN_360,physicsState,options);
+  }
+
   function armRamp(type){
-    if(!canStart()||!SPEED[type])return false;
+    if(isActive()||!SPEED[type])return false;
     pendingRampType=type;
+    snapshot.pendingTrick=type;
     return true;
   }
+
   function consumeRampArm(){
     const type=pendingRampType;
     pendingRampType=null;
+    snapshot.pendingTrick='';
     return type;
   }
-  function clearRampArm(){pendingRampType=null;}
 
-  function startSecondPress360(physicsState,{startTime=physicsState?.time||0}={}){
-    if(!physicsState?.air)return false;
-    // Any airborne jump press is consumed here so it can never become a buffered
-    // landing bounce/double-jump. Only the first press with no active trick starts 360.
-    physicsState.jumpBufferTime=0;
-    physicsState.jumpBuffered=false;
-    if(!canStart())return false;
-    return start(TRICK_TYPE.SPIN_360,{source:physicsState.jumpSource||'manual',startTime});
-  }
-
-  function step(dt){
-    if(snapshot.state!==TRICK_STATE.SPIN_360&&snapshot.state!==TRICK_STATE.BACKFLIP)return snapshot;
-    snapshot.rotation=Math.min(TAU,snapshot.rotation+SPEED[snapshot.type]*Math.max(0,Number(dt)||0));
-    snapshot.progress=Math.min(1,snapshot.rotation/TAU);
-    if(snapshot.rotation>=TAU-COMPLETE_EPSILON){
-      snapshot.rotation=TAU;
-      snapshot.progress=1;
-      snapshot.completed=true;
-      snapshot.state=TRICK_STATE.COMPLETED;
-    }
-    applyVisual();
-    return snapshot;
-  }
-
-  function land({jumpSource=''}={}){
-    const hadTrick=snapshot.state!==TRICK_STATE.NONE;
-    landingResult.hadTrick=hadTrick;
-    landingResult.type=snapshot.type;
-    landingResult.source=snapshot.source;
-    landingResult.completed=snapshot.completed||snapshot.rotation>=TAU-COMPLETE_EPSILON;
-    const sourceMatches=snapshot.source==='ramp'&&jumpSource==='ramp';
-    const manualBackflipInvalid=snapshot.type===TRICK_TYPE.BACKFLIP&&snapshot.source==='manual';
-    const landingValid=snapshot.type===TRICK_TYPE.BACKFLIP?!manualBackflipInvalid&&sourceMatches:true;
-    landingResult.landingValid=landingValid;
-    landingResult.success=hadTrick&&landingResult.completed&&landingValid;
-
-    if(hadTrick){
-      snapshot.completed=landingResult.completed;
-      snapshot.progress=landingResult.completed?1:snapshot.progress;
-      snapshot.landingValid=landingValid;
-      snapshot.state=landingResult.success?TRICK_STATE.COMPLETED:TRICK_STATE.FAILED;
-      normalizeVisual();
-    }
+  function clearRampArm(){
     pendingRampType=null;
-    return landingResult;
+    snapshot.pendingTrick='';
   }
 
-  function finishLanding(){
-    if(snapshot.state!==TRICK_STATE.COMPLETED)return false;
+  function completeActive(){
+    const completedType=snapshot.type;
+    const completedSource=snapshot.source;
+    const completedStartTime=snapshot.startTime;
+    snapshot.rotation=TAU;
+    snapshot.progress=1;
+    snapshot.completed=true;
+    snapshot.state=TRICK_STATE.COMPLETED;
+    applyVisual();
+    normalizeVisual();
+
+    snapshot.tricksThisAir++;
+    snapshot.lastCompletedType=completedType;
+    completion={
+      id:++completionId,
+      type:completedType,
+      source:completedSource,
+      startTime:completedStartTime
+    };
+
+    // A full rotation is equivalent to neutral. Reset the pivot and active
+    // rotation immediately so another trick may begin in the same airtime.
     snapshot.state=TRICK_STATE.NONE;
     snapshot.type='';
     snapshot.progress=0;
@@ -159,8 +226,107 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.source='';
     snapshot.completed=false;
     snapshot.landingValid=true;
+    snapshot.trickAllowed=false;
+  }
+
+  function step(dt){
+    if(!isActive())return snapshot;
+    snapshot.rotation=Math.min(TAU,snapshot.rotation+SPEED[snapshot.type]*Math.max(0,Number(dt)||0));
+    snapshot.progress=Math.min(1,snapshot.rotation/TAU);
+    if(snapshot.rotation>=TAU-COMPLETE_EPSILON)completeActive();
+    else applyVisual();
+    return snapshot;
+  }
+
+  function consumeCompletion(){
+    const event=completion;
+    completion=null;
+    return event;
+  }
+
+  function land({jumpSource=''}={}){
+    const interrupted=isActive();
+    const result={
+      hadTrick:snapshot.tricksThisAir>0||interrupted,
+      success:!interrupted,
+      interrupted,
+      type:interrupted?snapshot.type:snapshot.lastCompletedType,
+      source:interrupted?snapshot.source:jumpSource,
+      completed:!interrupted,
+      landingValid:!interrupted,
+      reason:interrupted?'landing-interruption':''
+    };
+
+    clearRampArm();
+    snapshot.remainingAirTime=0;
+    snapshot.trickAllowed=false;
+    previousAir=false;
+
+    if(interrupted){
+      snapshot.state=TRICK_STATE.FAILED;
+      snapshot.completed=false;
+      snapshot.landingValid=false;
+      snapshot.lastRejectedType=snapshot.type;
+      snapshot.rejectionReason='landing-interruption';
+      normalizeVisual();
+    }else{
+      snapshot.state=TRICK_STATE.NONE;
+      snapshot.type='';
+      snapshot.progress=0;
+      snapshot.rotation=0;
+      snapshot.startTime=0;
+      snapshot.source='';
+      snapshot.completed=false;
+      snapshot.landingValid=true;
+      snapshot.tricksThisAir=0;
+      normalizeVisual();
+    }
+    return result;
+  }
+
+  function finishLanding(){
+    const wasTerminal=snapshot.state===TRICK_STATE.COMPLETED||snapshot.state===TRICK_STATE.FAILED;
+    snapshot.state=TRICK_STATE.NONE;
+    snapshot.type='';
+    snapshot.progress=0;
+    snapshot.rotation=0;
+    snapshot.startTime=0;
+    snapshot.source='';
+    snapshot.completed=false;
+    snapshot.landingValid=true;
+    snapshot.tricksThisAir=0;
+    snapshot.remainingAirTime=0;
+    snapshot.trickAllowed=false;
+    snapshot.lastRejectedType='';
+    snapshot.rejectionReason='';
     normalizeVisual();
-    return true;
+    return wasTerminal;
+  }
+
+  function abort({reason='interrupted'}={}){
+    if(!isActive()){
+      clearRampArm();
+      return null;
+    }
+    const result={
+      hadTrick:true,
+      success:false,
+      interrupted:true,
+      type:snapshot.type,
+      source:snapshot.source,
+      completed:false,
+      landingValid:false,
+      reason
+    };
+    snapshot.state=TRICK_STATE.FAILED;
+    snapshot.completed=false;
+    snapshot.landingValid=false;
+    snapshot.trickAllowed=false;
+    snapshot.lastRejectedType=snapshot.type;
+    snapshot.rejectionReason=reason;
+    clearRampArm();
+    normalizeVisual();
+    return result;
   }
 
   function reset(){
@@ -173,9 +339,35 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.source='';
     snapshot.completed=false;
     snapshot.landingValid=true;
+    snapshot.tricksThisAir=0;
+    snapshot.remainingAirTime=0;
+    snapshot.trickAllowed=false;
+    snapshot.pendingTrick='';
+    snapshot.lastCompletedType='';
+    snapshot.lastRejectedType='';
+    snapshot.rejectionReason='';
     pendingRampType=null;
+    completion=null;
+    previousAir=false;
   }
 
   if(visualTarget)setVisualTarget(visualTarget);
-  return {state:snapshot,setVisualTarget,start,armRamp,consumeRampArm,clearRampArm,startSecondPress360,step,land,finishLanding,reset};
+  return {
+    state:snapshot,
+    setVisualTarget,
+    start,
+    requestAirborne,
+    startSecondPress360,
+    armRamp,
+    consumeRampArm,
+    clearRampArm,
+    updateTiming,
+    evaluateStart,
+    step,
+    consumeCompletion,
+    land,
+    finishLanding,
+    abort,
+    reset
+  };
 }
