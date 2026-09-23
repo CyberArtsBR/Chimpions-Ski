@@ -170,20 +170,24 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       ['2',step,'countTick'],
       ['1',step*2,'countTickStrong'],
       ['0',step*3,'countTickStrong'],
-      ['GO',durationMs,'go']
+      ['GO!',durationMs,'go']
     ];
     countdown.hidden=false;
     countdown.classList.add('is-active');
     for(const [label,delay,sound] of frames){
       setTimeout(()=>{
         if(token!==countdownToken)return;
+        const isGo=label==='GO!';
         number.textContent=label;
-        number.classList.toggle('is-go',label==='GO');
+        number.classList.toggle('is-go',isGo);
         number.classList.remove('tick');
         void number.offsetWidth;
         number.classList.add('tick');
-        audio.play(sound,label==='GO'?.58:label==='1'?.34:label==='0'?.38:.27);
-        if(label==='GO'){
+        if(isGo){
+          const playedGoCue=audio.playGoCue?.();
+          if(playedGoCue===undefined)audio.play(sound,.68);
+        }else audio.play(sound,label==='1'?.34:label==='0'?.38:.27);
+        if(isGo){
           countdown.classList.add('is-launching');
           setMode('playing');
           onGo?.();
@@ -191,7 +195,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
             if(token!==countdownToken)return;
             countdown.classList.remove('is-active','is-launching');
             countdown.hidden=true;
-          },260);
+          },520);
         }
       },delay);
     }
