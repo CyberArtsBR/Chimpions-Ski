@@ -41,7 +41,13 @@ try{
   assert(before.courseAhead>280,'Course streaming did not cover the visible camera horizon');
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD is not visible in gameplay');
 
-  await page.waitForTimeout(1800);
+  // Observe the first real gameplay movement instead of sleeping long enough for
+  // an unattended high-speed run to randomly collide before the assertion.
+  await page.waitForFunction(
+    start=>{const state=window.chimpionsSki?.();return Number(state?.distance)>Number(start.distance)&&Number(state?.travel)>Number(start.travel);},
+    {distance:before.distance,travel:before.travel},
+    {timeout:5000}
+  );
   const moved=await page.evaluate(()=>window.chimpionsSki());
   assert(moved.distance>before.distance,'Player distance did not advance');
   assert(moved.travel>before.travel,'World travel did not advance');
