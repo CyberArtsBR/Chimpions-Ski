@@ -9,6 +9,10 @@ const startScreen=readFileSync(new URL('../src/startScreen.js',import.meta.url),
 
 assert(crowd.includes('export const START_CROWD_COUNT=50'),'start crowd is not configured for 50 Chimpions');
 assert(crowd.includes('const SOURCE_MODEL_COUNT=START_CROWD_COUNT'),'crowd does not request one unique source per actor');
+assert(crowd.includes('const CROWD_LIGHTWEIGHT_IDS=new Set(['),'crowd is not constrained to the lightweight unique GLB pool');
+assert(crowd.includes('maxSpectators=START_CROWD_COUNT'),'production crowd default is not the full 50');
+assert(main.includes('maxSpectators:smokeTestMode?4:undefined'),'browser smoke override is not isolated from production crowd count');
+assert(ui.includes('Loading 50 unique Chimpions'),'production crowd preparation state is not communicated to the player');
 assert(crowd.includes('const seen=new Set()'),'crowd source selection does not deduplicate catalog entries');
 assert(!crowd.includes('templates[index%templates.length]'),'crowd still repeats source templates');
 assert(!crowd.includes('cloneSkeleton'),'crowd still clones repeated source models');
