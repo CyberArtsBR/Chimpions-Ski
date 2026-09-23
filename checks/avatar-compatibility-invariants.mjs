@@ -99,8 +99,8 @@ assert.doesNotMatch(skierSource,/function mapRig\(/,'rig mapping must live in th
 assert.match(skierSource,/resolveAvatarRig\(model,compatibility\)/,'each loaded avatar must resolve its own rig');
 assert.match(skierSource,/root\.userData\.avatarCompatibility=compatibility/,'runtime root must expose compatibility state');
 assert.match(snowboardSource,/root\.userData\.restPosition=root\.position\.clone\(\)/,'snowboard must keep a stable rest attachment');
-assert.match(snowboardSource,/snowboard-left-front-binding/,'left/front binding identity must remain explicit');
-assert.match(snowboardSource,/snowboard-right-rear-binding/,'right/rear binding identity must remain explicit');
+assert.match(snowboardSource,/\{foot:'left',role:'front'/,'left/front binding identity must remain explicit');
+assert.match(snowboardSource,/\{foot:'right',role:'rear'/,'right/rear binding identity must remain explicit');
 assert.match(skierSource,/riderVisual\.add\(modelCarrier\)/);
 assert.match(skierSource,/riderVisual\.add\(snowboard\.root\)/,'snowboard and avatar must share the visual trick parent');
 assert.match(mainSource,/createTrickSystem\(\{visualTarget:trickVisualPivot\}\)/,'tricks must rotate the visual pivot, not rig bones');
