@@ -17,7 +17,7 @@ async function clickStart(page){
   });
   if(!action)return pending('No enabled start control was available');
   try{
-    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:12_000});
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});
   }catch{
     return pending('Start control was invoked but gameplay did not reach mode=playing');
   }
@@ -55,7 +55,7 @@ async function recoverCrash(page){
   });
   if(!clicked)return false;
   try{
-    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:12_000});
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});
     return true;
   }catch{return false;}
 }
@@ -151,7 +151,7 @@ export async function benchmarkRestarts(page,iterations){
       return true;
     });
     if(!clicked)return pending('Pause/restart control unavailable during restart cycle');
-    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:12_000});}catch{return pending('Restart did not return to playing state');}
+    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});}catch{return pending('Restart did not return to playing state');}
     const after=await runtimeSnapshot(page,`restart-${i+1}-after`);
     cycles.push({iteration:i+1,restartToPlayingMs:Date.now()-wall,before,after,frames:await frameSummarySince(page,mark)});
   }
