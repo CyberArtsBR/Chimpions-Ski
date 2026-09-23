@@ -43,7 +43,7 @@ app.innerHTML=`
       <p class="tagline">Carve the endless mountain, chase bananas, clear the jumps and keep your line as the descent gets faster.</p>
       <div class="selected-avatar" id="selected-avatar">
         <span class="selected-avatar-image" id="selected-avatar-image">🐵</span>
-        <span><small>YOUR RIDER</small><strong id="selected-avatar-name">Loading Chimpions…</strong><em id="selected-ride-mode" class="selected-ride-mode">SKI · 160–210 KM/H</em></span>
+        <span><small>YOUR RIDER</small><strong id="selected-avatar-name">Loading Chimpions…</strong><em id="selected-ride-mode" class="selected-ride-mode">SKI · 160–300 KM/H</em></span>
       </div>
       <div class="menu-actions">
         <button class="secondary" id="choose" aria-label="Choose Chimpion" disabled>CHOOSE CHIMPION</button>
@@ -576,7 +576,7 @@ function update(dt){
   jumpKeyPressed=false;
   let worldDistance=0;
   if(state.mode==='playing'){
-    // 160–230 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
+    // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
     const steps=Math.ceil(dt/(1/180));
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
@@ -757,7 +757,7 @@ function update(dt){
           activeRamp=item;
         }
 
-        // Crossing-based lip detection is robust at 210 km/h while preserving the
+        // Crossing-based lip detection is robust at 300 km/h while preserving the
         // same -1.42 lip threshold used by the previous window test.
         const crossedLip=item.userData.activated&&aligned&&previousApproachDepth>-1.42&&approachDepth<=-1.42;
         if(item.userData.activated&&!state.air){
