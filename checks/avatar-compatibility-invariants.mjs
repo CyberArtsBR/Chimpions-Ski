@@ -93,7 +93,7 @@ const mainSource=await readFile(new URL('../src/main.js',import.meta.url),'utf8'
 assert.match(skierSource,/const rest=new Map\(\)/,'authored GLB rest quaternions must remain captured');
 assert.match(skierSource,/targetQ\.copy\(rest\.get\(b\)\)/,'pose deltas must rebuild from authored rest');
 assert.match(skierSource,/bone\.quaternion\.copy\(displayed\)/,'arm display smoothing must write a cached absolute target');
-assert.match(skierSource,/b\.quaternion\.copy\(base\)/,'ride-mode reset must restore authored rest');
+assert.match(skierSource,/bone\.quaternion\.copy\(base\)/,'ride-mode reset must restore authored rest');
 assert.match(skierSource,/resetArmChainToRest\(\);/,'ride-mode switching must reset arm state');
 assert.doesNotMatch(skierSource,/function mapRig\(/,'rig mapping must live in the compatibility resolver, not a second mapper');
 assert.match(skierSource,/resolveAvatarRig\(model,compatibility\)/,'each loaded avatar must resolve its own rig');
