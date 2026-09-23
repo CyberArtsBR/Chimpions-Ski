@@ -125,6 +125,18 @@ export async function benchmarkGameplay(page,seconds,{trickHeavy=false,label='ga
       courseBatchSyncMs:analyzeMetric(samples,'perfCourseBatchSyncMs'),
       environmentUpdateMs:analyzeMetric(samples,'perfEnvironmentUpdateMs')
     },
+    qualityWorkload:{
+      rendererPixelRatio:analyzeMetric(samples,'rendererPixelRatio'),
+      environmentShadowMapSize:analyzeMetric(samples,'environmentShadowMapSize'),
+      activeBanks:analyzeMetric(samples,'activeBanks'),
+      activeWindBanks:analyzeMetric(samples,'activeWindBanks'),
+      activeDecorativeTrees:analyzeMetric(samples,'activeDecorativeTrees'),
+      activeSnowLayerParticles:analyzeMetric(samples,'activeSnowLayerParticles'),
+      snowParticleMistActive:analyzeMetric(samples,'snowParticleMistActive'),
+      snowParticleChunksActive:analyzeMetric(samples,'snowParticleChunksActive'),
+      snowSurfaceMoundsActive:analyzeMetric(samples,'snowSurfaceMoundsActive'),
+      snowSurfaceRidgesActive:analyzeMetric(samples,'snowSurfaceRidgesActive')
+    },
     speedBins:speedBins(samples),
     maxDomNodes:domValues.length?Math.max(...domValues):null,
     maxTrickDomNodes:trickDomValues.length?Math.max(...trickDomValues):null,
