@@ -116,22 +116,19 @@ try{
   }
   await page.setViewportSize({width:1440,height:900});
 
-  // Reuse the already-loaded boot rider so selector QA is deterministic and network-light.
-  await selector.locator('#chimpion-search').fill('The Drownsy');
-  await page.waitForFunction(()=>document.querySelectorAll('.chimpion-card').length>0);
-  await page.keyboard.press('ArrowDown');
-  await page.waitForFunction(()=>document.activeElement?.classList?.contains('chimpion-card'));
-  assert.equal(await page.locator('.chimpion-card.is-menu-selected').count(),1,'Keyboard focus did not share the selector visual state');
+  // Reuse whichever catalog rider actually completed boot so selector QA stays
+  // deterministic and does not trigger an unrelated second GLB download.
+  const bootRiderName=await page.evaluate(()=>window.chimpionsSki?.().selectedAvatar||'');
+  assert(bootRiderName,'Boot rider name was not exposed in runtime diagnostics');
+  const search=selector.locator('#chimpion-search');
+  await search.fill(bootRiderName);
+  const runChimpion=selector.locator('.chimpion-card:not([aria-disabled="true"])').filter({hasText:bootRiderName}).first();
+  await runChimpion.waitFor({state:'visible',timeout:10000});
+  await runChimpion.focus();
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('.chimpion-card.is-menu-selected').count(),1,'Horizontal selector navigation lost visible state');
-  // Keep CI focused on UI flow rather than arbitrary heavy GLB download cost.
-  // The boot rider is deliberately The Drownsy when present; filter to that same
-  // lightweight model so ride confirmation does not trigger a second GLB load.
-  const search=selector.locator('#chimpion-search');
-  await search.fill('The Drownsy');
-  const runChimpion=selector.locator('.chimpion-card').filter({hasText:'The Drownsy'}).first();
-  await runChimpion.waitFor({state:'visible',timeout:5000});
   await runChimpion.focus();
+  assert.equal(await page.locator('.chimpion-card.is-menu-selected').count(),1,'Keyboard focus did not share the selector visual state');
   await page.keyboard.press('Enter');
 
   const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
