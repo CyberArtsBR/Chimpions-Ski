@@ -85,7 +85,9 @@ export function createTrickSystem({visualTarget=null}={}){
   function applyVisual(){
     if(!visualPivot?.quaternion||!isActive())return;
     const axis=snapshot.type===TRICK_TYPE.BACKFLIP?axisX:axisY;
-    const angle=snapshot.type===TRICK_TYPE.BACKFLIP?-snapshot.rotation:snapshot.rotation;
+    // In this rider/camera coordinate frame positive X is the backward somersault
+    // direction. The old negative sign made BACKFLIP render as a front flip.
+    const angle=snapshot.rotation;
     trickQuaternion.setFromAxisAngle(axis,angle);
     visualPivot.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
   }
