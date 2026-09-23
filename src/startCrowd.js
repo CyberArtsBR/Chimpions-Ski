@@ -314,8 +314,22 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     let templates=[];
 
     if(sources.length){
-      const settled=await Promise.allSettled(sources.map(loadTemplate));
-      templates=settled.filter(result=>result.status==='fulfilled').map(result=>result.value);
+      const results=new Array(sources.length);
+      let cursor=0;
+      const workerCount=Math.min(8,sources.length);
+      const workers=Array.from({length:workerCount},async()=>{
+        while(generation===loadGeneration){
+          const index=cursor++;
+          if(index>=sources.length)break;
+          try{results[index]=await loadTemplate(sources[index]);}
+          catch{}
+          // Parsing rigged GLBs is main-thread heavy. Yield between models so
+          // selector/menu rendering never freezes behind the 50-model preload.
+          await new Promise(resolve=>setTimeout(resolve,0));
+        }
+      });
+      await Promise.all(workers);
+      templates=results.filter(Boolean);
     }
     if(!templates.length){
       try{templates=[await loadTemplate({url:'models/default.glb'})];}
@@ -329,7 +343,9 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     clearActorModels({dispose:true});
     const uniqueTemplates=templates.slice(0,actors.length);
     modelSourceCount=uniqueTemplates.length;
-    uniqueTemplates.forEach((instance,index)=>{
+    for(let index=0;index<uniqueTemplates.length;index++){
+      if(generation!==loadGeneration)break;
+      const instance=uniqueTemplates[index];
       const actor=actors[index];
       instance.name='crowd-glb-'+index;
       const scaleJitter=.94+(index%5)*.025;
@@ -337,7 +353,8 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       actor.add(instance);
       if(poseCheeringArms(instance))posedCount++;
       loadedCount++;
-    });
+      if(index%4===3)await new Promise(resolve=>setTimeout(resolve,0));
+    }
     root.updateMatrixWorld(true);
     released=false;
     root.visible=true;
