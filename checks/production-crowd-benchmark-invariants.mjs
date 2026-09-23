@@ -6,6 +6,7 @@ assert(!benchmark.includes('?test=1'),'production crowd benchmark must not use t
 assert(benchmark.includes('const PRODUCTION_COUNT=50'),'benchmark pins the real production crowd to 50 spectators');
 assert(benchmark.includes('Expected production crowd count'),'benchmark explicitly validates the production spectator count at runtime');
 assert(benchmark.includes('coldFullPreparation'),'benchmark exercises real cold full preparation of all 50 spectators');
+assert(benchmark.includes('window.chimpionsSkiPrepareFullCrowd'),'cold full benchmark explicitly invokes the 50-source profiling hook instead of relying on interactive preload');
 assert(benchmark.includes('blockingMs'),'benchmark records cold/warm start blocking duration');
 assert(benchmark.includes('warmRestarts'),'benchmark exercises repeated warm restart behavior');
 assert(benchmark.includes('startCrowdReleased===true'),'benchmark waits for scene destruction before restart');

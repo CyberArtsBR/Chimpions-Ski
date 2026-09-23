@@ -1092,3 +1092,8 @@ window.chimpionsSki=()=>{
     pooledCourseObjects:pooledObjects
   };
 };
+
+// Explicit profiling hook for the real 50-source crowd path. Runtime gameplay
+// never calls this; benchmark tooling uses it so production profiling cannot
+// accidentally pass on the reduced browser-smoke crowd.
+window.chimpionsSkiPrepareFullCrowd=()=>startCrowd.prepareFull(catalog);

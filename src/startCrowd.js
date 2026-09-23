@@ -11,7 +11,7 @@ export {START_CROWD_COUNT};
 export const DEFAULT_CROWD_QUALITY=Object.freeze({
   maxSpectators:START_CROWD_COUNT,
   startReadyCount:10,
-  loadConcurrency:3,
+  loadConcurrency:1,
   startWaitMs:900,
   assetTimeoutMs:10000
 });
@@ -397,25 +397,30 @@ export function createStartCrowd({
     return true;
   }
 
-  function startLoad(entries=lastEntries){
+  function startLoad(entries=lastEntries,{full=false}={}){
     lastEntries=Array.isArray(entries)?entries:lastEntries;
     buildStructure();
 
     if(activeJob&&activeJob.generation===loadGeneration){
-      if(!activeJob.done)return activeJob;
-      if(failedCount===0&&loadedCount>=modelSourceCount)return activeJob;
+      const criticalTarget=Math.min(qualityState.startReadyCount,activeJob.sources.length);
+      if(!activeJob.done){
+        if(full)activeJob.claimLimit=activeJob.sources.length;
+        return activeJob;
+      }
+      if(full&&failedCount===0&&loadedCount>=activeJob.sources.length)return activeJob;
+      if(!full&&loadedCount>=criticalTarget)return activeJob;
     }
 
     const sources=chooseCrowdSources(lastEntries,crowdCount);
     modelSourceCount=sources.length;
     const generation=++loadGeneration;
-    const job={generation,sources,cursor:0,done:false,fullPromise:null,stopAfterStartReady:false};
+    const claimLimit=full?sources.length:Math.min(qualityState.startReadyCount,sources.length);
+    const job={generation,sources,cursor:0,claimLimit,done:false,fullPromise:null,fullRequested:full,startCommitted:false};
     activeJob=job;
 
     const worker=async()=>{
       while(generation===loadGeneration&&!released){
-        const startReadyLimit=Math.min(qualityState.startReadyCount,sources.length);
-        if(job.stopAfterStartReady&&job.cursor>=startReadyLimit)break;
+        if(job.cursor>=job.claimLimit)break;
         const index=job.cursor++;
         if(index>=sources.length)break;
         const entry=sources[index];
@@ -446,7 +451,12 @@ export function createStartCrowd({
   }
 
   function setSpectators(entries=[]){
-    const job=startLoad(entries);
+    const job=startLoad(entries,{full:false});
+    return job.fullPromise;
+  }
+
+  function prepareFull(entries=lastEntries){
+    const job=startLoad(entries,{full:true});
     return job.fullPromise;
   }
 
@@ -461,11 +471,12 @@ export function createStartCrowd({
   }
 
   async function ensureLoaded(entries=lastEntries){
-    const job=startLoad(entries);
-    // Once the player commits to a run, do not begin more progressive GLB parses.
-    // Any already-started request may finish and populate its slot, while the
-    // remaining actors stay represented by the two-draw-call placeholder crowd.
-    job.stopAfterStartReady=true;
+    const job=startLoad(entries,{full:false});
+    // Freeze new crowd work at the exact number of source slots already claimed.
+    // Existing in-flight work may finish, but countdown/gameplay never starts a
+    // fresh progressive GLB parse. Unclaimed slots remain visible placeholders.
+    job.startCommitted=true;
+    job.claimLimit=Math.min(job.claimLimit,job.cursor);
     if(!released&&built&&loadedCount>=Math.min(qualityState.startReadyCount,crowdCount))return loadedCount;
     return waitForStartReady(job);
   }
@@ -557,6 +568,7 @@ export function createStartCrowd({
 
   return {
     setSpectators,
+    prepareFull,
     ensureLoaded,
     release,
     reset,
@@ -572,7 +584,7 @@ export function createStartCrowd({
     get startReady(){return loadedCount>=Math.min(qualityState.startReadyCount,Math.max(1,modelSourceCount||crowdCount));},
     get fullReady(){return modelSourceCount>0&&loadedCount>=modelSourceCount;},
     get cacheStats(){return assetCache.getStats();},
-    get progressivePaused(){return !!activeJob?.stopAfterStartReady;},
+    get progressivePaused(){return !!activeJob?.startCommitted;},
     get quality(){return {...qualityState};},
     get visible(){return root.visible;},
     get released(){return released;}

@@ -184,7 +184,12 @@ async function coldFullPreparation(browser){
     const ready=await boot(page);
     const heapBefore=await heapBytes(page);
     const started=performance.now();
-    await openSelector(page);
+    const fullProfileStarted=await page.evaluate(()=>{
+      if(typeof window.chimpionsSkiPrepareFullCrowd!=='function')return false;
+      window.chimpionsSkiPrepareFullCrowd();
+      return true;
+    });
+    if(!fullProfileStarted)throw new Error('Full production crowd profiling hook is unavailable');
     const framePromise=sampleFrames(page,2000);
     const full=await waitDiag(page,d=>Number(d.startCrowdLoadedCount)>=PRODUCTION_COUNT,FULL_TIMEOUT);
     const wallMs=performance.now()-started;
@@ -193,6 +198,7 @@ async function coldFullPreparation(browser){
     return {
       completed:Number(full?.startCrowdLoadedCount)>=PRODUCTION_COUNT,
       wallMs,
+      fullProfileStarted,
       initialCrowdCount:Number(ready.startCrowdCount),
       loadedCount:Number(full?.startCrowdLoadedCount)||0,
       modelSourceCount:Number(full?.startCrowdModelSources)||0,

@@ -22,7 +22,7 @@ startCrowd.setQuality({
 });
 ```
 
-Production defaults remain 50 spectators, 10 start-critical models, concurrency 3, a 900 ms bounded start wait, and a 10 s per-asset network timeout. A central profile may reduce these knobs intentionally, but production is not silently reduced by this branch.
+Production defaults remain 50 spectator slots, 10 start-critical real-model targets, interactive parse concurrency 1, a 900 ms bounded start wait, and a 10 s per-asset network timeout. A central profile may reduce these knobs intentionally, but production is not silently reduced by this branch.
 
 ## Optional diagnostics hook
 
@@ -56,3 +56,12 @@ GitHub Actions run `35884412626` on commit `7b0451659c7cef02d6d4a99da99229333616
 That result confirms the actual bottleneck is not source selection correctness or 404 churn; it is decoding/parsing many distinct rigged GLBs on the main thread. The runtime therefore keeps full progressive preparation available while the selector is open, but once the player commits to a run it stops claiming new progressive GLBs after the start-critical wave. Already-started requests may finish; all remaining slots keep the lightweight instanced placeholder representation. This protects countdown/gameplay frame pacing without pretending the 50-source production path is cheap.
 
 The benchmark defaults to profiling mode: incomplete full population is reported, not mislabeled as success. Set `CHIMPIONS_SKI_CROWD_STRICT_FULL=1` when a release environment explicitly requires all 50 real GLBs to complete within the configured full-population timeout.
+
+
+## Interactive vs full-profile acquisition
+
+The interactive selector path intentionally claims only the start-critical subset. This is not a fake production-count benchmark: all 50 spectator slots remain active and visible, and the production source manifest still contains 50 distinct Chimpions. Slots without a parsed model use the bounded two-draw-call instanced placeholder representation.
+
+When the player commits to a run, the active job freezes its claim limit at the number of assets already in flight. That means no new GLB fetch/parse begins during countdown or gameplay. This is stricter than merely stopping after ten completed models and directly addresses the CI evidence that even a few additional rigged-GLB parses can starve the animation loop.
+
+The dedicated `window.chimpionsSkiPrepareFullCrowd()` instrumentation hook is used only by the benchmark to request all 50 distinct source GLBs. It keeps full-production profiling available without making normal gameplay pay that cost.
