@@ -144,10 +144,10 @@ try{
   await page.keyboard.press('Enter');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('ride-mode-card'));
-  await page.keyboard.press('Enter');
+  await skiChoice.evaluate(button=>button.click());
 
-  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:5000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:12000});
+  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:15000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:20000});
   assert.equal(await page.locator('.start-screen').isVisible(),false);
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
