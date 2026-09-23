@@ -3,6 +3,16 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 export const START_CROWD_COUNT=50;
 const SOURCE_MODEL_COUNT=START_CROWD_COUNT;
+// These are the 50 smallest distinct GLBs in the current collection. Keeping
+// the crowd on this lightweight pool preserves 50 unique 3D Chimpions while
+// avoiding the very large character files during the short start sequence.
+const CROWD_LIGHTWEIGHT_IDS=new Set([
+  '56','53','179','185','181','208','124','114','100','13',
+  '75','95','136','180','166','73','86','6','141','50',
+  '126','extra-thefirstborn','182','142','67','109','149','20','189','165',
+  '130','52','155','157','41','15','21','209','203','218',
+  '99','145','94','28','37','159','89','88','113','116'
+]);
 const CROWD_HEIGHT=1.72;
 const PREFERRED_CROWD_FILES=new Set([
   'the drownsy.glb','the doctor.glb','the royal.glb','the singed.glb','the scorched.glb',
@@ -188,19 +198,17 @@ function chooseSources(entries=[]){
   }
   if(!usable.length)return [];
 
-  // Fifty truly different GLBs are much heavier than the old four-template
-  // crowd. Prefer the smallest known collection assets so the start spectacle
-  // stays responsive while preserving 50 unique Chimpion identities.
-  const preferred=usable.filter(entry=>PREFERRED_CROWD_FILES.has(crowdFileName(entry)));
-  const selected=[...preferred];
-  if(selected.length<SOURCE_MODEL_COUNT){
-    for(const entry of usable){
-      if(selected.includes(entry))continue;
-      selected.push(entry);
-      if(selected.length>=SOURCE_MODEL_COUNT)break;
-    }
+  const lightweight=[];
+  const fallback=[];
+  for(const entry of usable){
+    if(CROWD_LIGHTWEIGHT_IDS.has(String(entry.id)))lightweight.push(entry);
+    else fallback.push(entry);
   }
-  return selected.slice(0,Math.min(SOURCE_MODEL_COUNT,selected.length));
+
+  // Preserve the exact 50 lightweight distinct characters when the current
+  // catalog contains them. Fallback remains unique and only fills missing IDs.
+  const selected=[...lightweight,...fallback].slice(0,Math.min(SOURCE_MODEL_COUNT,usable.length));
+  return selected;
 }
 
 export function createStartCrowd({world,terrainHeight=()=>0}={}){
