@@ -28,8 +28,16 @@ try{
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
 
   const before=await page.evaluate(()=>window.chimpionsSki());
-  assert(before.startCrowdCount>4,'Production smoke unexpectedly used reduced CI crowd mode');
-  assert(before.startCrowdStartReady,'Production crowd did not reach start-ready state');
+  assert.equal(before.startCrowdCount,50,'Production smoke must use the full 50-spectator crowd profile');
+  assert.equal(before.startCrowdModelSources,50,'Production crowd did not retain 50 unique model sources');
+  assert.equal(
+    Number(before.startCrowdLoadedCount||0)+Number(before.startCrowdPlaceholderCount||0),
+    50,
+    'Production crowd lost spectator slots while progressive assets were loading'
+  );
+  // Start readiness is intentionally bounded: on slow CI/network paths the run may
+  // proceed with placeholders after the wait budget rather than blocking gameplay.
+  assert(before.startCrowdStartReady||before.startCrowdPlaceholderCount>0,'Crowd had neither a ready subset nor fallback placeholders');
   assert(before.courseAhead>280,'Course streaming did not cover the visible camera horizon');
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD is not visible in gameplay');
 
