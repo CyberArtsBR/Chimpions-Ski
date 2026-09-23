@@ -1107,6 +1107,7 @@ window.chimpionsSki=()=>{
     selectorReady,
     catalogSize:catalog.length,
     selectedAvatar:selectedAvatar?.name||'',
+    selectedAvatarLocal:!!selectedAvatar?.localOnly,
     rideMode:selectedRideMode,
     baseSpeed:getRideProfile(selectedRideMode).baseSpeed,
     maxSpeed:getRideProfile(selectedRideMode).maxSpeed,
