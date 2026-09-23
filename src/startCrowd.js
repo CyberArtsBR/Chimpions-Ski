@@ -14,18 +14,6 @@ const CROWD_LIGHTWEIGHT_IDS=new Set([
   '99','145','94','28','37','159','89','88','113','116'
 ]);
 const CROWD_HEIGHT=1.72;
-const PREFERRED_CROWD_FILES=new Set([
-  'the drownsy.glb','the doctor.glb','the royal.glb','the singed.glb','the scorched.glb',
-  'the trickster.glb','the main caracter.glb','the jovian.glb','the hollow.glb','the arisen.glb',
-  'the firestarter.glb','the heretic.glb','the nomad.glb','the scientist.glb','the punk.glb',
-  'the fautly.glb','the ghost hunter.glb','the analyst.glb','the one who lurks in shadow.glb','the deepweller.glb',
-  'the masked.glb','the first born.glb','the scoundrel.glb','the one who rocks hard.glb','the erroneous.glb',
-  'the instrument.glb','the overflowing.glb','the beholder.glb','the spirit keeper.glb','the ptolemaic.glb',
-  'the messenger.glb','the digital.glb','the patrolman.glb','the perplexed.glb','the constant companion.glb',
-  'the attendantr.glb','the binary.glb','the uneasy.glb','the thug.glb','the wondrous.glb',
-  'the hip.glb','the original.glb','the herdsman.glb','the buddly.glb','the comedian.glb',
-  'the plumber.glb','the greeter.glb','the golem.glb','the jockey.glb','the judge.glb'
-]);
 const ROWS=[
   {count:10,z:6.05,rise:.22},
   {count:10,z:7.42,rise:.61},
@@ -178,16 +166,8 @@ function poseCheeringArms(model){
   return true;
 }
 
-function crowdFileName(entry){
-  try{
-    const decoded=decodeURIComponent(String(entry?.url||''));
-    return decoded.split('/').pop().toLowerCase();
-  }catch{
-    return String(entry?.url||'').split('/').pop().toLowerCase();
-  }
-}
 
-function chooseSources(entries=[]){
+function chooseSources(entries=[],count=SOURCE_MODEL_COUNT){
   const seen=new Set();
   const usable=[];
   for(const entry of entries){
@@ -207,11 +187,12 @@ function chooseSources(entries=[]){
 
   // Preserve the exact 50 lightweight distinct characters when the current
   // catalog contains them. Fallback remains unique and only fills missing IDs.
-  const selected=[...lightweight,...fallback].slice(0,Math.min(SOURCE_MODEL_COUNT,usable.length));
+  const selected=[...lightweight,...fallback].slice(0,Math.min(count,usable.length));
   return selected;
 }
 
-export function createStartCrowd({world,terrainHeight=()=>0}={}){
+export function createStartCrowd({world,terrainHeight=()=>0,maxSpectators=START_CROWD_COUNT}={}){
+  const crowdCount=Math.max(1,Math.min(START_CROWD_COUNT,Math.floor(Number(maxSpectators)||START_CROWD_COUNT)));
   const root=new THREE.Group();
   root.name='start-crowd';
   world?.add(root);
@@ -295,6 +276,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       }
 
       for(let column=0;column<row.count;column++){
+        if(actorIndex>=crowdCount)break;
         const t=row.count===1?.5:column/(row.count-1);
         const rowOffset=rowIndex%2===0?-.10:.10;
         const x=THREE.MathUtils.lerp(-8.05,8.05,t)+rowOffset;
@@ -349,7 +331,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     buildStructure();
 
     const generation=++loadGeneration;
-    const sources=chooseSources(lastEntries);
+    const sources=chooseSources(lastEntries,crowdCount);
     let templates=[];
 
     if(sources.length){
@@ -412,7 +394,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   }
 
   async function ensureLoaded(entries=lastEntries){
-    if(!released&&built&&loadedCount===START_CROWD_COUNT)return loadedCount;
+    if(!released&&built&&loadedCount===crowdCount)return loadedCount;
     if(loadingPromise)return loadingPromise;
     return setSpectators(entries);
   }
