@@ -178,17 +178,20 @@ async function restartAfterTeardown(page){
   await forceBenchmarkRelease(page);
   const state=await diagnostics(page);
   const restartFrom=state?.mode||'unknown';
-  const started=performance.now();
-  const frameTiming=sampleFrames(page,1400);
-  const restarted=await page.evaluate(async()=>{
-    const hook=window.chimpionsSkiCrowdBenchmark;
-    if(!hook?.restart)return false;
-    return hook.restart();
-  });
-  if(!restarted)throw new Error('Crowd benchmark restart hook could not start a run');
+  const [restartResult,frameTiming]=await Promise.all([
+    page.evaluate(async()=>{
+      const hook=window.chimpionsSkiCrowdBenchmark;
+      if(!hook?.restart)return {restarted:false,blockingMs:0};
+      const started=performance.now();
+      const restarted=await hook.restart();
+      return {restarted,blockingMs:performance.now()-started};
+    }),
+    sampleFrames(page,1400)
+  ]);
+  if(!restartResult.restarted)throw new Error('Crowd benchmark restart hook could not start a run');
   const countdown=await waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
   if(!countdown||countdown.startCrowdReleased!==false)throw new Error('Crowd benchmark restart did not rebuild the crowd');
-  return {blockingMs:performance.now()-started,countdown,frameTiming:await frameTiming,releasedBeforeRestart:true,restartFrom};
+  return {blockingMs:restartResult.blockingMs,countdown,frameTiming,releasedBeforeRestart:true,restartFrom};
 }
 
 async function coldFullPreparation(browser){
