@@ -1,6 +1,6 @@
 import path from 'node:path';
 import {mkdir,readFile,stat,writeFile} from 'node:fs/promises';
-import {START_CROWD_COUNT,chooseCrowdSources,crowdAssetPublicPath} from '../src/crowdManifest.js';
+import {START_CROWD_COUNT,chooseCrowdSources,crowdSourceAssetPublicPath} from '../src/crowdManifest.js';
 
 const MiB=1024*1024;
 const DEFAULT_CRITICAL_COUNT=10;
@@ -105,7 +105,7 @@ async function main(){
     if(seenSourceKeys.has(sourceKey))duplicateSourceKeys++;
     seenSourceKeys.add(sourceKey);
 
-    const relative=crowdAssetPublicPath(entry);
+    const relative=crowdSourceAssetPublicPath(entry);
     const absolute=path.resolve(options.root,relative);
     let bytes=0,missing=false;
     try{bytes=(await stat(absolute)).size;}

@@ -5,6 +5,8 @@ import {START_CROWD_COUNT,CROWD_LIGHTWEIGHT_IDS,chooseCrowdSources} from '../src
 const crowd=readFileSync(new URL('../src/startCrowd.js',import.meta.url),'utf8');
 const cache=readFileSync(new URL('../src/crowdAssetCache.js',import.meta.url),'utf8');
 const audit=readFileSync(new URL('../scripts/audit-crowd-assets.mjs',import.meta.url),'utf8');
+const builder=readFileSync(new URL('../scripts/build-crowd-lods.mjs',import.meta.url),'utf8');
+const manifestSource=readFileSync(new URL('../src/crowdManifest.js',import.meta.url),'utf8');
 
 const fakeCatalog=CROWD_LIGHTWEIGHT_IDS.map((id,index)=>({id,name:`Chimpion ${index}`,url:`model/characters/${index}.glb`}));
 const selected=chooseCrowdSources([...fakeCatalog,fakeCatalog[0]],START_CROWD_COUNT);
@@ -46,6 +48,15 @@ assert(audit.includes("classification:index<DEFAULT_CRITICAL_COUNT?'start-critic
 assert(audit.includes('oversizedTextureCount'),'audit consumes texture-dimension warnings from the deep avatar audit');
 assert(audit.includes('vertexCount'),'audit reports geometry complexity when deep metadata is available');
 assert(audit.includes('Source GLBs are read-only'),'asset audit documents non-destructive source ownership');
+assert(manifestSource.includes("'/generated/crowd/'"),'runtime crowd URLs target generated crowd-only LOD assets');
+assert(manifestSource.includes('crowdSourceAssetPublicPath'),'master/source asset paths remain explicitly separate from generated runtime LODs');
+assert(builder.includes('const TEXTURE_MAX=256'),'crowd LOD builder caps texture dimensions for distant spectators');
+assert(builder.includes('for(const animation of animations)animation.dispose()'),'crowd LOD builder strips unused animation clips');
+assert(builder.includes('document.transform(prune(),dedup())'),'crowd LOD builder prunes and deduplicates without runtime decoder extensions');
+assert(builder.includes('sourceAssetsPreserved:true'),'crowd LOD manifest explicitly records read-only source ownership');
+assert(builder.includes('individualBytes:2*MiB'),'generated crowd assets have an individual byte budget');
+assert(builder.includes('criticalBytes:8*MiB'),'generated start-critical assets have a byte budget');
+assert(builder.includes('fullBytes:50*MiB'),'generated full crowd has a byte budget');
 
 console.log(JSON.stringify({
   check:'production-crowd-pipeline-invariants',
@@ -57,7 +68,8 @@ console.log(JSON.stringify({
   parsedTemplateCache:true,
   warmRestart:true,
   staleCallbackGuard:true,
-  assetBudgetTooling:true
+  assetBudgetTooling:true,
+  generatedCrowdLods:true
 }));
 
 const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');

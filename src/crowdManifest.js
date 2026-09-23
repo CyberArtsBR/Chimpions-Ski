@@ -46,11 +46,22 @@ export function crowdSourceKey(entry){
   return sourceKey(entry);
 }
 
+export function crowdLodFileName(entry){
+  const key=sourceKey(entry).replace(/[^a-z0-9_-]+/gi,'-').replace(/^-+|-+$/g,'');
+  return (key||'fallback')+'.glb';
+}
+
 export function crowdAssetUrl(entry){
-  return entry?.url?('/'+String(entry.url).replace(/^\/+/,'')):'/models/default.glb';
+  if(!entry?.url)return '/models/default.glb';
+  return '/generated/crowd/'+crowdLodFileName(entry);
 }
 
 export function crowdAssetPublicPath(entry){
   if(!entry?.url)return 'public/models/default.glb';
-  return 'public/'+decodeURIComponent(String(entry.url).replace(/^\/+/,''));
+  return 'public/generated/crowd/'+crowdLodFileName(entry);
+}
+
+export function crowdSourceAssetPublicPath(entry){
+  if(!entry?.url)return 'public/models/default.glb';
+  return 'public/'+decodeURIComponent(String(entry.url).replace(/^\/+/,'')); 
 }
