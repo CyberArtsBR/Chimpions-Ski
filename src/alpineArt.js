@@ -23,19 +23,21 @@ export function makeSerratedFirGeometry(radius=1,height=1,segments=12,seed=1){
   geometry.computeBoundingBox();geometry.computeBoundingSphere();
   return geometry;
 }
-export function makeBarkTexture(size=64){
+export function makeBarkTexture(size=256){
   const data=new Uint8Array(size*size*4);
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const i=(y*size+x)*4;
-    const longGrain=Math.sin(y*.62+Math.sin(x*.31)*1.2)*.5+.5;
-    const fine=Math.sin(y*1.84+x*.11)*.5+.5;
-    const knot=Math.exp(-Math.pow((x-18)/8,2)-Math.pow((y-37)/11,2));
-    const noise=hash(x*17.3+y*31.7);
-    const v=THREE.MathUtils.clamp(110+longGrain*48+fine*18+noise*18-knot*42,58,198);
-    data[i]=v;data[i+1]=v;data[i+2]=v;data[i+3]=255;
+    const u=x/size*Math.PI*2,v=y/size*Math.PI*2;
+    const warp=Math.sin(v*2+Math.sin(u*3))*.27+Math.sin(v*5)*.09;
+    const furrow=Math.pow(.5+.5*Math.sin(u*18+warp),9);
+    const fine=Math.sin(u*49+warp*2+Math.sin(v*7)*.25);
+    const plates=Math.sin(v*11+Math.sin(u*9)*2);
+    const knot=Math.pow(.5+.5*Math.cos(u*3+Math.sin(v)*2),16)*Math.pow(.5+.5*Math.cos(v*2),12);
+    const tone=THREE.MathUtils.clamp(184-furrow*91+fine*11+plates*9-knot*38+(hash(x+y*size)-.5)*12,65,220);
+    const i=(y*size+x)*4;data[i]=tone;data[i+1]=tone;data[i+2]=tone;data[i+3]=255;
   }
   const texture=new THREE.DataTexture(data,size,size,THREE.RGBAFormat);
-  texture.wrapS=texture.wrapT=THREE.RepeatWrapping;
-  texture.repeat.set(2.4,5.8);texture.colorSpace=THREE.SRGBColorSpace;texture.needsUpdate=true;
-  return texture;
+  texture.wrapS=texture.wrapT=THREE.RepeatWrapping;texture.repeat.set(2,3);
+  texture.colorSpace=THREE.SRGBColorSpace;texture.generateMipmaps=true;
+  texture.minFilter=THREE.LinearMipmapLinearFilter;texture.magFilter=THREE.LinearFilter;
+  texture.anisotropy=8;texture.needsUpdate=true;return texture;
 }

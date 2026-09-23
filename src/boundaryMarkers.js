@@ -1,172 +1,65 @@
 import * as THREE from 'three';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
+import {makeBarkTexture} from './alpineArt.js';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
 
-const _dummy=new THREE.Object3D();
-const _postGeometry=new THREE.CylinderGeometry(.125,.185,1.82,12);
-const _postCapGeometry=new THREE.CylinderGeometry(.165,.155,.12,12);
-const _postFootGeometry=new THREE.CylinderGeometry(.22,.19,.16,12);
-const _railGeometry=new THREE.BoxGeometry(.24,.19,1);
-const _railSnowGeometry=new THREE.BoxGeometry(.205,.045,1);
-const _postSnowGeometry=new THREE.SphereGeometry(.18,12,7);
-const _boltGeometry=new THREE.SphereGeometry(.046,8,6);
-
-function setInstance(mesh,index,x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){
-  _dummy.position.set(x,y,z);
-  _dummy.rotation.set(rx,ry,rz);
-  _dummy.scale.set(sx,sy,sz);
-  _dummy.updateMatrix();
-  mesh.setMatrixAt(index,_dummy.matrix);
+const dummy=new THREE.Object3D(),tint=new THREE.Color();
+const postGeometry=new THREE.CylinderGeometry(.14,.20,1.86,16,4);
+const capGeometry=new THREE.CylinderGeometry(.17,.165,.085,16);
+const footGeometry=new THREE.CylinderGeometry(.23,.20,.18,16);
+const railGeometry=new RoundedBoxGeometry(.24,.23,1,2,.035);
+const boltGeometry=new THREE.SphereGeometry(.042,10,6);
+const plateGeometry=new RoundedBoxGeometry(.028,.32,.20,2,.012);
+const hash=n=>{const x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x);};
+function put(mesh,i,x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){
+  dummy.position.set(x,y,z);dummy.rotation.set(rx,ry,rz);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);
 }
-
-export function createBoundaryMarkers({
-  world,
-  terrainHeight,
-  limit=COURSE_FLAG_X,
-  countPerSide=40,
-  spacing=7.2,
-  woodTexture=null,
-  decorativeShadows=true
-}){
-  const postCount=countPerSide*2;
-  const railCount=postCount*2;
-  const postMaterial=new THREE.MeshStandardMaterial({
-    color:0x71472d,map:woodTexture,roughness:.76,metalness:0,flatShading:true
-  });
-  const railMaterial=new THREE.MeshStandardMaterial({
-    color:0x9a633c,map:woodTexture,roughness:.74,metalness:0,flatShading:true
-  });
-  const capMaterial=new THREE.MeshStandardMaterial({
-    color:0x432b1d,map:woodTexture,roughness:.88,metalness:0,flatShading:true
-  });
-  const snowMaterial=new THREE.MeshPhysicalMaterial({
-    color:0xf8fcff,roughness:.76,metalness:0,
-    clearcoat:.12,clearcoatRoughness:.62,sheen:.16,sheenColor:new THREE.Color(0xdff5ff)
-  });
-  const boltMaterial=new THREE.MeshStandardMaterial({
-    color:0x7f929d,roughness:.36,metalness:.68
-  });
-
-  const posts=new THREE.InstancedMesh(_postGeometry,postMaterial,postCount);
-  const caps=new THREE.InstancedMesh(_postCapGeometry,capMaterial,postCount);
-  const feet=new THREE.InstancedMesh(_postFootGeometry,capMaterial,postCount);
-  const rails=new THREE.InstancedMesh(_railGeometry,railMaterial,railCount);
-  const postSnow=new THREE.InstancedMesh(_postSnowGeometry,snowMaterial,postCount);
-  const railSnow=new THREE.InstancedMesh(_railSnowGeometry,snowMaterial,railCount);
-  const bolts=new THREE.InstancedMesh(_boltGeometry,boltMaterial,postCount*2);
-
-  const allMeshes=[posts,caps,feet,rails,postSnow,railSnow,bolts];
-  const shadowMeshes=[posts,caps,feet,rails];
-  for(const mesh of allMeshes){
-    mesh.castShadow=false;
-    mesh.receiveShadow=true;
-    mesh.frustumCulled=false;
-    world.add(mesh);
-  }
-
-  function setDecorativeShadows(enabled=true){
-    const active=!!enabled;
-    for(const mesh of shadowMeshes)mesh.castShadow=active;
-    postSnow.castShadow=false;
-    railSnow.castShadow=false;
-    bolts.castShadow=false;
-    return active;
-  }
+export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,countPerSide=40,spacing=7.2,woodTexture=null,decorativeShadows=true}){
+  const texture=woodTexture||makeBarkTexture(256);
+  const postMaterial=new THREE.MeshStandardMaterial({color:0x94704a,map:texture,bumpMap:texture,bumpScale:.035,roughness:.91});
+  const railMaterial=new THREE.MeshStandardMaterial({color:0xad8355,map:texture,bumpMap:texture,bumpScale:.026,roughness:.87});
+  const capMaterial=new THREE.MeshStandardMaterial({color:0x755334,map:texture,roughness:.95});
+  const iron=new THREE.MeshStandardMaterial({color:0x405464,roughness:.47,metalness:.7});
+  const n=countPerSide*2;
+  const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n);
+  const caps=new THREE.InstancedMesh(capGeometry,capMaterial,n);
+  const feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
+  const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2);
+  const plates=new THREE.InstancedMesh(plateGeometry,iron,n*2);
+  const bolts=new THREE.InstancedMesh(boltGeometry,iron,n*4);
+  const meshes=[posts,caps,feet,rails,plates,bolts];
+  for(const mesh of meshes){mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);}
+  function setDecorativeShadows(enabled=true){for(const m of [posts,caps,feet,rails])m.castShadow=!!enabled;return !!enabled;}
   setDecorativeShadows(decorativeShadows);
-
-  const tint=new THREE.Color();
-  for(let i=0;i<countPerSide;i++){
-    const postShade=.92+(i%5)*.018;
-    const railShade=.94+((i+2)%4)*.018;
-    for(let sideIndex=0;sideIndex<2;sideIndex++){
-      const postIndex=sideIndex*countPerSide+i;
-      tint.copy(postMaterial.color).multiplyScalar(postShade);
-      posts.setColorAt(postIndex,tint);
-      tint.copy(capMaterial.color).multiplyScalar(.96+(i%3)*.016);
-      caps.setColorAt(postIndex,tint);
-      feet.setColorAt(postIndex,tint);
-      const railBase=postIndex*2;
-      tint.copy(railMaterial.color).multiplyScalar(railShade);
-      rails.setColorAt(railBase,tint);
-      rails.setColorAt(railBase+1,tint);
-    }
+  for(let i=0;i<n;i++){
+    // Instance color is a multiplier, not a second copy of the material color.
+    const shade=.85+hash(i+14)*.15;tint.setRGB(shade,shade,shade);
+    for(const mesh of [posts,caps,feet])mesh.setColorAt(i,tint);
+    rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);
   }
-  for(const mesh of [posts,caps,feet,rails]){
-    if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-  }
-
-  const zPositions=new Float32Array(countPerSide);
-  const fenceOffset=.24;
-  const railLength=spacing+.42;
+  const positions=new Float32Array(countPerSide);
   let travel=0;
-
-  function update(dt,worldSpeed){
-    if(worldSpeed===0)return;
-    const dz=worldSpeed*dt;
-    travel+=dz;
-    const span=countPerSide*spacing;
-    for(let i=0;i<countPerSide;i++){
-      zPositions[i]+=dz;
-      if(zPositions[i]>18)zPositions[i]-=span;
-    }
-    refresh();
-  }
-
-  function reset(){
-    travel=0;
-    for(let i=0;i<countPerSide;i++)zPositions[i]=-8-i*spacing;
-    refresh();
-  }
-
   function refresh(){
-    for(let i=0;i<countPerSide;i++){
-      const z=zPositions[i];
-      const railZ=z-spacing*.5;
-      for(let sideIndex=0;sideIndex<2;sideIndex++){
-        const side=sideIndex===0?-1:1;
-        const x=side*(limit+fenceOffset);
-        const postGround=terrainHeight(x,z-travel);
-        const railGround=terrainHeight(x,railZ-travel);
-        const postIndex=sideIndex*countPerSide+i;
-
-        setInstance(posts,postIndex,x,postGround+.91,z);
-        setInstance(caps,postIndex,x,postGround+1.88,z);
-        setInstance(feet,postIndex,x,postGround+.08,z);
-        setInstance(postSnow,postIndex,x,postGround+1.96,z,0,0,0,1,.38,1);
-
-        const railBase=(sideIndex*countPerSide+i)*2;
-        setInstance(rails,railBase,x,railGround+.75,railZ,0,0,0,1,1,railLength);
-        setInstance(rails,railBase+1,x,railGround+1.30,railZ,0,0,0,1,1,railLength);
-        setInstance(railSnow,railBase,x,railGround+.86,railZ,0,0,0,1,1,railLength);
-        setInstance(railSnow,railBase+1,x,railGround+1.41,railZ,0,0,0,1,1,railLength);
-
-        const inwardX=x-side*.135;
-        const boltBase=postIndex*2;
-        setInstance(bolts,boltBase,inwardX,postGround+.75,z,0,0,0,1,.92,.92);
-        setInstance(bolts,boltBase+1,inwardX,postGround+1.30,z,0,0,0,1,.92,.92);
+    for(let i=0;i<countPerSide;i++)for(let sideIndex=0;sideIndex<2;sideIndex++){
+      const side=sideIndex===0?-1:1,idx=sideIndex*countPerSide+i,z=positions[i];
+      const x=side*(limit+.28),ground=terrainHeight(x,z-travel);
+      const lean=(hash(idx+19)-.5)*.025,scale=.97+hash(idx+61)*.06;
+      put(posts,idx,x,ground+.93*scale,z,0,0,lean,1,scale,1);
+      put(caps,idx,x-Math.sin(lean)*1.86*scale,ground+1.90*scale,z,0,0,lean);
+      put(feet,idx,x,ground+.075,z);
+      const railZ=z-spacing*.5,farGround=terrainHeight(x,z-spacing-travel);
+      const angle=Math.atan2(farGround-ground,spacing);
+      for(let level=0;level<2;level++){
+        const h=.73+level*.57;
+        put(rails,idx*2+level,x,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,Math.hypot(spacing,farGround-ground)+.22);
+        put(plates,idx*2+level,x-side*.153,ground+h,z);
+        for(let b=0;b<2;b++)put(bolts,idx*4+level*2+b,x-side*.175,ground+h+(b?1:-1)*.085,z,0,0,0,.4,1,1);
       }
     }
-
-    posts.instanceMatrix.needsUpdate=true;
-    caps.instanceMatrix.needsUpdate=true;
-    feet.instanceMatrix.needsUpdate=true;
-    rails.instanceMatrix.needsUpdate=true;
-    postSnow.instanceMatrix.needsUpdate=true;
-    railSnow.instanceMatrix.needsUpdate=true;
-    bolts.instanceMatrix.needsUpdate=true;
+    for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
-
+  function reset(){travel=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
+  function update(dt,speed){if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
   reset();
-  return {
-    update,
-    reset,
-    limit,
-    postMaterial,
-    railMaterial,
-    snowMaterial,
-    setDecorativeShadows,
-    setShadowEnabled:setDecorativeShadows,
-    // Compatibility aliases for callers that previously tinted left/right flags.
-    blueMaterial:railMaterial,
-    redMaterial:railMaterial
-  };
+  return {update,reset,limit,postMaterial,railMaterial,setDecorativeShadows,setShadowEnabled:setDecorativeShadows,blueMaterial:railMaterial,redMaterial:railMaterial};
 }
