@@ -17,6 +17,7 @@ import {createStartCrowd} from './startCrowd.js';
 import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
+import {OBSTACLE_TUNING} from './obstacleTuning.js';
 import {getCourseLookahead} from './courseStreaming.js';
 import {resetAirborneScoring,resetHazardScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 import {createStartScreen} from './startScreen.js';
@@ -140,35 +141,38 @@ function makeRamp(){
   g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.58;decorateCourseObject(g,'ramp');return g;
 }
 function makeLog(){
+  const tuning=OBSTACLE_TUNING.log;
   const g=new THREE.Group();
-  const log=new THREE.Mesh(new THREE.CylinderGeometry(.22,.28,2.2,12),logMat);
+  const log=new THREE.Mesh(new THREE.CylinderGeometry(.22,.28,tuning.length,12),logMat);
   log.rotation.z=Math.PI/2;log.position.y=.28;log.castShadow=log.receiveShadow=true;g.add(log);
   for(const side of [-1,1]){
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(.15,.15,.16,12),logEndMat);
-    cap.rotation.z=Math.PI/2;cap.position.set(side*1.12,.28,0);cap.castShadow=true;g.add(cap);
+    cap.rotation.z=Math.PI/2;cap.position.set(side*tuning.capOffset,.28,0);cap.castShadow=true;g.add(cap);
   }
-  g.userData.kind='log';g.userData.radius=1.15;g.userData.radiusX=1.02;g.userData.radiusZ=.48;g.userData.clearance=.60;decorateCourseObject(g,'log');return g;
+  g.userData.kind='log';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;decorateCourseObject(g,'log');return g;
 }
 function makeWideLog(){
+  const tuning=OBSTACLE_TUNING.wideLog;
   const g=new THREE.Group();
-  const log=new THREE.Mesh(new THREE.CylinderGeometry(.30,.35,5.2,14),logMat);
+  const log=new THREE.Mesh(new THREE.CylinderGeometry(.30,.35,tuning.length,14),logMat);
   log.rotation.z=Math.PI/2;log.position.y=.35;log.castShadow=log.receiveShadow=true;g.add(log);
-  const snow=new THREE.Mesh(new THREE.BoxGeometry(4.75,.08,.34),wideLogSnowMat);
+  const snow=new THREE.Mesh(new THREE.BoxGeometry(tuning.snowLength,.08,.34),wideLogSnowMat);
   snow.position.set(0,.64,-.03);snow.rotation.z=.012;snow.castShadow=true;g.add(snow);
   for(const side of [-1,1]){
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.18,14),logEndMat);
-    cap.rotation.z=Math.PI/2;cap.position.set(side*2.62,.35,0);cap.castShadow=true;g.add(cap);
+    cap.rotation.z=Math.PI/2;cap.position.set(side*tuning.capOffset,.35,0);cap.castShadow=true;g.add(cap);
   }
-  g.userData.kind='wideLog';g.userData.radius=2.65;g.userData.radiusX=2.48;g.userData.radiusZ=.58;g.userData.clearance=.82;
+  g.userData.kind='wideLog';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;
   return g;
 }
 function makeOil(){
+  const tuning=OBSTACLE_TUNING.oil;
   const g=new THREE.Group();
   const puddle=new THREE.Mesh(new THREE.CircleGeometry(1,28),oilMat);
-  puddle.rotation.x=-Math.PI/2;puddle.scale.set(1.55,.78,1);puddle.position.y=.024;g.add(puddle);
+  puddle.rotation.x=-Math.PI/2;puddle.scale.set(tuning.visualScaleX,tuning.visualScaleZ,1);puddle.position.y=.024;g.add(puddle);
   const sheen=new THREE.Mesh(new THREE.RingGeometry(.46,.82,28),oilSheenMat);
-  sheen.rotation.x=-Math.PI/2;sheen.scale.set(1.45,.70,1);sheen.position.y=.031;sheen.rotation.z=.38;g.add(sheen);
-  g.userData.kind='oil';g.userData.radius=1.55;g.userData.radiusX=1.48;g.userData.radiusZ=.74;g.userData.clearance=.10;g.userData.yOffset=.012;
+  sheen.rotation.x=-Math.PI/2;sheen.scale.set(tuning.sheenScaleX,tuning.sheenScaleZ,1);sheen.position.y=.031;sheen.rotation.z=.38;g.add(sheen);
+  g.userData.kind='oil';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;g.userData.yOffset=.012;
   return g;
 }
 
@@ -287,7 +291,7 @@ const startGate=createStartGateScene({world,terrainHeight});
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectedRideMode=RIDE_MODE.SKI;
 const initialRideProfile=getRideProfile(selectedRideMode);
-const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 
 const audio=createSkiAudio();
 audio.setRideMode?.(selectedRideMode);
@@ -451,7 +455,7 @@ function control(pad){
 function resetRunState(mode='countdown'){
   if(state.rideMode!==selectedRideMode)applyRideProfileToState(selectedRideMode);
   const rideProfile=getRideProfile(state.rideMode);
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:rideProfile.baseSpeed,baseSpeed:rideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:rideProfile.baseSpeed,maxSpeed:rideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,speed:rideProfile.baseSpeed,baseSpeed:rideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:rideProfile.baseSpeed,maxSpeed:rideProfile.maxSpeed,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
   skier?.userData?.setRideMode?.(state.rideMode);
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
@@ -572,6 +576,7 @@ function update(dt){
   const padJumpPressed=wasPlaying&&state.mode==='playing'&&!!pad.jump&&!lastPadJump;
   lastPadJump=!!pad.jump;
   const jumpPressed=jumpKeyPressed||padJumpPressed;
+  const jumpHeld=keys.has('Space')||!!pad.jump;
   const trickIntent=jumpPressed?readTrickIntent(keys,pad):null;
   jumpKeyPressed=false;
   let worldDistance=0;
@@ -603,7 +608,7 @@ function update(dt){
     const groundY=.12+state.centerGround;
 
     const pressedThisStep=step===0&&jumpPressed;
-    updateJumpAssist(state,pressedThisStep,dt);
+    updateJumpAssist(state,pressedThisStep,dt,jumpHeld);
     const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&!activeRamp)tricks.clearRampArm();
     tricks.updateTiming(state,{landingHeight:groundY,gravity:SKI_TUNING.GRAVITY});
