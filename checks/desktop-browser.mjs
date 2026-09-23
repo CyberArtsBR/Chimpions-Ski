@@ -23,9 +23,9 @@ try{
     naturalHeight:image.naturalHeight,
     rect:image.getBoundingClientRect().toJSON()
   }));
-  assert.equal(artMetrics.naturalWidth,1672,'Start artwork width changed unexpectedly');
-  assert.equal(artMetrics.naturalHeight,941,'Start artwork height changed unexpectedly');
-  assert(Math.abs(artMetrics.rect.width/artMetrics.rect.height-1672/941)<.01,'Start artwork was stretched');
+  assert.equal(artMetrics.naturalWidth,1920,'Start artwork width changed unexpectedly');
+  assert.equal(artMetrics.naturalHeight,1080,'Start artwork height changed unexpectedly');
+  assert(Math.abs(artMetrics.rect.width/artMetrics.rect.height-16/9)<.01,'Start artwork was stretched');
 
   assert.equal(await back.getAttribute('href'),'https://chimp-jump.onrender.com/');
   assert.equal(await page.locator('.hud').isVisible(),false,'HUD leaked through initial artwork');
@@ -49,8 +49,8 @@ try{
       const inside=(rect)=>rect.left>=stage.left-1&&rect.right<=stage.right+1&&rect.top>=stage.top-1&&rect.bottom<=stage.bottom+1;
       return {stageRatio:stage.width/stage.height,artRatio:art.width/art.height,playInside:inside(play),backInside:inside(back)};
     });
-    assert(Math.abs(layout.stageRatio-1672/941)<.01,viewport.label+' stage ratio changed');
-    assert(Math.abs(layout.artRatio-1672/941)<.01,viewport.label+' artwork stretched');
+    assert(Math.abs(layout.stageRatio-16/9)<.01,viewport.label+' stage ratio changed');
+    assert(Math.abs(layout.artRatio-16/9)<.01,viewport.label+' artwork stretched');
     assert.equal(layout.playInside,true,viewport.label+' Start hit area escaped artwork');
     assert.equal(layout.backInside,true,viewport.label+' Back hit area escaped artwork');
   }
