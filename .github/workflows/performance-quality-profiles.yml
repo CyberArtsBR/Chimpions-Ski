@@ -31,57 +31,108 @@ jobs:
       - run: npm run check
       - run: npm run build
       - run: npx playwright install --with-deps chromium
-      - name: Benchmark baseline, HIGH and REDUCED
-        shell: bash
+
+      - name: Prepare baseline build
         run: |
           set -euo pipefail
           mkdir -p benchmark-artifacts
+          git worktree add --detach /tmp/chimpions-ski-base "$BASE_SHA"
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
+          (cd /tmp/chimpions-ski-base && npm run build)
 
-          run_preview () {
+      - name: Benchmark baseline
+        id: baseline
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          start_preview () {
             local dir="$1"
             local log="$2"
-            (cd "$dir" && npm run preview -- --host 127.0.0.1 >"$log" 2>&1 & echo $!)
+            (cd "$dir" && exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >"$log" 2>&1 &
+            PREVIEW_PID=$!
           }
-
+          stop_preview () {
+            kill "$PREVIEW_PID" 2>/dev/null || true
+            wait "$PREVIEW_PID" 2>/dev/null || true
+          }
           wait_preview () {
             for i in $(seq 1 90); do
               if curl -fsS http://127.0.0.1:4173/ >/dev/null; then return 0; fi
               sleep 1
             done
+            cat /tmp/chimpions-base-preview.log || true
             return 1
           }
-
-          stop_preview () {
-            local pid="$1"
-            kill "$pid" 2>/dev/null || true
-            wait "$pid" 2>/dev/null || true
-          }
-
-          git worktree add --detach /tmp/chimpions-ski-base "$BASE_SHA"
-          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
-          (cd /tmp/chimpions-ski-base && npm run build)
-          BASE_PID=$(run_preview /tmp/chimpions-ski-base /tmp/chimpions-base-preview.log)
-          trap 'stop_preview "$BASE_PID"' EXIT
+          start_preview /tmp/chimpions-ski-base /tmp/chimpions-base-preview.log
+          trap stop_preview EXIT
           wait_preview
           env $BENCH_ENV BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-baseline.json" node scripts/benchmark-ski-runtime.mjs
-          stop_preview "$BASE_PID"
-          trap - EXIT
 
-          HEAD_PID=$(run_preview "$GITHUB_WORKSPACE" /tmp/chimpions-head-preview.log)
-          trap 'stop_preview "$HEAD_PID"' EXIT
-          wait_preview
+      - name: Benchmark HIGH
+        id: high
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/chimpions-high-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-high-preview.log || true; exit 1; fi
+            sleep 1
+          done
           env $BENCH_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-high.json" node scripts/benchmark-ski-runtime.mjs
-          env $BENCH_ENV QUALITY_PROFILE=reduced BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-reduced.json" node scripts/benchmark-ski-runtime.mjs
-          stop_preview "$HEAD_PID"
-          trap - EXIT
 
+      - name: Benchmark REDUCED
+        id: reduced
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/chimpions-reduced-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-reduced-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          env $BENCH_ENV QUALITY_PROFILE=reduced BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-reduced.json" node scripts/benchmark-ski-runtime.mjs
+
+      - name: Compare benchmark results
+        id: compare
+        continue-on-error: true
+        if: always()
+        run: |
+          set -euo pipefail
+          for file in benchmark-baseline.json benchmark-high.json benchmark-reduced.json; do
+            test -s "benchmark-artifacts/$file"
+          done
           node scripts/compare-performance-results.mjs \
             benchmark-artifacts/benchmark-baseline.json \
             benchmark-artifacts/benchmark-high.json \
             benchmark-artifacts/benchmark-reduced.json \
             benchmark-artifacts/benchmark-comparison.json
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: performance-quality-benchmarks
           path: benchmark-artifacts/*.json
-          if-no-files-found: error
+          if-no-files-found: warn
+
+      - name: Enforce benchmark success
+        if: always()
+        env:
+          BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
+          HIGH_OUTCOME: ${{ steps.high.outcome }}
+          REDUCED_OUTCOME: ${{ steps.reduced.outcome }}
+          COMPARE_OUTCOME: ${{ steps.compare.outcome }}
+        run: |
+          echo "baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME reduced=$REDUCED_OUTCOME compare=$COMPARE_OUTCOME"
+          test "$BASELINE_OUTCOME" = success
+          test "$HIGH_OUTCOME" = success
+          test "$REDUCED_OUTCOME" = success
+          test "$COMPARE_OUTCOME" = success
