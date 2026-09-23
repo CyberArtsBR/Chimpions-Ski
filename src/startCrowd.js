@@ -4,6 +4,18 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 export const START_CROWD_COUNT=50;
 const SOURCE_MODEL_COUNT=START_CROWD_COUNT;
 const CROWD_HEIGHT=1.72;
+const PREFERRED_CROWD_FILES=new Set([
+  'the drownsy.glb','the doctor.glb','the royal.glb','the singed.glb','the scorched.glb',
+  'the trickster.glb','the main caracter.glb','the jovian.glb','the hollow.glb','the arisen.glb',
+  'the firestarter.glb','the heretic.glb','the nomad.glb','the scientist.glb','the punk.glb',
+  'the fautly.glb','the ghost hunter.glb','the analyst.glb','the one who lurks in shadow.glb','the deepweller.glb',
+  'the masked.glb','the first born.glb','the scoundrel.glb','the one who rocks hard.glb','the erroneous.glb',
+  'the instrument.glb','the overflowing.glb','the beholder.glb','the spirit keeper.glb','the ptolemaic.glb',
+  'the messenger.glb','the digital.glb','the patrolman.glb','the perplexed.glb','the constant companion.glb',
+  'the attendantr.glb','the binary.glb','the uneasy.glb','the thug.glb','the wondrous.glb',
+  'the hip.glb','the original.glb','the herdsman.glb','the buddly.glb','the comedian.glb',
+  'the plumber.glb','the greeter.glb','the golem.glb','the jockey.glb','the judge.glb'
+]);
 const ROWS=[
   {count:10,z:6.05,rise:.22},
   {count:10,z:7.42,rise:.61},
@@ -156,6 +168,15 @@ function poseCheeringArms(model){
   return true;
 }
 
+function crowdFileName(entry){
+  try{
+    const decoded=decodeURIComponent(String(entry?.url||''));
+    return decoded.split('/').pop().toLowerCase();
+  }catch{
+    return String(entry?.url||'').split('/').pop().toLowerCase();
+  }
+}
+
 function chooseSources(entries=[]){
   const seen=new Set();
   const usable=[];
@@ -166,10 +187,20 @@ function chooseSources(entries=[]){
     usable.push(entry);
   }
   if(!usable.length)return [];
-  const count=Math.min(SOURCE_MODEL_COUNT,usable.length);
-  // Spread the sample across the full collection while guaranteeing that every
-  // chosen crowd slot comes from a different catalog entry.
-  return Array.from({length:count},(_,index)=>usable[Math.floor(index*usable.length/count)]);
+
+  // Fifty truly different GLBs are much heavier than the old four-template
+  // crowd. Prefer the smallest known collection assets so the start spectacle
+  // stays responsive while preserving 50 unique Chimpion identities.
+  const preferred=usable.filter(entry=>PREFERRED_CROWD_FILES.has(crowdFileName(entry)));
+  const selected=[...preferred];
+  if(selected.length<SOURCE_MODEL_COUNT){
+    for(const entry of usable){
+      if(selected.includes(entry))continue;
+      selected.push(entry);
+      if(selected.length>=SOURCE_MODEL_COUNT)break;
+    }
+  }
+  return selected.slice(0,Math.min(SOURCE_MODEL_COUNT,selected.length));
 }
 
 export function createStartCrowd({world,terrainHeight=()=>0}={}){
