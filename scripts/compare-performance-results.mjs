@@ -16,6 +16,7 @@ function phaseSummary(report,name){
   return {
     status:phase?.status??'UNAVAILABLE',
     averageFrameMs:phase?.frames?.averageFrameMs??null,
+    p50FrameMs:phase?.frames?.p50FrameMs??null,
     p95FrameMs:phase?.frames?.p95FrameMs??null,
     p99FrameMs:phase?.frames?.p99FrameMs??null,
     framesOver33ms:phase?.frames?.framesOver33ms??null,
@@ -25,7 +26,15 @@ function phaseSummary(report,name){
     rendererTrianglesMedian:median('rendererTriangles'),
     courseTraversalMsMedian:median('perfCourseTraversalMs'),
     courseBatchSyncMsMedian:median('perfCourseBatchSyncMs'),
-    environmentUpdateMsMedian:median('perfEnvironmentUpdateMs')
+    environmentUpdateMsMedian:median('perfEnvironmentUpdateMs'),
+    rendererPixelRatioMedian:median('rendererPixelRatio'),
+    environmentShadowMapSizeMedian:median('environmentShadowMapSize'),
+    activeDecorativeTreesMedian:median('activeDecorativeTrees'),
+    activeSnowLayerParticlesMedian:median('activeSnowLayerParticles'),
+    snowParticleMistActiveMedian:median('snowParticleMistActive'),
+    snowParticleChunksActiveMedian:median('snowParticleChunksActive'),
+    snowSurfaceMoundsActiveMedian:median('snowSurfaceMoundsActive'),
+    snowSurfaceRidgesActiveMedian:median('snowSurfaceRidgesActive')
   };
 }
 
