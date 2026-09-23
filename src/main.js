@@ -642,6 +642,7 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInpu
 function update(dt){
   physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
+  haptics.setActiveGamepad?.(pad.activeGamepad);
   if(startScreen.isActive){
     startScreen.updateController(pad);
     lastPadJump=!!pad.jump;
