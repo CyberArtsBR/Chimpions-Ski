@@ -15,6 +15,7 @@ export function createSkiAudio(){
   let rideMode=DEFAULT_RIDE_MODE;
   let pendingState={mode:'menu',speed:SKI_TUNING.BASE_SPEED,carve:0,air:false,intensity:0,jumpSource:'',time:0};
   let lastClearEventId=0;
+  let lastGoVoiceAt=-Infinity;
   const trickState=createTrickAudioState();
   const buffers=new Map();
   const eventLast=new Map();
@@ -197,9 +198,10 @@ export function createSkiAudio(){
         hz=500+640*u;
         phase+=Math.PI*2*hz/context.sampleRate;
         phase2+=Math.PI*2*(hz*2)/context.sampleRate;
-        tone=Math.sin(phase)*.68+Math.sin(phase2)*.14;
-        noise=smoothNoise*.08;
-        env=Math.pow(1-u,1.55)*Math.min(1,t/.006);
+        // Square-wave harmonics make the launch stinger read like a compact 16-bit arcade cue.
+        tone=Math.sign(Math.sin(phase))*.62+Math.sign(Math.sin(phase2))*.12;
+        noise=smoothNoise*.045;
+        env=Math.pow(1-u,1.42)*Math.min(1,t/.004);
       }else{
         hz=type==='button'?620+130*u:470+90*u;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -441,6 +443,34 @@ export function createSkiAudio(){
     source.start();
     return true;
   }
+  function playGoVoice(){
+    if(!settings.sfxEnabled)return false;
+    const synth=globalThis.speechSynthesis;
+    const Utterance=globalThis.SpeechSynthesisUtterance;
+    if(!synth||!Utterance)return false;
+    const now=globalThis.performance?.now?.()??Date.now();
+    if(now-lastGoVoiceAt<700)return false;
+    lastGoVoiceAt=now;
+    try{
+      const utterance=new Utterance('GO!');
+      utterance.lang='en-US';
+      utterance.rate=1.42;
+      utterance.pitch=.86;
+      utterance.volume=clamp(settings.master*settings.sfx*.94);
+      const voices=synth.getVoices?.()||[];
+      utterance.voice=voices.find(voice=>/^en(?:-|_)?US/i.test(voice.lang)&&/(google|microsoft|samantha|daniel|alex|david)/i.test(voice.name))
+        ||voices.find(voice=>/^en/i.test(voice.lang))
+        ||null;
+      synth.speak(utterance);
+      return true;
+    }catch{return false;}
+  }
+  function playGoCue(){
+    // Fire both layers in the same task: intelligible announcer voice + retro launch stinger.
+    const chip=play('go',.76,1.0);
+    const voice=playGoVoice();
+    return chip||voice;
+  }
   function playClear(clearEvent){
     const id=Number(clearEvent?.id)||0;
     if(!id||id===lastClearEventId)return false;
@@ -471,6 +501,7 @@ export function createSkiAudio(){
   }
   function resetRun(){
     lastClearEventId=0;
+    lastGoVoiceAt=-Infinity;
     trickState.reset();
     eventLast.clear();
   }
@@ -503,7 +534,7 @@ export function createSkiAudio(){
   document.addEventListener('keydown',unlock,{once:true,capture:true});
 
   return {
-    play,playClear,playTrickStart,playTrickSuccess,playTrickFail,resetRun,unlock,update,
+    play,playGoCue,playClear,playTrickStart,playTrickSuccess,playTrickFail,resetRun,unlock,update,
     setRideMode,getRideMode,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled
   };
 }

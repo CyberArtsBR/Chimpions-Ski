@@ -14,7 +14,7 @@ const future=[
  'hazards have visual margin inside flags',
  'exterior side area contains no gameplay obstacle course',
  'center remains visually reserved for gameplay',
- 'course density itself was not reduced to fake readability'
+ 'course density preserves the integrated denser gameplay profile'
 ];
 if(!marker){
  for(const n of future)results.push(result(n,STATUS.PENDING,'clear-horizon feature not merged yet'));
@@ -26,7 +26,7 @@ if(!marker){
  const bounded=objectHalf!=null&&playerHalf!=null&&objectHalf<playerHalf&&/(COURSE_OBJECT_HALF_WIDTH|CONTENT_BAND_HALF_WIDTH)/.test(course);
  const margin=bounded&&(playerHalf-objectHalf)>=.15;
  const outside=!/(COURSE_OBJECT_HALF_WIDTH\s*\+|PLAYER_HALF_WIDTH\s*\+)[^\n]*(place|hazard|obstacle)/i.test(course);
- const density=/COURSE_NORMAL_SPACING_MIN\s*:\s*17/.test(tuning)&&/COURSE_INTENSE_SPACING_MIN\s*:\s*14/.test(tuning);
+ const density=/COURSE_NORMAL_SPACING_MIN\s*:\s*15(?:\.0+)?\b/.test(tuning)&&/COURSE_INTENSE_SPACING_MIN\s*:\s*12\.5\b/.test(tuning);
  const values=[
   [exclusion,'central exclusion marker'],
   [left&&right,'left/right mountain assignment'],
@@ -35,7 +35,7 @@ if(!marker){
   [margin,objectHalf!=null&&playerHalf!=null?'margin '+(playerHalf-objectHalf).toFixed(2)+'m':'unknown'],
   [outside,'no obvious hazard placement outside corridor'],
   [exclusion,'central corridor explicitly reserved'],
-  [density,'baseline spacing minima remain 17/14']
+  [density,'integrated spacing minima remain 15/12.5']
  ];
  future.forEach((n,i)=>results.push(result(n,values[i][0]?STATUS.PASS:STATUS.FAIL,values[i][1])));
 }

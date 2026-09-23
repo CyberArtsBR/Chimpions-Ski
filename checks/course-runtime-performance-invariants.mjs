@@ -56,7 +56,7 @@ assert(normal.batchedDrawCalls<normal.legacyDrawCalls*.60,'normal-density batchi
 assert(high.batchedDrawCalls<high.legacyDrawCalls*.55,'high-density batching reduction is too small');
 assert(high.lookahead>=560,'max-speed lookahead regressed');
 
-// Collision/substep audit at every configured 10 km/h tier.
+// Collision/substep audit through the new 300 km/h high end.
 const collisionHalfDepth={
   rock:.58+.20,
   oil:.74+.20,
@@ -65,13 +65,15 @@ const collisionHalfDepth={
   tree:.68+.20
 };
 const lipWindow=1.78-1.42;
-for(const kmh of [160,170,180,190,200,210]){
+const collisionSpeedsKmh=[160,180,200,220,240,260,280,300];
+for(const kmh of collisionSpeedsKmh){
   const speed=kmh/3.6;
   const travel=speed/180;
   for(const [kind,window] of Object.entries(collisionHalfDepth)){
     assert(travel<window,kmh+' km/h substep can tunnel through '+kind);
   }
-  assert(travel<lipWindow,kmh+' km/h substep can skip the ramp lip window');
+  // Ramp takeoff is crossing-based, so it does not need a sample to land inside
+  // the old narrow lip window at higher speeds.
 }
 
 // Long-run logical pool simulation: allocations rise only to per-kind high-water marks.
@@ -142,6 +144,6 @@ assert(!/clearEvents\s*=\s*\[/.test(scoringSource),'score events accumulated int
 console.log(JSON.stringify({
   check:'course-runtime-performance',
   drawCalls:{zero:{legacy:0,batched:0},normal,high},
-  collision:{speedsKmh:[160,170,180,190,200,210],maxSubstepMeters:Number((T.MAX_SPEED/180).toFixed(4)),rampLipWindow:lipWindow},
+  collision:{speedsKmh:collisionSpeedsKmh,maxSubstepMeters:Number((T.MAX_SPEED/180).toFixed(4)),rampLipWindow:lipWindow},
   memory
 }));

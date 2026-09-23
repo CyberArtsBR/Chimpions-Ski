@@ -21,7 +21,7 @@ const PROFILES=Object.freeze({
     baseSpeed:180*KMH_TO_MPS,
     tierSeconds:30,
     tierIncrement:10*KMH_TO_MPS,
-    maxSpeed:230*KMH_TO_MPS
+    maxSpeed:SKI_TUNING.MAX_SPEED
   })
 });
 

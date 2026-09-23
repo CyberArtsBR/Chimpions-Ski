@@ -1,17 +1,19 @@
 import {pathToFileURL} from 'node:url';
 import {resolve} from 'node:path';
-import {parseArgs,getRoot,jsSources,sourceBundle,result,finish,STATUS} from './integration-check-utils.mjs';
+import {parseArgs,getRoot,jsSources,sourceBundle,read,result,finish,STATUS} from './integration-check-utils.mjs';
 
 const args=parseArgs(),root=getRoot(args);
-const all=sourceBundle(root,jsSources(root));
+const sourcePaths=jsSources(root);
+const all=sourceBundle(root,sourcePaths);
 const feature=/backflip|\b360\b|snowboard|ride.?mode|trickState|trickType/i.test(all);
 const results=[];
 
 results.push(result('existing course architecture retains pooling',
  /coursePool/.test(all)&&/(acquireCourseItem|releaseCourseItem)/.test(all)?STATUS.PASS:STATUS.FAIL,
  'course objects must continue to reuse pools'));
+const perFrameAllocation=sourcePaths.some(path=>/function update\([^)]*\)[\s\S]{0,700}(new THREE\.|createElement\(|new Map\(|new Set\()/i.test(read(root,path)));
 results.push(result('no obvious object allocation inside per-frame update loop',
- !/function update\([^)]*\)[\s\S]{0,700}(new THREE\.|createElement\(|new Map\(|new Set\()/i.test(all)?STATUS.PASS:STATUS.FAIL,
+ !perFrameAllocation?STATUS.PASS:STATUS.FAIL,
  'inspect frame update for allocations'));
 
 const future=['one reusable trick state','one active rider visual','one active equipment mode','selector listeners bounded across repeated open/close','temporary trick pivots bounded','trick events/timers bounded over ~10 virtual minutes'];
