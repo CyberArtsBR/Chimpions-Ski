@@ -6,6 +6,7 @@ import {
   getAvatarRenderTarget
 } from './avatar-selector-model.js';
 import {RIDE_MODE,normalizeRideMode} from './rideMode.js';
+import {AVATAR_COMPATIBILITY_STATUS,getAvatarCompatibility} from './avatarCompatibility.js';
 
 export async function loadAvatarCatalog(){
   // Use the browser's normal HTTP cache/revalidation rules. Deployment/versioned
@@ -13,7 +14,7 @@ export async function loadAvatarCatalog(){
   // avatars.json transfer on every load.
   const response=await fetch('/avatars.json');
   if(!response.ok)throw new Error('Could not load Chimpion catalog');
-  const entries=(await response.json()).filter(entry=>entry?.url&&entry.id!=='steamboat-willie'&&entry.id!=='chimpion');
+  const entries=(await response.json()).filter(entry=>entry?.url&&entry.id!=='steamboat-willie'&&entry.id!=='chimpion').map(entry=>({...entry,compatibility:getAvatarCompatibility(entry)}));
   if(!entries.length)throw new Error('No playable Chimpions in catalog');
   return entries;
 }
@@ -147,7 +148,10 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
       previewPortrait.append(image);
     }else previewPortrait.append(createFallback());
     previewName.textContent=entry.name||'Chimpion';
-    previewTribe.textContent=entry.tribe||'Chimpion';
+    const compatibility=entry.compatibility||getAvatarCompatibility(entry);
+    previewTribe.textContent=compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED
+      ?`UNSUPPORTED · ${compatibility.reason}`
+      :(entry.tribe||'Chimpion');
   }
 
   function syncRideButtons(){
@@ -179,6 +183,11 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
 
   function showRideStep(entry){
     if(loading||!entry)return;
+    const compatibility=entry.compatibility||getAvatarCompatibility(entry);
+    if(compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED){
+      updatePreview(entry);
+      return;
+    }
     pendingEntry=entry;
     step='ride';
     updatePreview(entry);
@@ -232,6 +241,12 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     const button=document.createElement('button');
     button.type='button';
     button.className='chimpion-card';
+    const compatibility=entry.compatibility||getAvatarCompatibility(entry);
+    if(compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED){
+      button.classList.add('is-unsupported');
+      button.setAttribute('aria-disabled','true');
+      button.title=compatibility.reason;
+    }
     button.dataset.avatarId=entry.id;
     button.dataset.filterIndex=String(filteredIndex);
     button.setAttribute('role','listitem');
@@ -241,7 +256,7 @@ export function createAvatarSelector({catalog,onSelect,selectedId='',selectedRid
     if(loading)button.disabled=true;
     button.append(createPortrait(entry));
     const name=document.createElement('strong');name.textContent=entry.name;
-    const tribe=document.createElement('small');tribe.textContent=entry.tribe||'Chimpion';
+    const tribe=document.createElement('small');tribe.textContent=compatibility.status===AVATAR_COMPATIBILITY_STATUS.UNSUPPORTED?'UNSUPPORTED · RIG':(entry.tribe||'Chimpion');
     button.append(name,tribe);
     metrics.cardNodesCreated++;
     return button;
