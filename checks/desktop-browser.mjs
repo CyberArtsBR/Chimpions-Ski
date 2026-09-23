@@ -3,6 +3,18 @@ import {chromium} from '@playwright/test';
 
 const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:1440,height:900}});
+const browserErrors=[];
+page.on('pageerror',error=>{
+  const message='PAGEERROR '+(error?.stack||error?.message||String(error));
+  browserErrors.push(message);
+  console.error(message);
+});
+page.on('console',message=>{
+  if(message.type()!=='error')return;
+  const line='BROWSER_ERROR '+message.text();
+  browserErrors.push(line);
+  console.error(line);
+});
 
 try{
   await page.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});

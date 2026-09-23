@@ -4,19 +4,20 @@ function createBannerTexture(){
   const canvas=document.createElement('canvas');
   canvas.width=1024;canvas.height=192;
   const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#0b3655';ctx.fillRect(0,0,1024,192);
-  const tile=48;
-  for(let x=0;x<1024;x+=tile){
-    ctx.fillStyle=(x/tile)%2===0?'#f04c48':'#f5f7ef';
-    ctx.fillRect(x,0,tile,24);
-    ctx.fillStyle=(x/tile)%2===0?'#f5f7ef':'#f04c48';
-    ctx.fillRect(x,168,tile,24);
+  const bg=ctx.createLinearGradient(0,0,1024,192);
+  bg.addColorStop(0,'#082d49');bg.addColorStop(.5,'#135879');bg.addColorStop(1,'#082d49');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,1024,192);
+  ctx.fillStyle='#f6d86a';ctx.fillRect(0,0,1024,18);ctx.fillRect(0,174,1024,18);
+  ctx.fillStyle='rgba(91,221,255,.72)';
+  for(let x=18;x<1024;x+=72){
+    ctx.beginPath();ctx.moveTo(x,27);ctx.lineTo(x+26,27);ctx.lineTo(x+38,38);ctx.lineTo(x+26,49);ctx.lineTo(x,49);ctx.lineTo(x+12,38);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(x,143);ctx.lineTo(x+26,143);ctx.lineTo(x+38,154);ctx.lineTo(x+26,165);ctx.lineTo(x,165);ctx.lineTo(x+12,154);ctx.closePath();ctx.fill();
   }
-  ctx.fillStyle='#ffffff';
+  ctx.fillStyle='#ffe28a';ctx.strokeStyle='#05243a';ctx.lineWidth=9;
   ctx.font='900 112px Impact,Arial Black,sans-serif';
   ctx.textAlign='center';ctx.textBaseline='middle';
   ctx.shadowColor='rgba(0,0,0,.34)';ctx.shadowBlur=12;ctx.shadowOffsetY=5;
-  ctx.fillText('START',512,97);
+  ctx.strokeText('START',512,97);ctx.fillText('START',512,97);
   const texture=new THREE.CanvasTexture(canvas);
   texture.colorSpace=THREE.SRGBColorSpace;
   texture.needsUpdate=true;
@@ -30,8 +31,8 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
 
   const z=1.25;
   const centerGround=terrainHeight(0,z);
-  const postMaterial=new THREE.MeshStandardMaterial({color:0x1a4663,roughness:.46,metalness:.42});
-  const accentMaterial=new THREE.MeshStandardMaterial({color:0xf3f6ef,roughness:.52,metalness:.18});
+  const postMaterial=new THREE.MeshStandardMaterial({color:0x123f5c,roughness:.38,metalness:.48});
+  const accentMaterial=new THREE.MeshStandardMaterial({color:0xf2cf63,roughness:.42,metalness:.22});
   const postGeometry=new THREE.BoxGeometry(.34,4.75,.38);
   const footGeometry=new THREE.BoxGeometry(.9,.18,.82);
 
@@ -55,11 +56,16 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
 
   const banner=new THREE.Mesh(
     new THREE.PlaneGeometry(6.55,1.23),
-    new THREE.MeshBasicMaterial({map:createBannerTexture(),side:THREE.DoubleSide,toneMapped:false})
+    new THREE.MeshBasicMaterial({map:createBannerTexture(),side:THREE.FrontSide,toneMapped:false})
   );
-  banner.name='start-banner';
+  banner.name='start-banner-rear';
   banner.position.set(0,centerGround+4.02,z-.22);
   root.add(banner);
+  const frontBanner=banner.clone();
+  frontBanner.name='start-banner-front';
+  frontBanner.rotation.y=Math.PI;
+  frontBanner.position.z-=.025;
+  root.add(frontBanner);
 
   const lampGeometry=new THREE.SphereGeometry(.17,10,8);
   const lampMaterials=[

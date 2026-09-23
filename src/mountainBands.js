@@ -19,11 +19,12 @@ function ridgeProfile(seed,samples=12){
   for(let i=0;i<=samples;i++){
     const t=i/samples;
     const x=t-.5;
-    const envelope=.46+.36*Math.sin(t*Math.PI);
-    const broad=Math.sin(t*Math.PI*(1.45+wave(seed+3.1)*.58)+seed*.13)*.14;
-    const secondary=Math.sin(t*Math.PI*(3.6+wave(seed+4.2)*1.5)+seed*.71)*.09;
-    const tooth=(wave(seed+i*2.73)-.5)*.16;
-    const y=THREE.MathUtils.clamp(envelope+broad+secondary+tooth,.26,.99);
+    const edgeTaper=Math.pow(Math.max(0,Math.sin(t*Math.PI)),.72);
+    const envelope=.10+.74*edgeTaper;
+    const broad=Math.sin(t*Math.PI*(1.45+wave(seed+3.1)*.58)+seed*.13)*.15*edgeTaper;
+    const secondary=Math.sin(t*Math.PI*(3.6+wave(seed+4.2)*1.5)+seed*.71)*.10*edgeTaper;
+    const tooth=(wave(seed+i*2.73)-.5)*.17*edgeTaper;
+    const y=THREE.MathUtils.clamp(envelope+broad+secondary+tooth,.08,.99);
     points.push({x,y});
   }
   return points;
@@ -32,8 +33,8 @@ function ridgeProfile(seed,samples=12){
 function ridgeFillGeometry(points,seed){
   const positions=[];
   const colors=[];
-  function triangle(a,b,c,shade){
-    positions.push(a[0],a[1],0,b[0],b[1],0,c[0],c[1],0);
+  function triangle(a,b,c,shade,depth=0){
+    positions.push(a[0],a[1],depth,b[0],b[1],-depth*.35,c[0],c[1],depth*.55);
     const sideShade=THREE.MathUtils.clamp(shade,.58,1);
     colors.push(
       sideShade,sideShade*.99,sideShade*.98,
@@ -44,8 +45,9 @@ function ridgeFillGeometry(points,seed){
   for(let i=0;i<points.length-1;i++){
     const a=points[i],b=points[i+1];
     const shade=.73+wave(seed+i*4.11)*.22;
-    triangle([a.x,0],[a.x,a.y],[b.x,b.y],shade);
-    triangle([a.x,0],[b.x,b.y],[b.x,0],Math.min(1,shade+.055));
+    const facetDepth=(wave(seed+i*.83)-.5)*.085;
+    triangle([a.x,0],[a.x,a.y],[b.x,b.y],shade,facetDepth);
+    triangle([a.x,0],[b.x,b.y],[b.x,0],Math.min(1,shade+.055),-facetDepth*.72);
   }
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
@@ -158,7 +160,7 @@ function createBand(config,bandIndex){
   function writeMatrix(mesh,index,x,y,z,width,height,tilt){
     _dummy.position.set(x,y,z);
     _dummy.rotation.set(0,0,tilt);
-    _dummy.scale.set(width,height,1);
+    _dummy.scale.set(width,height,Math.max(1,width*.18));
     _dummy.updateMatrix();
     mesh.setMatrixAt(index,_dummy.matrix);
   }

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {makeSerratedFirGeometry,makeBarkTexture} from './alpineArt.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
 import {terrainHeight} from './terrainContact.js';
@@ -23,8 +24,8 @@ import {
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
 const _snowCapGeometry=new THREE.ConeGeometry(.64,.92,12);
-const _branchTierGeometry=new THREE.ConeGeometry(1.06,.58,12);
-const _branchInnerGeometry=new THREE.ConeGeometry(.82,.72,12);
+const _branchTierGeometry=makeSerratedFirGeometry(1.06,.94,12,1.7);
+const _branchInnerGeometry=makeSerratedFirGeometry(.82,.82,12,3.4);
 const _branchSnowGeometry=new THREE.ConeGeometry(1.00,.17,12);
 const _trunkCollarGeometry=new THREE.CylinderGeometry(.34,.39,.18,12);
 const _rockAccentGeometry=new THREE.DodecahedronGeometry(.43,0);
@@ -42,8 +43,9 @@ const _jumpStripeMaterial=new THREE.MeshStandardMaterial({color:0xffd943,roughne
 const _jumpEntryMaterial=new THREE.MeshStandardMaterial({color:0xe9fbff,roughness:.42,emissive:0x164e5c,emissiveIntensity:.14});
 const _jumpSideMaterial=new THREE.MeshStandardMaterial({color:0x17647e,roughness:.58,metalness:.02});
 const _logSnowMaterial=new THREE.MeshPhysicalMaterial({color:0xf9fdff,roughness:.74,metalness:0,clearcoat:.12,clearcoatRoughness:.58,sheen:.18,sheenColor:new THREE.Color(0xdff6ff)});
-const _barkMaterial=new THREE.MeshStandardMaterial({color:0x70442c,roughness:.76,metalness:0,flatShading:true});
-const _barkDarkMaterial=new THREE.MeshStandardMaterial({color:0x382319,roughness:.90,metalness:0,flatShading:true});
+const _barkTexture=makeBarkTexture();
+const _barkMaterial=new THREE.MeshStandardMaterial({color:0x87583b,map:_barkTexture,roughness:.78,metalness:0,flatShading:true});
+const _barkDarkMaterial=new THREE.MeshStandardMaterial({color:0x4a2d20,map:_barkTexture,roughness:.91,metalness:0,flatShading:true});
 const _pineMaterial=new THREE.MeshStandardMaterial({color:0x0d594b,roughness:.72,metalness:0,flatShading:true});
 const _pineMaterial2=new THREE.MeshStandardMaterial({color:0x16705f,roughness:.74,metalness:0,flatShading:true});
 const _rockMaterial=new THREE.MeshStandardMaterial({color:0x455f6c,roughness:.90});
@@ -668,8 +670,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const treeCount=152;
   const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.31,2.08,12),_barkMaterial,treeCount);
-  const branchGeo=new THREE.ConeGeometry(1.06,1.08,12);
-  const crownGeo=new THREE.ConeGeometry(.72,1.46,12);
+  const branchGeo=makeSerratedFirGeometry(1.06,1.18,12,5.3);
+  const crownGeo=makeSerratedFirGeometry(.72,1.52,12,7.8);
   const snowGeo=new THREE.ConeGeometry(1.00,.17,12);
   branchGeo.rotateY(Math.PI/12);
   crownGeo.rotateY(Math.PI/12);
