@@ -221,6 +221,8 @@ try{
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'toggle-sfx','WASD navigation missed SFX');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'quality-profile','Keyboard navigation missed quality profile');
+  await page.keyboard.press('ArrowDown');
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'give-up-pause','Keyboard navigation missed leave action');
   await page.keyboard.press('Enter');
 
