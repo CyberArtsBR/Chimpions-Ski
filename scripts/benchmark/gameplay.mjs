@@ -110,6 +110,11 @@ export async function benchmarkGameplay(page,seconds,{trickHeavy=false,label='ga
     jumpAttempts,
     frames,
     course:analyzeCourse(samples),
+    hotspots:{
+      courseTraversalMs:analyzeMetric(samples,'perfCourseTraversalMs'),
+      courseBatchSyncMs:analyzeMetric(samples,'perfCourseBatchSyncMs'),
+      environmentUpdateMs:analyzeMetric(samples,'perfEnvironmentUpdateMs')
+    },
     speedBins:speedBins(samples),
     maxDomNodes:domValues.length?Math.max(...domValues):null,
     maxTrickDomNodes:trickDomValues.length?Math.max(...trickDomValues):null,
