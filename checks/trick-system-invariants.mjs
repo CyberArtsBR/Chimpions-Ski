@@ -8,7 +8,8 @@ const present=[...new Set([...named,...discovered])].sort();
 const results=[];
 const requirements=[
  ['normal Jump: no trick',/normal|none|no.?trick|trickType.{0,20}(?:null|none)/i],
- ['DOWN + Jump: 360',/(down|axisY)[\s\S]{0,240}(360|spin)|(360|spin)[\s\S]{0,240}(down|axisY)/i],
+ ['UP + Jump: 360',/(up|keyUp|padUp)[\s\S]{0,320}(360|spin)|(360|spin)[\s\S]{0,320}(up|keyUp|padUp)/i],
+ ['BACK/DOWN + Jump: backflip',/(back|down|keyDown|padDown)[\s\S]{0,320}backflip|backflip[\s\S]{0,320}(back|down|keyDown|padDown)/i],
  ['second airborne Jump starts 360',/(airborne|air)[\s\S]{0,320}(jump|second)[\s\S]{0,320}(360|spin)/i],
  ['manual 360 can complete',/source='manual'[\s\S]{0,10000}completeActive|completeActive[\s\S]{0,10000}source='manual'/i],
  ['ramp 360 can complete',/armRamp[\s\S]{0,1200}completeActive|completeActive[\s\S]{0,1200}armRamp/i],
@@ -33,6 +34,11 @@ if(!present.length){
 }else{
  const source=present.map(function(p){return '// '+p+'\n'+read(root,p);}).join('\n');
  for(const [name,re] of requirements)results.push(result(name,re.test(source)?STATUS.PASS:STATUS.FAIL,'checked '+present.join(', ')));
+ const trickInputSource=exists(root,'src/trickInput.js')?read(root,'src/trickInput.js'):'';
+ const trickSystemSource=exists(root,'src/trickSystem.js')?read(root,'src/trickSystem.js'):'';
+ const exposesFrontFlip=/TRICK_TYPE\.FRONT[_ -]?FLIP|TRICK_TYPE\.FRONTFLIP/i.test(trickInputSource)
+   ||/FRONT[_ -]?FLIP\s*:\s*['"]/i.test(trickSystemSource);
+ results.push(result('front flip has no normal control mapping',exposesFrontFlip?STATUS.FAIL:STATUS.PASS,exposesFrontFlip?'front-flip executable mapping found':'no front-flip executable mapping found'));
  const airborneSource=['src/trickSystem.js','src/trickInput.js'].filter(function(p){return exists(root,p);}).map(function(p){return read(root,p);}).join('\n');
  const requestMatch=airborneSource.match(/function requestAirborne[\s\S]{0,1800}?(?=\n  function |\nexport |$)/);
  const second=requestMatch?.[0]||airborneSource;

@@ -9,13 +9,15 @@ export function readTrickIntent(keys,pad={}){
   const padUp=!!pad?.dpad?.up||axisY<=-TRICK_AXIS_THRESHOLD;
   const padDown=!!pad?.dpad?.down||axisY>=TRICK_AXIS_THRESHOLD;
   const up=keyUp||padUp;
-  const down=keyDown||padDown;
-  if(up===down)return null;
-  return up?TRICK_TYPE.BACKFLIP:TRICK_TYPE.SPIN_360;
+  const back=keyDown||padDown;
+  if(up===back)return null;
+  // Arcade mapping: UP + Jump spins; BACK/DOWN + Jump backflips.
+  // FRONT FLIP intentionally has no normal-control route.
+  return up?TRICK_TYPE.SPIN_360:TRICK_TYPE.BACKFLIP;
 }
 
 export function readAirborneTrickIntent(keys,pad={}){
-  // Directional + Jump keeps its explicit meaning in air. A plain second
-  // airborne Jump remains the arcade shortcut for a 360.
+  // Directional + Jump keeps the same mapping in air. A plain second airborne
+  // Jump remains the arcade shortcut for a 360, subject to airtime gating.
   return readTrickIntent(keys,pad)||TRICK_TYPE.SPIN_360;
 }
