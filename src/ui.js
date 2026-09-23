@@ -269,6 +269,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   }
   function showPause(){
     cancelCountdown();
+    leaveConfirm.hidden=true;
     pause.hidden=false;
     results.hidden=true;
     setMode('paused');
@@ -286,6 +287,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   function showResults({distance=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
     clearTimeout(resultTimer);
     resultTimer=setTimeout(()=>{
+      leaveConfirm.hidden=true;
       byId('result-distance').textContent=Math.floor(distance)+' m';
       byId('result-bananas').textContent=String(bananas);
       byId('result-best').textContent=Math.floor(best)+' m';
@@ -306,6 +308,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     resultTimer=0;
     cancelCountdown();
     clearControllerSelection();
+    leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     overlay.hidden=false;
