@@ -533,3 +533,9 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
   .stat{min-width:112px;padding:10px 11px 9px;border-radius:15px}
   .stat strong{font-size:22px}
 }
+
+/* Concept-sheet start framing refinement: keep identity readable without
+   competing with the cinematic rider/crowd composition. */
+.countdown-avatar{top:125px;font-size:10px;padding:5px 11px 5px 5px}
+.countdown-avatar span{width:27px;height:27px;flex:0 0 27px}
+@media(max-width:760px){.countdown-avatar{top:106px}}
