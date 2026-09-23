@@ -469,6 +469,8 @@ async function setAvatar(entry,rideMode=selectedRideMode){
       catalog,
       onSelect:async(entry,rideMode)=>{
         await setAvatar(entry,rideMode);
+        // Rider selection has priority. Only after its GLB is ready do we give
+        // the start crowd a chance to warm the critical subset before beginRun().
         startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
         if(initialSelectionFlow){
           initialSelectionFlow=false;
