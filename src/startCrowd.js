@@ -187,6 +187,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   let built=false;
   let released=false;
   let lastEntries=[];
+  let loadingPromise=null;
 
   function collectMaterialTextures(material,textures){
     if(!material)return;
@@ -304,7 +305,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     modelSourceCount=0;
   }
 
-  async function setSpectators(entries=[]){
+  async function loadSpectators(entries=[]){
     lastEntries=Array.isArray(entries)?entries:lastEntries;
     buildStructure();
 
@@ -343,8 +344,20 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     return loadedCount;
   }
 
+  function setSpectators(entries=[]){
+    if(loadingPromise)return loadingPromise;
+    const pending=loadSpectators(entries);
+    let wrapped=null;
+    wrapped=pending.finally(()=>{
+      if(loadingPromise===wrapped)loadingPromise=null;
+    });
+    loadingPromise=wrapped;
+    return wrapped;
+  }
+
   async function ensureLoaded(entries=lastEntries){
     if(!released&&built&&loadedCount===START_CROWD_COUNT)return loadedCount;
+    if(loadingPromise)return loadingPromise;
     return setSpectators(entries);
   }
 
