@@ -1,43 +1,148 @@
 import * as THREE from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 
 export const START_CROWD_COUNT=20;
-const UNIQUE_PORTRAITS=8;
+const SOURCE_MODEL_COUNT=4;
+const CROWD_HEIGHT=1.72;
 const ROWS=[
-  {count:7,z:6.25,rise:.45},
-  {count:7,z:7.65,rise:.92},
-  {count:6,z:9.05,rise:1.39}
+  {count:7,z:6.35,rise:.28},
+  {count:7,z:7.78,rise:.72},
+  {count:6,z:9.22,rise:1.16}
 ];
 
-function fallbackPortraitTexture(){
-  const canvas=document.createElement('canvas');
-  canvas.width=256;canvas.height=320;
-  const ctx=canvas.getContext('2d');
-  const gradient=ctx.createLinearGradient(0,0,0,320);
-  gradient.addColorStop(0,'#183f5c');
-  gradient.addColorStop(1,'#071d31');
-  ctx.fillStyle=gradient;ctx.fillRect(0,0,256,320);
-  ctx.fillStyle='#ffe07a';
-  ctx.beginPath();ctx.arc(128,132,64,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#5d3a22';
-  ctx.beginPath();ctx.arc(128,138,49,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#f4c88d';
-  ctx.beginPath();ctx.ellipse(128,150,36,29,0,0,Math.PI*2);ctx.fill();
-  ctx.fillStyle='#101923';
-  ctx.beginPath();ctx.arc(111,128,6,0,Math.PI*2);ctx.arc(145,128,6,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='#101923';ctx.lineWidth=5;ctx.lineCap='round';
-  ctx.beginPath();ctx.arc(128,151,18,.22*Math.PI,.78*Math.PI);ctx.stroke();
-  ctx.fillStyle='#d7f5ff';ctx.font='700 21px system-ui,sans-serif';ctx.textAlign='center';
-  ctx.fillText('CHIMPION',128,276);
-  const texture=new THREE.CanvasTexture(canvas);
-  texture.colorSpace=THREE.SRGBColorSpace;
-  texture.needsUpdate=true;
-  return texture;
+const ARM_ALIASES={
+  Shoulder:['shoulder','clavicle','collar'],
+  UpperArm:['upperarm','arm','uparm'],
+  Forearm:['forearm','lowerarm','elbow'],
+  Hand:['hand','wrist']
+};
+
+function nameParts(name=''){
+  let value=name.replace(/([a-z0-9])([A-Z])/g,'$1 $2').toLowerCase()
+    .replace(/mixamorig\d*[:_ ]*/g,'').replace(/cc[_ ]*base[_ ]*/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+  let words=value.split(/\s+/).filter(Boolean);
+  let side=words.includes('left')||words.includes('l')?'left':words.includes('right')||words.includes('r')?'right':'';
+  let core=words.filter(word=>!['left','right','l','r','bone','def','bip','bip001'].includes(word)).join('');
+  if(!side&&/^(left|right)/.test(core)){
+    side=core.startsWith('left')?'left':'right';
+    core=core.slice(side.length);
+  }
+  return {side,core};
 }
 
-function setTexture(material,texture){
-  material.map=texture;
-  material.color.set(0xffffff);
-  material.needsUpdate=true;
+function mapArmRig(model){
+  const bones=[];
+  model.traverse(object=>{if(object.isBone)bones.push(object);});
+  const rig={};
+  for(const side of ['left','right']){
+    for(const kind of ['Shoulder','UpperArm','Forearm','Hand']){
+      const matches=bones.filter(bone=>{
+        const parsed=nameParts(bone.name);
+        return parsed.side===side&&ARM_ALIASES[kind].includes(parsed.core);
+      });
+      if(matches.length===1)rig[side+kind]=matches[0];
+    }
+  }
+  return rig;
+}
+
+function fitTemplate(model,targetHeight=CROWD_HEIGHT){
+  model.updateWorldMatrix(true,true);
+  const firstBox=new THREE.Box3().setFromObject(model);
+  const size=firstBox.getSize(new THREE.Vector3());
+  model.scale.setScalar(targetHeight/Math.max(.001,size.y));
+  model.updateWorldMatrix(true,true);
+  const fitted=new THREE.Box3().setFromObject(model);
+  const center=fitted.getCenter(new THREE.Vector3());
+  model.position.x-=center.x;
+  model.position.z-=center.z;
+  model.position.y-=fitted.min.y;
+  model.updateWorldMatrix(true,true);
+}
+
+function poseCheeringArms(model){
+  const rig=mapArmRig(model);
+  const required=['leftUpperArm','leftForearm','rightUpperArm','rightForearm'];
+  if(required.some(key=>!rig[key]))return false;
+
+  model.updateWorldMatrix(true,true);
+  const rest=new Map();
+  const restDirections=new Map();
+  const sample=new THREE.Vector3();
+  for(const key of Object.keys(rig))rest.set(rig[key],rig[key].quaternion.clone());
+  for(const [key,childKey] of [
+    ['leftUpperArm','leftForearm'],['rightUpperArm','rightForearm'],
+    ['leftForearm','leftHand'],['rightForearm','rightHand']
+  ]){
+    const bone=rig[key],child=rig[childKey];
+    if(!bone||!child)continue;
+    child.getWorldPosition(sample);
+    const direction=bone.worldToLocal(sample).normalize().clone();
+    if(direction.lengthSq()>.5)restDirections.set(key,direction);
+  }
+
+  const modelQ=new THREE.Quaternion();
+  const parentQ=new THREE.Quaternion();
+  const inverseParentQ=new THREE.Quaternion();
+  const baseWorldQ=new THREE.Quaternion();
+  const alignWorldQ=new THREE.Quaternion();
+  const targetWorldQ=new THREE.Quaternion();
+  const targetLocalQ=new THREE.Quaternion();
+  const baseline=new THREE.Vector3();
+  const right=new THREE.Vector3();
+  const up=new THREE.Vector3();
+  const forward=new THREE.Vector3();
+  const desired=new THREE.Vector3();
+
+  model.getWorldQuaternion(modelQ);
+  right.set(1,0,0).applyQuaternion(modelQ).normalize();
+  up.set(0,1,0).applyQuaternion(modelQ).normalize();
+  forward.set(0,0,1).applyQuaternion(modelQ).normalize();
+
+  function aim(key,target){
+    const bone=rig[key],restDirection=restDirections.get(key);
+    if(!bone?.parent||!restDirection)return false;
+    bone.parent.getWorldQuaternion(parentQ);
+    baseWorldQ.copy(parentQ).multiply(rest.get(bone));
+    baseline.copy(restDirection).applyQuaternion(baseWorldQ).normalize();
+    alignWorldQ.setFromUnitVectors(baseline,target.normalize());
+    targetWorldQ.copy(alignWorldQ).multiply(baseWorldQ);
+    inverseParentQ.copy(parentQ).invert();
+    targetLocalQ.copy(inverseParentQ).multiply(targetWorldQ);
+    bone.quaternion.copy(targetLocalQ);
+    bone.updateWorldMatrix(true,true);
+    return true;
+  }
+
+  for(const [side,sideSign] of [['left',-1],['right',1]]){
+    const shoulder=rig[side+'Shoulder'];
+    if(shoulder&&rest.has(shoulder))shoulder.quaternion.copy(rest.get(shoulder));
+
+    desired.copy(right).multiplyScalar(sideSign*.78)
+      .addScaledVector(up,1.02)
+      .addScaledVector(forward,.08)
+      .normalize();
+    aim(side+'UpperArm',desired);
+
+    desired.copy(right).multiplyScalar(sideSign*.62)
+      .addScaledVector(up,1.08)
+      .addScaledVector(forward,.06)
+      .normalize();
+    aim(side+'Forearm',desired);
+
+    const hand=rig[side+'Hand'];
+    if(hand&&rest.has(hand))hand.quaternion.copy(rest.get(hand));
+  }
+  model.updateWorldMatrix(true,true);
+  return true;
+}
+
+function chooseSources(entries=[]){
+  const usable=entries.filter(entry=>entry?.url);
+  if(!usable.length)return [];
+  const count=Math.min(SOURCE_MODEL_COUNT,usable.length);
+  return Array.from({length:count},(_,index)=>usable[Math.floor(index*usable.length/count)]);
 }
 
 export function createStartCrowd({world,terrainHeight=()=>0}={}){
@@ -45,36 +150,35 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   root.name='start-crowd';
   world?.add(root);
 
-  const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x825a36,roughness:.82,metalness:.02});
+  const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x7b5638,roughness:.86,metalness:.01});
   const railMaterial=new THREE.MeshStandardMaterial({color:0xdce8ec,roughness:.42,metalness:.58});
-  const frameMaterial=new THREE.MeshStandardMaterial({color:0x16364b,roughness:.62,metalness:.05});
-  const seatGeometry=new THREE.BoxGeometry(17,.18,.86);
+  const seatGeometry=new THREE.BoxGeometry(17,.18,1.02);
   const railGeometry=new THREE.BoxGeometry(17,.08,.08);
-  const frameGeometry=new THREE.BoxGeometry(1.16,1.42,.06);
-  const portraitGeometry=new THREE.PlaneGeometry(1.06,1.30);
-  const fallback=fallbackPortraitTexture();
-  const portraitMaterials=[];
   const actors=[];
-  const textureCache=new Map();
+  const loader=new GLTFLoader();
+  let loadedCount=0;
+  let posedCount=0;
+  let modelSourceCount=0;
+  let loadGeneration=0;
 
   let actorIndex=0;
   for(let rowIndex=0;rowIndex<ROWS.length;rowIndex++){
     const row=ROWS[rowIndex];
-    const ground=terrainHeight(0,row.z);
-    const seatY=ground+row.rise;
+    const rowGround=terrainHeight(0,row.z);
+    const deckY=rowGround+row.rise;
 
     const seat=new THREE.Mesh(seatGeometry,bleacherMaterial);
-    seat.position.set(0,seatY,row.z);
-    seat.castShadow=false;seat.receiveShadow=true;
+    seat.position.set(0,deckY,row.z);
+    seat.castShadow=false;
+    seat.receiveShadow=true;
     root.add(seat);
 
-    const rail=new THREE.Mesh(railGeometry,railMaterial);
-    rail.position.set(0,seatY+1.64,row.z+.48);
-    root.add(rail);
-
+    const rearRail=new THREE.Mesh(railGeometry,railMaterial);
+    rearRail.position.set(0,deckY+1.95,row.z+.55);
+    root.add(rearRail);
     for(const railX of [-8.35,8.35]){
-      const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,1.72,.08),railMaterial);
-      upright.position.set(railX,seatY+.82,row.z+.48);
+      const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,2,.08),railMaterial);
+      upright.position.set(railX,deckY+.96,row.z+.55);
       root.add(upright);
     }
 
@@ -83,68 +187,72 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       const x=THREE.MathUtils.lerp(-7.35,7.35,t)+(rowIndex===1?.16:rowIndex===2?-.11:0);
       const actor=new THREE.Group();
       actor.name='start-spectator-'+actorIndex;
-      const baseY=seatY+.88;
-      actor.position.set(x,baseY,row.z-.08);
+      const baseY=deckY+.10;
+      actor.position.set(x,baseY,row.z-.04);
 
-      const frame=new THREE.Mesh(frameGeometry,frameMaterial);
-      frame.position.z=.025;
-      actor.add(frame);
-
-      const portraitMaterial=new THREE.MeshBasicMaterial({
-        map:fallback,
-        side:THREE.DoubleSide,
-        toneMapped:false
-      });
-      portraitMaterials.push(portraitMaterial);
-      const portrait=new THREE.Mesh(portraitGeometry,portraitMaterial);
-      portrait.position.z=-.012;
-      actor.add(portrait);
-
-      const amp=actorIndex%5===0?0:.09+(actorIndex%4)*.045;
+      const energy=actorIndex%6===0?0:(.055+(actorIndex%5)*.027);
       actor.userData.baseY=baseY;
-      actor.userData.jumpAmplitude=amp;
-      actor.userData.jumpHz=.72+(actorIndex%7)*.13;
+      actor.userData.jumpAmplitude=energy;
+      actor.userData.jumpHz=.52+(actorIndex%7)*.085;
       actor.userData.phase=(actorIndex*.61803398875%1)*Math.PI*2;
-      actor.userData.sway=(actorIndex%2?-1:1)*(.012+(actorIndex%3)*.006);
+      actor.userData.sway=(actorIndex%2?-1:1)*(.010+(actorIndex%4)*.004);
       actors.push(actor);
       root.add(actor);
       actorIndex++;
     }
   }
 
-  const loader=new THREE.TextureLoader();
-  function loadPortrait(url,materials){
-    if(!url)return;
-    if(textureCache.has(url)){
-      const cached=textureCache.get(url);
-      if(cached)for(const material of materials)setTexture(material,cached);
-      return;
-    }
-    textureCache.set(url,null);
-    loader.load(url,texture=>{
-      texture.colorSpace=THREE.SRGBColorSpace;
-      texture.anisotropy=2;
-      textureCache.set(url,texture);
-      for(const material of materials)setTexture(material,texture);
-    },undefined,()=>textureCache.delete(url));
+  async function loadTemplate(entry){
+    const url=entry?.url?('/'+String(entry.url).replace(/^\/+/,'')):'/models/default.glb';
+    const gltf=await loader.loadAsync(url);
+    const model=gltf.scene;
+    model.rotation.y=Math.PI;
+    model.traverse(object=>{
+      if(object.isMesh){
+        object.castShadow=false;
+        object.receiveShadow=false;
+        object.frustumCulled=true;
+      }
+    });
+    fitTemplate(model);
+    return model;
   }
 
-  function setSpectators(entries=[]){
-    const usable=entries.filter(entry=>entry?.image);
-    if(!usable.length)return;
-    const pool=[];
-    for(let i=0;i<Math.min(UNIQUE_PORTRAITS,usable.length);i++){
-      pool.push(usable[Math.floor(i*usable.length/Math.min(UNIQUE_PORTRAITS,usable.length))]);
+  function clearActorModels(){
+    for(const actor of actors)actor.clear();
+    loadedCount=0;
+    posedCount=0;
+    modelSourceCount=0;
+  }
+
+  async function setSpectators(entries=[]){
+    const generation=++loadGeneration;
+    const sources=chooseSources(entries);
+    let templates=[];
+
+    if(sources.length){
+      const settled=await Promise.allSettled(sources.map(loadTemplate));
+      templates=settled.filter(result=>result.status==='fulfilled').map(result=>result.value);
     }
-    const assignments=new Map();
-    portraitMaterials.forEach((material,index)=>{
-      setTexture(material,fallback);
-      const url=pool[index%pool.length]?.image;
-      if(!url)return;
-      if(!assignments.has(url))assignments.set(url,[]);
-      assignments.get(url).push(material);
+    if(!templates.length){
+      try{templates=[await loadTemplate({url:'models/default.glb'})];}
+      catch(error){console.warn('Could not load 3D start crowd:',error);return 0;}
+    }
+    if(generation!==loadGeneration)return loadedCount;
+
+    clearActorModels();
+    modelSourceCount=templates.length;
+    actors.forEach((actor,index)=>{
+      const instance=cloneSkeleton(templates[index%templates.length]);
+      instance.name='crowd-glb-'+index;
+      const scaleJitter=.94+(index%5)*.025;
+      instance.scale.multiplyScalar(scaleJitter);
+      actor.add(instance);
+      if(poseCheeringArms(instance))posedCount++;
+      loadedCount++;
     });
-    for(const [url,materials] of assignments)loadPortrait(url,materials);
+    root.updateMatrixWorld(true);
+    return loadedCount;
   }
 
   let clock=0;
@@ -158,19 +266,18 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     }
   }
 
-  function update(dt,{mode='menu',worldDistance=0,time=0}={}){
+  function update(dt,{mode='menu',worldDistance=0}={}){
     root.position.z+=Math.max(0,Number(worldDistance)||0);
     root.visible=root.position.z<28;
     if(!root.visible)return;
-    const moving=mode==='countdown'||(mode==='playing'&&root.position.z<13);
-    if(moving)clock+=(Math.max(0,Number(dt)||0));
-    const t=Number.isFinite(time)?time:clock;
+    const cheering=mode==='countdown'||(mode==='playing'&&root.position.z<13);
+    if(cheering)clock+=Math.max(0,Number(dt)||0);
     for(const actor of actors){
-      const amp=moving?actor.userData.jumpAmplitude:0;
-      const wave=Math.sin((clock*actor.userData.jumpHz+t*.035)*Math.PI*2+actor.userData.phase);
-      const jump=amp*Math.pow(Math.max(0,wave),4);
+      const amp=cheering?actor.userData.jumpAmplitude:0;
+      const wave=Math.sin(clock*actor.userData.jumpHz*Math.PI*2+actor.userData.phase);
+      const jump=amp*Math.pow(Math.max(0,wave),3);
       actor.position.y=actor.userData.baseY+jump;
-      actor.rotation.z=moving?Math.sin(clock*(1.5+actor.userData.jumpHz)+actor.userData.phase)*actor.userData.sway:0;
+      actor.rotation.z=cheering?Math.sin(clock*(1.35+actor.userData.jumpHz)+actor.userData.phase)*actor.userData.sway:0;
     }
   }
 
@@ -179,6 +286,9 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     reset,
     update,
     get count(){return actors.length;},
+    get loadedCount(){return loadedCount;},
+    get posedCount(){return posedCount;},
+    get modelSourceCount(){return modelSourceCount;},
     get visible(){return root.visible;}
   };
 }

@@ -185,13 +185,42 @@ export function stepCarving(state,input,dt){
   state.counterSteer=neutralizing;
 }
 
-export function updateJumpAssist(state,jumpPressed,dt){
+function applyMiniJumpCut(state){
+  if(!state.air||state.jumpSource!=='manual'||state.jumpCutApplied)return false;
+  const holdTime=Math.max(0,Number(state.jumpHoldTime)||0);
+  state.jumpCutApplied=true;
+  if(holdTime>T.MINI_JUMP_TAP_SECONDS)return false;
+
+  if(state.vy>0){
+    state.vy=Math.min(state.vy,T.MINI_JUMP_RELEASE_VELOCITY);
+    state.jumpVelocity=state.vy;
+  }
+  state.jumpProfile='mini';
+  return true;
+}
+
+export function updateJumpAssist(state,jumpPressed,dt,jumpHeld=jumpPressed){
   state.jumpBufferTime=Math.max(0,(state.jumpBufferTime||0)-dt);
   state.coyoteTime=Math.max(0,(state.coyoteTime||0)-dt);
 
+  const held=!!jumpHeld;
+  const wasHeld=!!state.jumpInputHeld;
   if(state.grounded&&!state.air)state.coyoteTime=.075;
   if(jumpPressed)state.jumpBufferTime=.11;
 
+  if(state.air&&state.jumpSource==='manual'){
+    if(held){
+      state.jumpHoldTime=(state.jumpHoldTime||0)+dt;
+      if(state.jumpHoldTime>T.MINI_JUMP_TAP_SECONDS)state.jumpProfile='full';
+    }
+    if(wasHeld&&!held)applyMiniJumpCut(state);
+  }else if(!state.air){
+    state.jumpHoldTime=0;
+    state.jumpCutApplied=false;
+    state.jumpProfile='';
+  }
+
+  state.jumpInputHeld=held;
   state.jumpBuffered=state.jumpBufferTime>0;
   state.grounded=!state.air;
   state.jumpVelocity=state.air?state.vy:0;
@@ -206,6 +235,9 @@ export function tryManualJump(state,groundY){
   state.grounded=false;
   state.jumping=true;
   state.jumpSource='manual';
+  state.jumpProfile='full';
+  state.jumpHoldTime=0;
+  state.jumpCutApplied=false;
   state.vy=T.MANUAL_JUMP_VELOCITY;
   state.jumpVelocity=state.vy;
   state.y=Math.max(state.y,groundY+.045);
@@ -214,6 +246,10 @@ export function tryManualJump(state,groundY){
   state.coyoteTime=0;
   state.landingQuality='air';
   state.landingReengageTime=0;
+
+  // A press+release can occur between two render samples. Treat that as the
+  // shortest valid tap rather than silently promoting it to a full jump.
+  if(!state.jumpInputHeld)applyMiniJumpCut(state);
   return true;
 }
 
@@ -234,7 +270,9 @@ export function stepAir(state,dt,groundY){
   if(state.y>groundY||state.vy>0)return {landed:false,impact:0,quality:'air'};
 
   const impact=Math.abs(state.vy);
+  const landingProfile=state.jumpProfile||'';
   const rampLanding=state.jumpSource==='ramp';
+  const miniLanding=state.jumpSource==='manual'&&landingProfile==='mini';
   const roughThreshold=rampLanding?17.2:7.6;
   const hardThreshold=rampLanding?20.5:10.8;
   let quality='clean';
@@ -248,9 +286,13 @@ export function stepAir(state,dt,groundY){
   state.grounded=true;
   state.jumping=false;
   state.jumpSource='';
+  state.lastJumpProfile=landingProfile;
+  state.jumpProfile='';
+  state.jumpHoldTime=0;
+  state.jumpCutApplied=false;
   state.landingQuality=quality;
   state.landingPulse=Math.min(1,impact/(rampLanding?18:9));
-  state.landingReengageTime=T.LANDING_REENGAGE_TIME;
+  state.landingReengageTime=miniLanding?T.MINI_JUMP_LANDING_REENGAGE_TIME:T.LANDING_REENGAGE_TIME;
   const rideProfile=getRideProfile(state.rideMode);
 
   // Preserve most airborne lateral momentum. Ground grip fades back in via stepCarving().
@@ -283,6 +325,9 @@ export function launchRamp(state,rampGroundY){
   state.grounded=false;
   state.jumping=true;
   state.jumpSource='ramp';
+  state.jumpProfile='ramp';
+  state.jumpHoldTime=0;
+  state.jumpCutApplied=true;
   state.vy=T.RAMP_JUMP_BASE_VELOCITY+state.speed*T.RAMP_JUMP_SPEED_FACTOR;
   state.jumpVelocity=state.vy;
   state.y=Math.max(state.y,rampGroundY+.34);

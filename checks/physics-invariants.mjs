@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {stepCarving,stepAir,launchRamp,progressSpeed} from '../src/skiPhysics.js';
+import {stepCarving,updateJumpAssist,tryManualJump,stepAir,launchRamp,progressSpeed} from '../src/skiPhysics.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 
 function makeState(overrides={}){
@@ -82,11 +82,52 @@ for(const speed of [T.BASE_SPEED,(T.BASE_SPEED+T.MAX_SPEED)/2,T.MAX_SPEED]){
   assert(s.targetSpeed<=T.MAX_SPEED+1e-6,'target speed exceeded intended cap');
 }
 
+// Tap-vs-hold manual jump: a <=140 ms release must cut the arc, while
+// a longer hold preserves the original 5.9 m/s launch and airtime.
+{
+  const dt=1/180;
+  const simulate=holdSeconds=>{
+    const s=makeState({grounded:true,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:''});
+    updateJumpAssist(s,true,dt,true);
+    assert.equal(tryManualJump(s,.12),true,'manual jump failed to launch');
+    assert.equal(s.vy,T.MANUAL_JUMP_VELOCITY,'manual jump launch velocity changed');
+
+    let elapsed=0;
+    let apex=s.y;
+    for(let i=0;i<1000;i++){
+      const held=elapsed<holdSeconds;
+      updateJumpAssist(s,false,dt,held);
+      const result=stepAir(s,dt,.12);
+      elapsed+=dt;
+      apex=Math.max(apex,s.y);
+      if(result.landed)return {elapsed,apex,profile:s.lastJumpProfile,reengage:s.landingReengageTime};
+    }
+    throw new Error('manual jump never landed');
+  };
+
+  const mini=simulate(.06);
+  const full=simulate(T.MINI_JUMP_TAP_SECONDS+.06);
+  assert.equal(mini.profile,'mini','quick release did not produce mini jump');
+  assert.equal(full.profile,'full','held jump was incorrectly cut to mini');
+  assert(mini.apex<full.apex*.90,'mini jump apex is not meaningfully lower');
+  assert(mini.elapsed<full.elapsed-.08,'mini jump did not land meaningfully earlier');
+  assert(mini.reengage<full.reengage,'mini jump did not recover grip earlier');
+
+  const s=makeState({grounded:true,jumpInputHeld:false});
+  updateJumpAssist(s,true,dt,true);
+  assert(tryManualJump(s,.12));
+  updateJumpAssist(s,true,dt,true);
+  assert.equal(tryManualJump(s,.12),false,'airborne jump input created a double jump');
+}
+
 // Ramp -> air -> landing must complete and produce a landing pulse.
 {
   const s=makeState({speed:T.BASE_SPEED+3,y:.12});
   assert.equal(launchRamp(s,0),true,'ramp failed to launch grounded player');
   assert.equal(s.air,true);
+  assert.equal(s.jumpProfile,'ramp','ramp launch lost its dedicated jump profile');
+  updateJumpAssist(s,false,1/120,false);
+  assert(s.vy>T.MINI_JUMP_RELEASE_VELOCITY,'manual jump cut leaked into ramp launch');
   let landed=false;
   for(let i=0;i<1000;i++){
     const result=stepAir(s,1/120,.12);

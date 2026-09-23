@@ -57,6 +57,11 @@ export const SKI_TUNING=Object.freeze({
   // Shared jump physics. Preserve manual and monster-ramp strength.
   GRAVITY:17.8,
   MANUAL_JUMP_VELOCITY:5.9,
+  // Manual jump is immediate on press. Releasing within 140 ms applies a
+  // variable-height jump cut; holding longer preserves the original full arc.
+  MINI_JUMP_TAP_SECONDS:.14,
+  MINI_JUMP_RELEASE_VELOCITY:3.60,
+  MINI_JUMP_LANDING_REENGAGE_TIME:.10,
   RAMP_JUMP_BASE_VELOCITY:13.4,
   RAMP_JUMP_SPEED_FACTOR:.095,
   RAMP_RETRIGGER_GRACE:.85,

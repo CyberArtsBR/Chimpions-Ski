@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {COURSE_TYPES,FORMATION_TYPES,createCourseDirector,getCourseDifficulty} from '../src/course.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
+import {OBSTACLE_TUNING} from '../src/obstacleTuning.js';
 import {estimateRampFlightEnvelope} from '../src/rampTrajectory.js';
 import {maxReachableLateralDelta} from '../src/courseSafety.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
@@ -17,9 +18,9 @@ const routeCenter=z=>Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 const hazardInfo={
   tree:{radiusX:.62,radiusZ:.68},
   rock:{radiusX:.55,radiusZ:.58},
-  log:{radiusX:1.02,radiusZ:.48},
-  wideLog:{radiusX:2.48,radiusZ:.58},
-  oil:{radiusX:1.48,radiusZ:.74}
+  log:{radiusX:OBSTACLE_TUNING.log.collisionHalfWidth,radiusZ:OBSTACLE_TUNING.log.radiusZ},
+  wideLog:{radiusX:OBSTACLE_TUNING.wideLog.collisionHalfWidth,radiusZ:OBSTACLE_TUNING.wideLog.radiusZ},
+  oil:{radiusX:OBSTACLE_TUNING.oil.collisionHalfWidth,radiusZ:OBSTACLE_TUNING.oil.radiusZ}
 };
 const isHazard=p=>!!hazardInfo[p.kind];
 
@@ -36,6 +37,8 @@ let totalSections=0,totalMeters=0,totalRamps=0;
 let minLeftEdgeThreats=Infinity,minRightEdgeThreats=Infinity;
 let maxLeftDrySections=0,maxRightDrySections=0;
 let maxColumnStreak=0;
+const earlyHazards={tree:0,log:0,wideLog:0,oil:0,total:0};
+const lateHazards={tree:0,log:0,wideLog:0,oil:0,total:0};
 
 for(const seed of seeds){
   const director=createCourseDirector({routeCenter,random:rng(seed)});
@@ -63,6 +66,13 @@ for(const seed of seeds){
     }
 
     const hazards=section.placements.filter(isHazard);
+    const bucket=i<24?earlyHazards:i>=92?lateHazards:null;
+    if(bucket){
+      for(const hazard of hazards){
+        bucket.total++;
+        if(hazard.kind in bucket)bucket[hazard.kind]++;
+      }
+    }
     const leftThis=hazards.some(p=>p.x<=-9);
     const rightThis=hazards.some(p=>p.x>=9);
     if(leftThis){leftEdgeThreats+=hazards.filter(p=>p.x<=-9).length;leftDry=0;}else leftDry++;
@@ -182,6 +192,15 @@ assert(maxLeftDrySections<=16,'far-left edge stayed safe for too many consecutiv
 assert(maxRightDrySections<=16,'far-right edge stayed safe for too many consecutive sections');
 assert(maxColumnStreak<=4,'repeated vertical obstacle column persisted too long');
 
+const earlyTreeShare=earlyHazards.tree/Math.max(1,earlyHazards.total);
+const lateTreeShare=lateHazards.tree/Math.max(1,lateHazards.total);
+const earlyLateralShare=(earlyHazards.log+earlyHazards.wideLog+earlyHazards.oil)/Math.max(1,earlyHazards.total);
+const lateLateralShare=(lateHazards.log+lateHazards.wideLog+lateHazards.oil)/Math.max(1,lateHazards.total);
+assert(lateTreeShare<earlyTreeShare,'trees did not reduce in relative frequency over the run');
+assert(lateLateralShare>earlyLateralShare,'logs/oil did not increase in relative frequency over the run');
+assert(OBSTACLE_TUNING.log.length>2.2&&OBSTACLE_TUNING.wideLog.length>5.2,'logs were not lengthened');
+assert(OBSTACLE_TUNING.oil.visualScaleX>1.55,'oil puddles were not widened');
+
 // Streaming audit: generation must live well outside the ~280m far plane.
 const cameraFar=280;
 const baseLookahead=getCourseLookahead(T.BASE_SPEED);
@@ -239,6 +258,12 @@ console.log(JSON.stringify({
   maxLeftDrySections,
   maxRightDrySections,
   maxColumnStreak,
+  obstacleMix:{
+    earlyTreeShare:Number(earlyTreeShare.toFixed(3)),
+    lateTreeShare:Number(lateTreeShare.toFixed(3)),
+    earlyLateralShare:Number(earlyLateralShare.toFixed(3)),
+    lateLateralShare:Number(lateLateralShare.toFixed(3))
+  },
   ramps:totalRamps,
   baseLookahead,
   maxLookahead:Number(maxLookahead.toFixed(2)),
