@@ -10,14 +10,15 @@ export const SKI_TUNING=Object.freeze({
   // shoulder hazards: dangerous enough to punish fence-hugging, but staggered
   // so they never become an unavoidable horizontal wall.
   SIDE_HAZARD_ZONE_START:10.75,
-  SIDE_HAZARD_SECTION_CHANCE:.72,
-  SIDE_HAZARD_SECOND_CHANCE:.28,
+  SIDE_HAZARD_SECTION_CHANCE:.84,
+  SIDE_HAZARD_SECOND_CHANCE:.42,
 
-  // 160 km/h opening pace, +10 km/h every 30 seconds, 300 km/h cap.
-  // Preserve the original ramp-up cadence so the opening remains controllable.
+  // 160 km/h opening pace, +20 km/h every 30 seconds, 300 km/h cap.
+  // The faster climb makes the run demanding much sooner while preserving
+  // the same top speed and deterministic tier cadence.
   BASE_SPEED:44.4444,
   SPEED_TIER_SECONDS:30,
-  SPEED_TIER_INCREMENT:2.7778,
+  SPEED_TIER_INCREMENT:5.5556,
   MAX_SPEED:83.3333,
   SPEED_RESPONSE:2.2,
 
@@ -30,9 +31,9 @@ export const SKI_TUNING=Object.freeze({
   // Once the rider reaches the 300 km/h cap, speed stops increasing but the
   // mountain keeps escalating. Hazard density ramps toward its maximum over
   // three minutes while the guaranteed navigable route remains unchanged.
-  POST_MAX_HAZARD_RAMP_SECONDS:180,
-  POST_MAX_HAZARD_START_PRESSURE:.16,
-  POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION:3,
+  POST_MAX_HAZARD_RAMP_SECONDS:120,
+  POST_MAX_HAZARD_START_PRESSURE:.24,
+  POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION:4,
 
   // Ground carving.
   INPUT_DEADZONE:.022,
@@ -101,10 +102,10 @@ export const SKI_TUNING=Object.freeze({
 
   // Course intelligence/rhythm.
   // More pressure without returning to repetitive close-packed rows.
-  COURSE_NORMAL_SPACING_MIN:15,
-  COURSE_NORMAL_SPACING_MAX:21,
-  COURSE_INTENSE_SPACING_MIN:12.5,
-  COURSE_INTENSE_SPACING_MAX:18,
+  COURSE_NORMAL_SPACING_MIN:14.5,
+  COURSE_NORMAL_SPACING_MAX:19.5,
+  COURSE_INTENSE_SPACING_MIN:11.75,
+  COURSE_INTENSE_SPACING_MAX:16.5,
   SAFE_ROUTE_ACCELERATION_FACTOR:.72,
   SAFE_ROUTE_BASE_REACH:.75,
   SAFE_ROUTE_MIN_REACH:1.6,
