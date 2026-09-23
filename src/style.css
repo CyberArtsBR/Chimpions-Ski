@@ -395,3 +395,141 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
   .ride-mode-card{min-height:118px;padding:16px}
   .ride-mode-card b{font-size:34px}
 }
+
+
+/* Premium stylized arcade presentation pass. Visual-only: preserves HUD content and interaction geometry. */
+:root{
+  --hud-glass-top:rgba(18,58,82,.78);
+  --hud-glass-bottom:rgba(5,28,45,.66);
+  --hud-rim:rgba(218,248,255,.62);
+  --hud-glow:rgba(84,213,255,.26);
+  --hud-shadow:rgba(0,19,33,.34);
+}
+.hud{
+  gap:12px;
+  filter:drop-shadow(0 16px 24px rgba(3,24,39,.18));
+  perspective:900px;
+}
+.stat{
+  min-width:150px;
+  padding:12px 21px 11px;
+  border:1px solid var(--hud-rim);
+  border-radius:18px;
+  clip-path:none!important;
+  overflow:hidden;
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.10),transparent 34%),
+    linear-gradient(145deg,var(--hud-glass-top),var(--hud-glass-bottom));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.23),
+    inset 0 -1px 0 rgba(2,18,31,.22),
+    0 12px 30px var(--hud-shadow),
+    0 0 20px rgba(72,202,246,.08);
+  backdrop-filter:blur(18px) saturate(1.22);
+  transform:translateZ(0);
+}
+.stat::before{
+  content:"";position:absolute;inset:1px 10px auto;height:42%;
+  border-radius:15px 15px 48% 48%;
+  background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,0));
+  pointer-events:none;
+}
+.stat::after{
+  left:22px;right:22px;bottom:5px;height:2px;border-radius:999px;
+  opacity:.76;filter:drop-shadow(0 0 5px var(--cyan));
+}
+.stat.is-banana::after{filter:drop-shadow(0 0 5px var(--gold))}
+.stat small{
+  position:relative;z-index:1;
+  font-size:9px;letter-spacing:.23em;opacity:.76;
+  text-shadow:0 1px 0 rgba(0,0,0,.28);
+}
+.stat strong{
+  position:relative;z-index:1;margin-top:2px;
+  font-size:27px;letter-spacing:-.045em;
+  text-shadow:
+    0 1px 0 rgba(255,255,255,.20),
+    0 3px 0 rgba(2,23,38,.24),
+    0 8px 18px rgba(0,15,26,.34),
+    0 0 12px rgba(103,225,255,.15);
+}
+.stat.is-banana strong{
+  color:#ffe991;
+  text-shadow:0 1px 0 #fff6c8,0 3px 0 rgba(83,57,0,.22),0 8px 18px rgba(68,42,0,.24);
+}
+.hud-meta{
+  gap:7px;
+  transform:translate(-50%,10px);
+}
+.hud-meta span,.hud-best,.landing-callout,.speed-up-callout,.countdown-control{
+  border:1px solid rgba(218,248,255,.48);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.10),transparent),
+    rgba(5,31,49,.66);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 8px 20px rgba(2,20,34,.17);
+  backdrop-filter:blur(14px) saturate(1.18);
+}
+.hud-best{
+  border:1px solid rgba(255,239,145,.76);
+  background:linear-gradient(180deg,#fff09b,#ffd55b);
+  box-shadow:inset 0 1px 0 #fff9d8,0 9px 22px rgba(87,58,0,.20);
+}
+.presentation-card{
+  border-radius:28px;
+  border:1px solid rgba(227,249,255,.72);
+  background:
+    radial-gradient(circle at 18% 0,rgba(255,255,255,.34),transparent 34%),
+    linear-gradient(155deg,rgba(250,254,255,.94),rgba(225,242,249,.88));
+  box-shadow:0 34px 100px rgba(1,19,31,.34),inset 0 1px 0 rgba(255,255,255,.92);
+  backdrop-filter:blur(22px) saturate(1.15);
+}
+.presentation-card h2{
+  letter-spacing:-.055em;
+  text-shadow:0 2px 0 rgba(255,255,255,.82),0 5px 12px rgba(25,72,98,.12);
+}
+.presentation-actions button,.ride-mode-card,.ride-mode-back{
+  border-radius:16px;
+}
+.presentation-actions button{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 8px 18px rgba(7,44,65,.12);
+}
+.presentation-actions .primary{
+  border:1px solid rgba(170,239,255,.68);
+  background:linear-gradient(180deg,#4bd3f4,#1ba6d2);
+  color:white;
+  text-shadow:0 1px 0 rgba(0,0,0,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.38),0 10px 22px rgba(16,125,165,.24);
+}
+.presentation-actions .secondary,.toggle-button{
+  background:linear-gradient(180deg,rgba(255,255,255,.90),rgba(216,236,245,.84));
+  border:1px solid rgba(72,139,168,.18);
+}
+.result-grid>div{
+  border-radius:18px;
+  border:1px solid rgba(103,169,195,.14);
+  background:linear-gradient(180deg,rgba(255,255,255,.76),rgba(214,237,246,.62));
+  box-shadow:inset 0 1px 0 white,0 8px 18px rgba(29,77,99,.07);
+}
+.run-countdown .countdown-number{
+  font-weight:1000;
+  -webkit-text-stroke:1px rgba(255,255,255,.36);
+  text-shadow:
+    0 3px 0 rgba(6,41,59,.25),
+    0 10px 0 rgba(5,28,44,.12),
+    0 18px 44px rgba(5,26,40,.48),
+    0 0 30px rgba(94,220,255,.30);
+}
+.run-countdown .countdown-number.is-go{
+  -webkit-text-stroke:1px rgba(255,249,210,.58);
+  text-shadow:0 3px 0 rgba(101,70,0,.18),0 12px 0 rgba(82,52,0,.10),0 22px 46px rgba(5,26,40,.56),0 0 44px rgba(255,225,85,.50);
+}
+.score-pop{
+  border-radius:15px;
+  background:linear-gradient(145deg,rgba(13,51,74,.80),rgba(4,29,46,.68));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 10px 26px rgba(3,24,39,.18);
+}
+@media (max-width:760px){
+  .hud{gap:6px;top:12px}
+  .stat{min-width:112px;padding:10px 11px 9px;border-radius:15px}
+  .stat strong{font-size:22px}
+}

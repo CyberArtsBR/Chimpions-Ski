@@ -163,6 +163,7 @@ function makeWideLog(){
     cap.rotation.z=Math.PI/2;cap.position.set(side*tuning.capOffset,.35,0);cap.castShadow=true;g.add(cap);
   }
   g.userData.kind='wideLog';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;
+  decorateCourseObject(g,'wideLog');
   return g;
 }
 function makeOil(){

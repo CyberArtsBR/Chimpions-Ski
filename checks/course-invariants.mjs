@@ -25,6 +25,9 @@ const hazardInfo={
 const isHazard=p=>!!hazardInfo[p.kind];
 
 assert(!FORMATION_TYPES.includes('ROW'),'ROW must not be selectable by procedural generation');
+assert(T.PLAYER_HALF_WIDTH>=13.5,'course width pass regressed');
+assert(T.COURSE_OBJECT_HALF_WIDTH<T.PLAYER_HALF_WIDTH,'course objects escaped player/flag corridor');
+assert(T.SIDE_HAZARD_ZONE_START>T.SAFE_ROUTE_HALF_WIDTH,'side hazard zone overlaps guaranteed safe-route bound');
 
 for(const [distance,speed] of [[0,T.BASE_SPEED],[900,T.BASE_SPEED+5],[1800,T.MAX_SPEED],[99999,99]]){
   const d=getCourseDifficulty(distance,speed);
@@ -34,7 +37,7 @@ for(const [distance,speed] of [[0,T.BASE_SPEED],[900,T.BASE_SPEED+5],[1800,T.MAX
 const seeds=[1,7,19,43,101,31337,0xabcdef,0x12345678,0xdeadbeef,0xc0ffee,0x5eed,0xdecafbad];
 const sectionsPerSeed=120;
 let totalSections=0,totalMeters=0,totalRamps=0;
-let minLeftEdgeThreats=Infinity,minRightEdgeThreats=Infinity;
+let minLeftEdgeThreats=Infinity,minRightEdgeThreats=Infinity,minSidePressureHazards=Infinity;
 let maxLeftDrySections=0,maxRightDrySections=0;
 let maxColumnStreak=0;
 const earlyHazards={tree:0,log:0,wideLog:0,oil:0,total:0};
@@ -45,7 +48,7 @@ for(const seed of seeds){
   let z=-12;
   let previousType='RECOVERY';
   let previousDecision=null;
-  let leftEdgeThreats=0,rightEdgeThreats=0,leftDry=0,rightDry=0;
+  let leftEdgeThreats=0,rightEdgeThreats=0,sidePressureHazards=0,leftDry=0,rightDry=0;
   const columnStreak=new Map();
 
   for(let i=0;i<sectionsPerSeed;i++){
@@ -73,10 +76,12 @@ for(const seed of seeds){
         if(hazard.kind in bucket)bucket[hazard.kind]++;
       }
     }
-    const leftThis=hazards.some(p=>p.x<=-9);
-    const rightThis=hazards.some(p=>p.x>=9);
-    if(leftThis){leftEdgeThreats+=hazards.filter(p=>p.x<=-9).length;leftDry=0;}else leftDry++;
-    if(rightThis){rightEdgeThreats+=hazards.filter(p=>p.x>=9).length;rightDry=0;}else rightDry++;
+    const edgeThreshold=T.SIDE_HAZARD_ZONE_START;
+    const leftThis=hazards.some(p=>p.x<=-edgeThreshold);
+    const rightThis=hazards.some(p=>p.x>=edgeThreshold);
+    if(leftThis){leftEdgeThreats+=hazards.filter(p=>p.x<=-edgeThreshold).length;leftDry=0;}else leftDry++;
+    if(rightThis){rightEdgeThreats+=hazards.filter(p=>p.x>=edgeThreshold).length;rightDry=0;}else rightDry++;
+    sidePressureHazards+=hazards.filter(p=>p.sidePressure).length;
     maxLeftDrySections=Math.max(maxLeftDrySections,leftDry);
     maxRightDrySections=Math.max(maxRightDrySections,rightDry);
 
@@ -87,6 +92,11 @@ for(const seed of seeds){
       assert.equal(p.section,section.type,'placement lost section metadata');
       assert.notEqual(p.formation,'ROW','straight ROW formation was generated');
       if(p.formation)assert(FORMATION_TYPES.includes(p.formation),'unknown formation metadata');
+      if(p.sidePressure){
+        assert(Math.abs(p.x)>=T.SIDE_HAZARD_ZONE_START-.12,'side-pressure hazard drifted into an inner lane');
+        const info=hazardInfo[p.kind];
+        assert(info&&Math.abs(p.x-p.safeX)>info.radiusX+.36,'side-pressure hazard invaded safe route');
+      }
     }
 
     // Route-decision metadata mirrors the exact safe-route constraints used by generation.
@@ -183,11 +193,13 @@ for(const seed of seeds){
 
   minLeftEdgeThreats=Math.min(minLeftEdgeThreats,leftEdgeThreats);
   minRightEdgeThreats=Math.min(minRightEdgeThreats,rightEdgeThreats);
+  minSidePressureHazards=Math.min(minSidePressureHazards,sidePressureHazards);
 }
 
 assert(totalMeters/seeds.length>10000,'stress run did not cover enough virtual distance per seed');
 assert(minLeftEdgeThreats>=20,'far-left edge was insufficiently threatened');
 assert(minRightEdgeThreats>=20,'far-right edge was insufficiently threatened');
+assert(minSidePressureHazards>=24,'dedicated extreme-side pressure was too sparse');
 assert(maxLeftDrySections<=16,'far-left edge stayed safe for too many consecutive sections');
 assert(maxRightDrySections<=16,'far-right edge stayed safe for too many consecutive sections');
 assert(maxColumnStreak<=4,'repeated vertical obstacle column persisted too long');
@@ -255,6 +267,7 @@ console.log(JSON.stringify({
   virtualKm:Number((totalMeters/1000).toFixed(1)),
   minLeftEdgeThreats,
   minRightEdgeThreats,
+  minSidePressureHazards,
   maxLeftDrySections,
   maxRightDrySections,
   maxColumnStreak,
