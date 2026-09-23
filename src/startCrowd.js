@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
 
-export const START_CROWD_COUNT=20;
-const SOURCE_MODEL_COUNT=4;
+export const START_CROWD_COUNT=50;
+const SOURCE_MODEL_COUNT=START_CROWD_COUNT;
 const CROWD_HEIGHT=1.72;
 const ROWS=[
-  {count:7,z:6.35,rise:.28},
-  {count:7,z:7.78,rise:.72},
-  {count:6,z:9.22,rise:1.16}
+  {count:10,z:6.05,rise:.22},
+  {count:10,z:7.42,rise:.61},
+  {count:10,z:8.79,rise:1.00},
+  {count:10,z:10.16,rise:1.39},
+  {count:10,z:11.53,rise:1.78}
 ];
 
 const ARM_ALIASES={
@@ -100,6 +101,22 @@ function poseCheeringArms(model){
   up.set(0,1,0).applyQuaternion(modelQ).normalize();
   forward.set(0,0,1).applyQuaternion(modelQ).normalize();
 
+  // Different Chimpion rigs do not all author LEFT/RIGHT on the same local X.
+  // Derive each arm's outward side from the untouched GLB rest pose, exactly
+  // like the playable rider, so cheering never folds hands across the chest.
+  const armOutwardSigns=new Map();
+  const sideProbe=new THREE.Vector3();
+  for(const [side,fallback] of [['left',-1],['right',1]]){
+    const upper=rig[side+'UpperArm']||rig[side+'Shoulder'];
+    if(!upper){
+      armOutwardSigns.set(side,fallback);
+      continue;
+    }
+    upper.getWorldPosition(sideProbe);
+    model.worldToLocal(sideProbe);
+    armOutwardSigns.set(side,Math.sign(sideProbe.x)||fallback);
+  }
+
   function aim(key,target){
     const bone=rig[key],restDirection=restDirections.get(key);
     if(!bone?.parent||!restDirection)return false;
@@ -116,16 +133,17 @@ function poseCheeringArms(model){
   }
 
   for(const [side,sideSign] of [['left',-1],['right',1]]){
+    const authoredOutSign=armOutwardSigns.get(side)??sideSign;
     const shoulder=rig[side+'Shoulder'];
     if(shoulder&&rest.has(shoulder))shoulder.quaternion.copy(rest.get(shoulder));
 
-    desired.copy(right).multiplyScalar(sideSign*.78)
+    desired.copy(right).multiplyScalar(authoredOutSign*.78)
       .addScaledVector(up,1.02)
       .addScaledVector(forward,.08)
       .normalize();
     aim(side+'UpperArm',desired);
 
-    desired.copy(right).multiplyScalar(sideSign*.62)
+    desired.copy(right).multiplyScalar(authoredOutSign*.62)
       .addScaledVector(up,1.08)
       .addScaledVector(forward,.06)
       .normalize();
@@ -139,9 +157,18 @@ function poseCheeringArms(model){
 }
 
 function chooseSources(entries=[]){
-  const usable=entries.filter(entry=>entry?.url);
+  const seen=new Set();
+  const usable=[];
+  for(const entry of entries){
+    const key=String(entry?.id||entry?.url||'');
+    if(!entry?.url||!key||seen.has(key))continue;
+    seen.add(key);
+    usable.push(entry);
+  }
   if(!usable.length)return [];
   const count=Math.min(SOURCE_MODEL_COUNT,usable.length);
+  // Spread the sample across the full collection while guaranteeing that every
+  // chosen crowd slot comes from a different catalog entry.
   return Array.from({length:count},(_,index)=>usable[Math.floor(index*usable.length/count)]);
 }
 
@@ -202,8 +229,8 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
 
     const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x7b5638,roughness:.86,metalness:.01});
     const railMaterial=new THREE.MeshStandardMaterial({color:0xdce8ec,roughness:.42,metalness:.58});
-    const seatGeometry=new THREE.BoxGeometry(17,.18,1.02);
-    const railGeometry=new THREE.BoxGeometry(17,.08,.08);
+    const seatGeometry=new THREE.BoxGeometry(18.4,.18,1.02);
+    const railGeometry=new THREE.BoxGeometry(18.4,.08,.08);
 
     let actorIndex=0;
     for(let rowIndex=0;rowIndex<ROWS.length;rowIndex++){
@@ -221,7 +248,7 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       rearRail.position.set(0,deckY+1.95,row.z+.55);
       root.add(rearRail);
 
-      for(const railX of [-8.35,8.35]){
+      for(const railX of [-9.05,9.05]){
         const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,2,.08),railMaterial);
         upright.position.set(railX,deckY+.96,row.z+.55);
         root.add(upright);
@@ -229,7 +256,8 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
 
       for(let column=0;column<row.count;column++){
         const t=row.count===1?.5:column/(row.count-1);
-        const x=THREE.MathUtils.lerp(-7.35,7.35,t)+(rowIndex===1?.16:rowIndex===2?-.11:0);
+        const rowOffset=rowIndex%2===0?-.10:.10;
+        const x=THREE.MathUtils.lerp(-8.05,8.05,t)+rowOffset;
         const actor=new THREE.Group();
         actor.name='start-spectator-'+actorIndex;
         const baseY=deckY+.10;
@@ -298,9 +326,10 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     }
 
     clearActorModels({dispose:true});
-    modelSourceCount=templates.length;
-    actors.forEach((actor,index)=>{
-      const instance=cloneSkeleton(templates[index%templates.length]);
+    const uniqueTemplates=templates.slice(0,actors.length);
+    modelSourceCount=uniqueTemplates.length;
+    uniqueTemplates.forEach((instance,index)=>{
+      const actor=actors[index];
       instance.name='crowd-glb-'+index;
       const scaleJitter=.94+(index%5)*.025;
       instance.scale.multiplyScalar(scaleJitter);
