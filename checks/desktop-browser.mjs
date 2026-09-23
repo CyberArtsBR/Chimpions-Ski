@@ -125,8 +125,12 @@ try{
   await page.keyboard.press('ArrowRight');
   assert.equal(await page.locator('.chimpion-card.is-menu-selected').count(),1,'Horizontal selector navigation lost visible state');
   // Keep CI focused on UI flow rather than arbitrary heavy GLB download cost.
-  const selectedChimpion=selector.locator('.chimpion-card.is-selected').first();
-  const runChimpion=(await selectedChimpion.count())?selectedChimpion:selector.locator('.chimpion-card:not([aria-disabled="true"])').first();
+  // The boot rider is deliberately The Drownsy when present; filter to that same
+  // lightweight model so ride confirmation does not trigger a second GLB load.
+  const search=selector.locator('#chimpion-search');
+  await search.fill('The Drownsy');
+  const runChimpion=selector.locator('.chimpion-card').filter({hasText:'The Drownsy'}).first();
+  await runChimpion.waitFor({state:'visible',timeout:5000});
   await runChimpion.focus();
   await page.keyboard.press('Enter');
 
