@@ -6,6 +6,7 @@ import {createDayCycle} from './dayCycle.js';
 import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
+import {createAmbientFlybys} from './ambientFlybys.js';
 import {
   COURSE_FLAG_X,
   MOUNTAIN_FIELD_LAYOUTS,
@@ -566,6 +567,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const sky=makeSky();
   scene.add(sky);
+  const ambientFlybys=createAmbientFlybys({scene,camera});
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
@@ -798,6 +800,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     surfaceDetail.reset();
     boundaryMarkers.reset();
     lateralMountains.reset();
+    ambientFlybys.reset();
     contactShadow.position.y=-100;
     contactShadow.material.opacity=.16;
     contactShadow.scale.set(1.45,.52,1);
@@ -808,6 +811,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     visualTravel+=worldSpeed*dt;
     sky.position.copy(camera.position);
     dayCycle.apply(runTime);
+    ambientFlybys.update(dt,{running,skyColor:scene.background});
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
     surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
@@ -879,6 +883,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   return {
     update,
     reset,
+    ambientFlybys,
     terrainMaterial:snowMaterials.terrain,
     courseMaterials:{
       trunk:_barkMaterial,
