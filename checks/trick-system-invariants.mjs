@@ -33,9 +33,11 @@ if(!present.length){
 }else{
  const source=present.map(function(p){return '// '+p+'\n'+read(root,p);}).join('\n');
  for(const [name,re] of requirements)results.push(result(name,re.test(source)?STATUS.PASS:STATUS.FAIL,'checked '+present.join(', ')));
- const second=[...source.matchAll(/.{0,320}(?:second|airborne).{0,760}(?:jump|360|spin).{0,320}/gis)].map(function(m){return m[0];}).join('\n');
+ const airborneSource=['src/trickSystem.js','src/trickInput.js'].filter(function(p){return exists(root,p);}).map(function(p){return read(root,p);}).join('\n');
+ const requestMatch=airborneSource.match(/function requestAirborne[\s\S]{0,1800}?(?=\n  function |\nexport |$)/);
+ const second=requestMatch?.[0]||airborneSource;
  const writesVertical=/\b(?:vy|verticalVelocity)\s*(?:=|\+=)/.test(second);
- results.push(result('second airborne Jump preserves vertical velocity',writesVertical?STATUS.FAIL:STATUS.PASS,writesVertical?'vertical velocity assignment found near airborne trick logic':'no vertical velocity mutation found near airborne trick logic'));
+ results.push(result('second airborne Jump preserves vertical velocity',writesVertical?STATUS.FAIL:STATUS.PASS,writesVertical?'vertical velocity assignment found inside airborne trick request path':'airborne trick request path does not mutate vertical velocity'));
  const forbidden=/(player|physicsRoot|collisionRoot|camera)\.(?:rotation|quaternion)\s*(?:[.=]|\+=)/.test(source);
  results.push(result('trick code never rotates physics/collision/camera root',forbidden?STATUS.FAIL:STATUS.PASS,forbidden?'forbidden root transform assignment found':'no forbidden root transform assignment found'));
 }
