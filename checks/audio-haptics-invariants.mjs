@@ -9,10 +9,10 @@ const audioSource=fs.readFileSync(new URL('../src/audio.js',import.meta.url),'ut
 assert(audioSource.includes("JUMP_MUSIC_URL='/audio/music-full.mp3'"),'Music URL must remain local');
 assert(!audioSource.includes('chimp-jump.onrender.com/audio/music-full.mp3'),'External Chimp Jump Render hotlink returned');
 assert.equal(DEFAULT_RIDE_MODE,'ski','Ski must remain the default ride mode');
-assert.equal(RIDE_AUDIO_PROFILES.ski.maxSpeedKmh,210,'Ski max normalization must be 210 km/h');
-assert.equal(RIDE_AUDIO_PROFILES.snowboard.maxSpeedKmh,230,'Snowboard max normalization must be 230 km/h');
-assert.equal(normalizeRideSpeed(210/3.6,'ski'),1);
-assert.equal(normalizeRideSpeed(230/3.6,'snowboard'),1);
+assert.equal(RIDE_AUDIO_PROFILES.ski.maxSpeedKmh,300,'Ski max normalization must be 300 km/h');
+assert.equal(RIDE_AUDIO_PROFILES.snowboard.maxSpeedKmh,300,'Snowboard max normalization must be 300 km/h');
+assert.equal(normalizeRideSpeed(300/3.6,'ski'),1);
+assert.equal(normalizeRideSpeed(300/3.6,'snowboard'),1);
 assert(audioSource.includes('function setRideMode(mode)'), 'Ride-mode API is missing');
 assert(audioSource.includes('function playTrickStart(type,eventId)'), 'Trick start API is missing');
 assert(audioSource.includes('function playTrickSuccess(type,combo=1,eventId)'), 'Trick success API is missing');
