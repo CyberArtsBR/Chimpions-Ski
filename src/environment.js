@@ -941,6 +941,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   function getQualityDiagnostics(){
     return {
       environmentQualityProfile:qualitySettings.profile,
+      environmentShadowMapSize:sun.shadow.mapSize.x,
+      decorativeShadowCasting:!!qualitySettings.decorativeShadowCasting,
       activeBanks:activeBankCount,
       activeWindBanks:activeWindBankCount,
       activeDecorativeTrees:activeTreeCount,
