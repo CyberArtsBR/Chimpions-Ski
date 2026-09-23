@@ -6,6 +6,7 @@ import {createDayCycle} from './dayCycle.js';
 import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
+import {createMountainBands} from './mountainBands.js';
 import {
   COURSE_FLAG_X,
   MOUNTAIN_FIELD_LAYOUTS,
@@ -413,17 +414,17 @@ function makeSky(){
       zenith:{value:new THREE.Color(0x4fa5d6)},
       high:{value:new THREE.Color(0x8bc9e6)},
       horizon:{value:new THREE.Color(0xe2f4fb)},
-      sunColor:{value:new THREE.Color(0xfff1c8)}
+      sunColor:{value:new THREE.Color(0xfff1c8)},
+      time:{value:0}
     },
     vertexShader:'varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.0); }',
-    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; void main(){ float y=clamp(vDir.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.44,.70,y)); c=mix(c,zenith,smoothstep(.68,1.0,y)); vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(normalize(vDir),sunDir),0.0),96.0); float haze=pow(1.0-abs(clamp(vDir.y,-1.0,1.0)),5.0); c+=sunColor*sun*.42+vec3(.08,.12,.16)*haze*.16; gl_FragColor=vec4(c,1.0); }'
+    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); gl_FragColor=vec4(c,1.0); }'
   });
-  const sky=new THREE.Mesh(new THREE.SphereGeometry(190,36,18),material);
+  const sky=new THREE.Mesh(new THREE.SphereGeometry(220,40,20),material);
   sky.frustumCulled=false;
   sky.renderOrder=-100;
   return sky;
 }
-
 function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=false){
   const positions=new Float32Array(count*3);
   const fall=new Float32Array(count);
@@ -559,7 +560,7 @@ export function decorateCourseObject(root,kind){
 
 export function createSkiEnvironment({scene,world,renderer,camera}){
   scene.background=new THREE.Color(0xd4edf8);
-  scene.fog=new THREE.Fog(0xd8eef7,44,202);
+  scene.fog=new THREE.Fog(0xd8eef7,48,268);
   renderer.toneMappingExposure=1.11;
 
   const snowMaterials=createSnowMaterials(renderer);
@@ -569,53 +570,11 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
-  const distantValley=createDistantValley(snowMaterials.bank);
-  scene.add(distantValley);
-  const lateralMountains=createLateralMountainRun({
-    segments:28,zNear:-24,zFar:-274,innerEdge:25.5,outerEdge:76,baseY:-5.0,
-    heightMin:12,heightMax:20,widthMin:10,widthMax:16,
-    color:0x496a78,snowColor:0xf4f9fb,seed:93.4,speedFactor:.94
-  });
-  atmosphere.add(
-    createSideRidgePair({
-      ...RIDGE_LAYOUTS.far,height:43,y:1.1,z:-190,
-      color:0xd3e2e8,opacity:.52,seed:1.2,segments:44
-    }),
-    createSideRidgePair({
-      ...RIDGE_LAYOUTS.midFar,height:39,y:-.3,z:-164,
-      color:0xbfd4dd,opacity:.62,seed:2.4,segments:40
-    }),
-    createSideRidgePair({
-      ...RIDGE_LAYOUTS.mid,height:33,y:-1.8,z:-132,
-      color:0x94b3c0,opacity:.74,seed:5.9,segments:36
-    }),
-    createSideRidgePair({
-      ...RIDGE_LAYOUTS.near,height:25,y:-3.1,z:-101,
-      color:0x6d91a1,opacity:.84,seed:9.1,segments:30
-    }),
-    createMountainField({
-      count:12,z:-166,...MOUNTAIN_FIELD_LAYOUTS.far,baseY:-5.6,
-      heightMin:30,heightMax:47,widthMin:18,widthMax:30,
-      color:0x9bb8c5,snowColor:0xe8f4f8,seed:12.4
-    }),
-    createMountainField({
-      count:11,z:-132,...MOUNTAIN_FIELD_LAYOUTS.midFar,baseY:-5.3,
-      heightMin:25,heightMax:38,widthMin:16,widthMax:25,
-      color:0x708f9d,snowColor:0xf2f9fc,seed:31.7
-    }),
-    createMountainField({
-      count:9,z:-99,...MOUNTAIN_FIELD_LAYOUTS.mid,baseY:-5.0,
-      heightMin:19,heightMax:30,widthMin:13,widthMax:21,
-      color:0x536f7b,snowColor:0xf7fcff,seed:47.2
-    }),
-    createMountainField({
-      count:7,z:-73,...MOUNTAIN_FIELD_LAYOUTS.near,baseY:-5.6,
-      heightMin:14,heightMax:22,widthMin:11,widthMax:17,
-      color:0x3f606f,snowColor:0xf8fcff,seed:64.8
-    }),
-    lateralMountains.group,
-    createDistantForest(52,81)
-  );
+  // Only moving side mountains are rendered. The former fixed ridge/field layers and
+  // distant cone forest were intentionally removed because they created a central
+  // wallpaper silhouette, mountain-on-mountain clipping and detached tree tops.
+  const mountainBands=createMountainBands();
+  atmosphere.add(mountainBands.group);
 
   const ambient=new THREE.HemisphereLight(0xe8f8ff,0x6d879a,1.36);
   scene.add(ambient);
@@ -786,6 +745,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   function reset(){
     time=0;
     visualTravel=0;
+    sky.material.uniforms.time.value=0;
     banks.entries.forEach((entry,index)=>resetBank(entry,index,true));
     windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
     trees.entries.forEach((entry,index)=>resetTree(entry,index));
@@ -797,7 +757,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     snowParticles.reset();
     surfaceDetail.reset();
     boundaryMarkers.reset();
-    lateralMountains.reset();
+    mountainBands.reset();
     contactShadow.position.y=-100;
     contactShadow.material.opacity=.16;
     contactShadow.scale.set(1.45,.52,1);
@@ -807,6 +767,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     time+=dt;
     visualTravel+=worldSpeed*dt;
     sky.position.copy(camera.position);
+    sky.material.uniforms.time.value=time;
     dayCycle.apply(runTime);
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
@@ -830,7 +791,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       if(e.z>24){resetTree(e,i);e.z=-238-wave(time*.9+i)*68;}
     }
     refreshTrees(time);
-    lateralMountains.update(dt,worldSpeed);
+    mountainBands.update(dt,worldSpeed);
 
     const speed01=getSpeedFeel(speed);
     for(const layer of snowLayers){
