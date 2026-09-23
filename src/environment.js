@@ -7,7 +7,6 @@ import {createDayCycle} from './dayCycle.js';
 import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
-import {createMountainBands} from './mountainBands.js';
 import {createAmbientFlybys} from './ambientFlybys.js';
 import {
   COURSE_FLAG_X,
@@ -424,7 +423,7 @@ function makeSky(){
       time:{value:0}
     },
     vertexShader:'varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.0); }',
-    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); gl_FragColor=vec4(c,1.0); }'
+    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } float ridgeBand(float a,float phase,float base,float amp){ return base+sin(a*4.2+phase)*amp+sin(a*9.7+phase*1.7)*amp*.42+sin(a*18.3-phase*.8)*amp*.20; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); float downhill=atan(d.x,-d.z); float sideMask=smoothstep(.18,.48,abs(downhill)); float farH=ridgeBand(downhill,.7,.035,.020); float nearH=ridgeBand(downhill,2.4,.012,.028); float lowerFade=smoothstep(-.13,-.035,d.y); float farMask=(1.0-smoothstep(farH,farH+.010,d.y))*lowerFade*sideMask; float nearMask=(1.0-smoothstep(nearH,nearH+.009,d.y))*lowerFade*sideMask; vec3 farRidge=mix(horizon,vec3(.42,.57,.63),.54); vec3 nearRidge=mix(horizon,vec3(.28,.42,.48),.66); c=mix(c,farRidge,farMask*.64); c=mix(c,nearRidge,nearMask*.58); gl_FragColor=vec4(c,1.0); }'
   });
   const sky=new THREE.Mesh(new THREE.SphereGeometry(220,40,20),material);
   sky.frustumCulled=false;
@@ -610,12 +609,9 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
-  // Only moving side mountains are rendered. The former fixed ridge/field layers and
-  // distant cone forest were intentionally removed because they created a central
-  // wallpaper silhouette, mountain-on-mountain clipping and detached tree tops.
-  const mountainBands=createMountainBands();
-  atmosphere.add(mountainBands.group);
-
+  // The distant alpine horizon now lives inside the existing sky shader.
+  // This keeps the visual depth while removing the streamed 3D mountain draw calls
+  // and all per-frame mountain instance updates from gameplay.
   const ambient=new THREE.HemisphereLight(0xe8f8ff,0x6d879a,1.36);
   scene.add(ambient);
 
@@ -668,7 +664,9 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
 
-  const treeCount=152;
+  // Decorative non-playable forest only: reduced by ~90% (152 -> 15).
+  // Gameplay obstacle trees are generated elsewhere and are intentionally unchanged.
+  const treeCount=15;
   const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.31,2.08,12),_barkMaterial,treeCount);
   const branchGeo=makeSerratedFirGeometry(1.06,1.18,12,5.3);
   const crownGeo=makeSerratedFirGeometry(.72,1.52,12,7.8);
@@ -803,7 +801,6 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     snowParticles.reset();
     surfaceDetail.reset();
     boundaryMarkers.reset();
-    mountainBands.reset();
     ambientFlybys.reset();
     contactShadow.position.y=-100;
     contactShadow.material.opacity=.16;
@@ -839,7 +836,6 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
       if(e.z>24){resetTree(e,i);e.z=-238-wave(time*.9+i)*68;}
     }
     refreshTrees(time);
-    mountainBands.update(dt,worldSpeed);
 
     const speed01=getSpeedFeel(speed);
     for(const layer of snowLayers){
