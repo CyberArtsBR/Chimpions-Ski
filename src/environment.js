@@ -610,7 +610,6 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const reflectionTarget=pmrem.fromScene(reflectionScene,.035);
   scene.environment=reflectionTarget.texture;
   scene.environmentIntensity=.72;
-  reflectionScene.dispose();
   pmrem.dispose();
 
   const snowMaterials=createSnowMaterials(renderer);
