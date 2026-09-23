@@ -21,6 +21,12 @@ export const SKI_TUNING=Object.freeze({
   MAX_SPEED:83.3333,
   SPEED_RESPONSE:2.2,
 
+  // Physics integration stays tightly substepped at all supported frame rates.
+  // Collision tests depend on this ceiling rather than generalized CCD.
+  PHYSICS_SUBSTEP_SECONDS:1/180,
+  COURSE_COLLISION_PADDING_X:.30,
+  COURSE_COLLISION_PADDING_Z:.20,
+
   // Once the rider reaches the 300 km/h cap, speed stops increasing but the
   // mountain keeps escalating. Hazard density ramps toward its maximum over
   // three minutes while the guaranteed navigable route remains unchanged.
@@ -53,6 +59,15 @@ export const SKI_TUNING=Object.freeze({
   PLAYER_BANK_RESPONSE:13,
   POSE_CARVE_BLEND:.20,
   POSE_REVERSAL_BLEND:.30,
+
+  // Boundary contact remains non-lethal: a small inward deflection and tiny
+  // speed scrub make fence contact legible without turning it into a death wall.
+  EDGE_CONTACT_COOLDOWN:.16,
+  EDGE_CONTACT_RELEASE_MARGIN:.22,
+  EDGE_CONTACT_DEFLECTION_MIN:.34,
+  EDGE_CONTACT_DEFLECTION_MAX:1.05,
+  EDGE_CONTACT_SPEED_SCRUB:.0035,
+  EDGE_CONTACT_REFERENCE_LATERAL_RATIO:.14,
 
   // Explicit airborne steering. Similar authority to ground without planted-ski friction.
   AIR_TURN_RESPONSE:25,

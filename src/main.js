@@ -659,7 +659,7 @@ function update(dt){
   let worldDistance=0;
   if(state.mode==='playing'){
     // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
-    const steps=Math.ceil(dt/(1/180));
+    const steps=Math.ceil(dt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS);
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
     physicsSubsteps++;
@@ -822,7 +822,7 @@ function update(dt){
         requiredClearance
       });
 
-      if(dz>radiusZ+.20||dx>radiusX+.30)continue;
+      if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
@@ -836,7 +836,7 @@ function update(dt){
       if(item.userData.kind==='ramp'){
         const approachDepth=player.position.z-item.position.z;
         const previousApproachDepth=player.position.z-previousItemZ;
-        const aligned=dx<=radiusX+.30;
+        const aligned=dx<=radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X;
 
         // Downhill travel is toward -Z. Engage on the uphill/low side (+Z end).
         // If the skier leaves the deck before the lip, cancel the engagement instead

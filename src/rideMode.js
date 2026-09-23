@@ -13,7 +13,13 @@ const PROFILES=Object.freeze({
     baseSpeed:SKI_TUNING.BASE_SPEED,
     tierSeconds:SKI_TUNING.SPEED_TIER_SECONDS,
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
-    maxSpeed:SKI_TUNING.MAX_SPEED
+    maxSpeed:SKI_TUNING.MAX_SPEED,
+    edgeResponseScale:1.05,
+    reversalResponseScale:1.08,
+    turnRateScale:.99,
+    lateralScale:.98,
+    lateralResponseScale:1.06,
+    landingReengageScale:.92
   }),
   [RIDE_MODE.SNOWBOARD]:Object.freeze({
     mode:RIDE_MODE.SNOWBOARD,
@@ -21,7 +27,13 @@ const PROFILES=Object.freeze({
     baseSpeed:180*KMH_TO_MPS,
     tierSeconds:30,
     tierIncrement:10*KMH_TO_MPS,
-    maxSpeed:SKI_TUNING.MAX_SPEED
+    maxSpeed:SKI_TUNING.MAX_SPEED,
+    edgeResponseScale:.95,
+    reversalResponseScale:.90,
+    turnRateScale:1.05,
+    lateralScale:1.05,
+    lateralResponseScale:.93,
+    landingReengageScale:1.07
   })
 });
 
