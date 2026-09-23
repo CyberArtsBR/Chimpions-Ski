@@ -150,56 +150,106 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   root.name='start-crowd';
   world?.add(root);
 
-  const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x7b5638,roughness:.86,metalness:.01});
-  const railMaterial=new THREE.MeshStandardMaterial({color:0xdce8ec,roughness:.42,metalness:.58});
-  const seatGeometry=new THREE.BoxGeometry(17,.18,1.02);
-  const railGeometry=new THREE.BoxGeometry(17,.08,.08);
   const actors=[];
   const loader=new GLTFLoader();
   let loadedCount=0;
   let posedCount=0;
   let modelSourceCount=0;
   let loadGeneration=0;
+  let clock=0;
+  let built=false;
+  let released=false;
+  let lastEntries=[];
 
-  let actorIndex=0;
-  for(let rowIndex=0;rowIndex<ROWS.length;rowIndex++){
-    const row=ROWS[rowIndex];
-    const rowGround=terrainHeight(0,row.z);
-    const deckY=rowGround+row.rise;
+  function collectMaterialTextures(material,textures){
+    if(!material)return;
+    for(const value of Object.values(material)){
+      if(value?.isTexture)textures.add(value);
+      else if(value?.value?.isTexture)textures.add(value.value);
+      else if(Array.isArray(value)){
+        for(const item of value)if(item?.isTexture)textures.add(item);
+      }
+    }
+  }
 
-    const seat=new THREE.Mesh(seatGeometry,bleacherMaterial);
-    seat.position.set(0,deckY,row.z);
-    seat.castShadow=false;
-    seat.receiveShadow=true;
-    root.add(seat);
+  function disposeNodeResources(nodes){
+    const geometries=new Set();
+    const materials=new Set();
+    const textures=new Set();
+    const skeletons=new Set();
 
-    const rearRail=new THREE.Mesh(railGeometry,railMaterial);
-    rearRail.position.set(0,deckY+1.95,row.z+.55);
-    root.add(rearRail);
-    for(const railX of [-8.35,8.35]){
-      const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,2,.08),railMaterial);
-      upright.position.set(railX,deckY+.96,row.z+.55);
-      root.add(upright);
+    for(const node of nodes){
+      node?.traverse?.(object=>{
+        if(object.geometry)geometries.add(object.geometry);
+        if(object.skeleton)skeletons.add(object.skeleton);
+        const mats=Array.isArray(object.material)?object.material:[object.material];
+        for(const material of mats){
+          if(!material)continue;
+          materials.add(material);
+          collectMaterialTextures(material,textures);
+        }
+      });
     }
 
-    for(let column=0;column<row.count;column++){
-      const t=row.count===1?.5:column/(row.count-1);
-      const x=THREE.MathUtils.lerp(-7.35,7.35,t)+(rowIndex===1?.16:rowIndex===2?-.11:0);
-      const actor=new THREE.Group();
-      actor.name='start-spectator-'+actorIndex;
-      const baseY=deckY+.10;
-      actor.position.set(x,baseY,row.z-.04);
+    for(const skeleton of skeletons)skeleton.dispose?.();
+    for(const texture of textures)texture.dispose?.();
+    for(const material of materials)material.dispose?.();
+    for(const geometry of geometries)geometry.dispose?.();
+  }
 
-      const energy=actorIndex%6===0?0:(.055+(actorIndex%5)*.027);
-      actor.userData.baseY=baseY;
-      actor.userData.jumpAmplitude=energy;
-      actor.userData.jumpHz=.52+(actorIndex%7)*.085;
-      actor.userData.phase=(actorIndex*.61803398875%1)*Math.PI*2;
-      actor.userData.sway=(actorIndex%2?-1:1)*(.010+(actorIndex%4)*.004);
-      actors.push(actor);
-      root.add(actor);
-      actorIndex++;
+  function buildStructure(){
+    if(built)return;
+
+    const bleacherMaterial=new THREE.MeshStandardMaterial({color:0x7b5638,roughness:.86,metalness:.01});
+    const railMaterial=new THREE.MeshStandardMaterial({color:0xdce8ec,roughness:.42,metalness:.58});
+    const seatGeometry=new THREE.BoxGeometry(17,.18,1.02);
+    const railGeometry=new THREE.BoxGeometry(17,.08,.08);
+
+    let actorIndex=0;
+    for(let rowIndex=0;rowIndex<ROWS.length;rowIndex++){
+      const row=ROWS[rowIndex];
+      const rowGround=terrainHeight(0,row.z);
+      const deckY=rowGround+row.rise;
+
+      const seat=new THREE.Mesh(seatGeometry,bleacherMaterial);
+      seat.position.set(0,deckY,row.z);
+      seat.castShadow=false;
+      seat.receiveShadow=true;
+      root.add(seat);
+
+      const rearRail=new THREE.Mesh(railGeometry,railMaterial);
+      rearRail.position.set(0,deckY+1.95,row.z+.55);
+      root.add(rearRail);
+
+      for(const railX of [-8.35,8.35]){
+        const upright=new THREE.Mesh(new THREE.BoxGeometry(.08,2,.08),railMaterial);
+        upright.position.set(railX,deckY+.96,row.z+.55);
+        root.add(upright);
+      }
+
+      for(let column=0;column<row.count;column++){
+        const t=row.count===1?.5:column/(row.count-1);
+        const x=THREE.MathUtils.lerp(-7.35,7.35,t)+(rowIndex===1?.16:rowIndex===2?-.11:0);
+        const actor=new THREE.Group();
+        actor.name='start-spectator-'+actorIndex;
+        const baseY=deckY+.10;
+        actor.position.set(x,baseY,row.z-.04);
+
+        const energy=actorIndex%6===0?0:(.055+(actorIndex%5)*.027);
+        actor.userData.baseY=baseY;
+        actor.userData.jumpAmplitude=energy;
+        actor.userData.jumpHz=.52+(actorIndex%7)*.085;
+        actor.userData.phase=(actorIndex*.61803398875%1)*Math.PI*2;
+        actor.userData.sway=(actorIndex%2?-1:1)*(.010+(actorIndex%4)*.004);
+        actors.push(actor);
+        root.add(actor);
+        actorIndex++;
+      }
     }
+
+    built=true;
+    released=false;
+    root.visible=true;
   }
 
   async function loadTemplate(entry){
@@ -218,7 +268,8 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     return model;
   }
 
-  function clearActorModels(){
+  function clearActorModels({dispose=true}={}){
+    if(dispose)disposeNodeResources(actors);
     for(const actor of actors)actor.clear();
     loadedCount=0;
     posedCount=0;
@@ -226,8 +277,11 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   }
 
   async function setSpectators(entries=[]){
+    lastEntries=Array.isArray(entries)?entries:lastEntries;
+    buildStructure();
+
     const generation=++loadGeneration;
-    const sources=chooseSources(entries);
+    const sources=chooseSources(lastEntries);
     let templates=[];
 
     if(sources.length){
@@ -238,9 +292,12 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       try{templates=[await loadTemplate({url:'models/default.glb'})];}
       catch(error){console.warn('Could not load 3D start crowd:',error);return 0;}
     }
-    if(generation!==loadGeneration)return loadedCount;
+    if(generation!==loadGeneration){
+      disposeNodeResources(templates);
+      return loadedCount;
+    }
 
-    clearActorModels();
+    clearActorModels({dispose:true});
     modelSourceCount=templates.length;
     actors.forEach((actor,index)=>{
       const instance=cloneSkeleton(templates[index%templates.length]);
@@ -252,11 +309,34 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
       loadedCount++;
     });
     root.updateMatrixWorld(true);
+    released=false;
+    root.visible=true;
     return loadedCount;
   }
 
-  let clock=0;
+  async function ensureLoaded(entries=lastEntries){
+    if(!released&&built&&loadedCount===START_CROWD_COUNT)return loadedCount;
+    return setSpectators(entries);
+  }
+
+  function release(){
+    if(released&&!built)return false;
+    loadGeneration++;
+    disposeNodeResources([root]);
+    root.clear();
+    actors.length=0;
+    loadedCount=0;
+    posedCount=0;
+    modelSourceCount=0;
+    built=false;
+    released=true;
+    root.visible=false;
+    root.position.z=0;
+    return true;
+  }
+
   function reset(){
+    buildStructure();
     root.position.z=0;
     root.visible=true;
     clock=0;
@@ -267,9 +347,23 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
   }
 
   function update(dt,{mode='menu',worldDistance=0}={}){
+    if(!built||released){
+      root.visible=false;
+      return;
+    }
+
     root.position.z+=Math.max(0,Number(worldDistance)||0);
+
+    // Once the start area is safely behind the camera, release every crowd GLB,
+    // skeleton, geometry, material, texture and bleacher resource from GPU memory.
+    if(mode==='playing'&&root.position.z>=30){
+      release();
+      return;
+    }
+
     root.visible=root.position.z<28;
     if(!root.visible)return;
+
     const cheering=mode==='countdown'||(mode==='playing'&&root.position.z<13);
     if(cheering)clock+=Math.max(0,Number(dt)||0);
     for(const actor of actors){
@@ -281,14 +375,19 @@ export function createStartCrowd({world,terrainHeight=()=>0}={}){
     }
   }
 
+  buildStructure();
+
   return {
     setSpectators,
+    ensureLoaded,
+    release,
     reset,
     update,
     get count(){return actors.length;},
     get loadedCount(){return loadedCount;},
     get posedCount(){return posedCount;},
     get modelSourceCount(){return modelSourceCount;},
-    get visible(){return root.visible;}
+    get visible(){return root.visible;},
+    get released(){return released;}
   };
 }

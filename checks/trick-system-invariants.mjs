@@ -39,6 +39,8 @@ if(!present.length){
  const exposesFrontFlip=/TRICK_TYPE\.FRONT[_ -]?FLIP|TRICK_TYPE\.FRONTFLIP/i.test(trickInputSource)
    ||/FRONT[_ -]?FLIP\s*:\s*['"]/i.test(trickSystemSource);
  results.push(result('front flip has no normal control mapping',exposesFrontFlip?STATUS.FAIL:STATUS.PASS,exposesFrontFlip?'front-flip executable mapping found':'no front-flip executable mapping found'));
+ const backflipUsesForwardSign=/BACKFLIP\?\s*-snapshot\.rotation/.test(trickSystemSource);
+ results.push(result('backflip rotates in the backward visual direction',backflipUsesForwardSign?STATUS.FAIL:STATUS.PASS,backflipUsesForwardSign?'legacy negative-X front-flip sign is still present':'backflip uses positive X-axis rotation'));
  const airborneSource=['src/trickSystem.js','src/trickInput.js'].filter(function(p){return exists(root,p);}).map(function(p){return read(root,p);}).join('\n');
  const requestMatch=airborneSource.match(/function requestAirborne[\s\S]{0,1800}?(?=\n  function |\nexport |$)/);
  const second=requestMatch?.[0]||airborneSource;
