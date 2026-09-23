@@ -678,3 +678,11 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
     animation:none!important;transition:none!important;scroll-behavior:auto!important;
   }
 }
+
+/* Local-only GLB import: same selector navigation surface, no remote upload. */
+.chimpion-card.is-upload-avatar{border-style:dashed;border-width:2px;background:linear-gradient(160deg,#f7fcff,#e7f7fd)}
+.chimpion-card.is-upload-avatar .local-upload-portrait{display:grid;place-items:center;background:linear-gradient(145deg,#dff4fb,#fff)}
+.chimpion-card.is-upload-avatar .portrait-fallback{font-size:46px;color:#168fbe}
+.selector-status{margin:0 0 10px;padding:8px 11px;border-radius:10px;background:#e2f5fb;color:#25617d;font-size:11px;font-weight:800}
+.selector-status.is-error{background:#ffe8e8;color:#9a3340}
+.selector-status[hidden]{display:none}
