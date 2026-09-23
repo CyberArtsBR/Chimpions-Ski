@@ -1,7 +1,7 @@
 name: Chimpions Ski desktop build and checks
 on:
   push:
-    branches: [main, feature/ski-production-crowd-pipeline]
+    branches: [main, integration/ski-definitive-super-enhancement-final]
   pull_request:
 permissions:
   contents: read
@@ -29,4 +29,5 @@ jobs:
             sleep 1
           done
           node checks/desktop-browser.mjs
+          npm run smoke:production
           CHIMPIONS_SKI_CROWD_RESTARTS=2 CHIMPIONS_SKI_CROWD_FULL_TIMEOUT_MS=60000 npm run benchmark:crowd
