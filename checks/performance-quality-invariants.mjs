@@ -50,12 +50,16 @@ assert.equal(snapshot.perfEnvironmentUpdateMs,2);
 
 const runner=readFileSync(new URL('../scripts/benchmark-ski-runtime.mjs',import.meta.url),'utf8');
 const core=readFileSync(new URL('../scripts/benchmark/core.mjs',import.meta.url),'utf8');
+const workflow=readFileSync(new URL('../.github/workflows/performance-quality-profiles.yml',import.meta.url),'utf8');
 assert((runner+core).includes('QUALITY_PROFILE'),'benchmark must support explicit quality profiles');
 assert(core.includes('longTasks'),'benchmark must capture long main-thread tasks');
 assert(core.includes('p50FrameMs'),'benchmark must expose p50 frame time');
 assert(core.includes('rendererPixelRatio'),'benchmark must sample effective renderer quality');
 assert(core.includes('activeSnowLayerParticles'),'benchmark must sample effective environment workload');
 assert(core.includes('perfCourseTraversalMs'),'benchmark must sample runtime hotspot telemetry');
+assert(!workflow.includes('$(run_preview'),'workflow must not start a long-lived preview inside command substitution');
+assert(workflow.includes('continue-on-error: true'),'benchmark profiles should preserve partial results');
+assert(workflow.includes('if: always()'),'benchmark artifacts must survive partial profile failures');
 
 console.log(JSON.stringify({
   check:'performance-quality-invariants',
