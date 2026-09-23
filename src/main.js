@@ -307,7 +307,7 @@ const scorePresentation=createScorePresentation({hud:document.querySelector('.hu
 const startScreen=createStartScreen({
   audio,
   onStart:()=>beginRun(),
-  assetUrl:'/start/chimpions-ski-start.webp'
+  assetUrl:'/start/chimpions-ski-start.jpg'
 });
 startScreen.setReady(false);
 ui.setAvatarLoading(true);

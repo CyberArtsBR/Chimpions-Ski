@@ -1,12 +1,12 @@
 const GAME_SELECTION_URL='https://chimp-jump.onrender.com/';
 
-export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-start.webp'}={}){
+export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-start.jpg'}={}){
   const root=document.createElement('section');
   root.className='start-screen is-loading';
   root.setAttribute('aria-label','Chimpions Ski start screen');
   root.innerHTML=`
     <div class="start-screen-stage">
-      <img class="start-screen-art" src="${assetUrl}" alt="Chimpions Ski snowy mountain start screen" draggable="false" />
+      <img class="start-screen-art" src="${assetUrl}" alt="Chimpions Ski snowy mountain start screen" width="1920" height="1080" decoding="async" fetchpriority="high" draggable="false" />
       <button class="start-screen-hit start-screen-play" type="button" aria-label="Start Game" disabled>
         <span class="sr-only">Start Game</span>
       </button>

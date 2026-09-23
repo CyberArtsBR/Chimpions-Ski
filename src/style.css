@@ -287,13 +287,15 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
 .start-screen.is-leaving{opacity:0;filter:brightness(.78);pointer-events:none}
 .start-screen-stage{
   position:relative;
-  width:min(100vw,calc(100vh * 1.7768331562));
-  height:min(100vh,calc(100vw / 1.7768331562));
-  aspect-ratio:1672/941;
+  width:min(100vw,calc(100vh * 1.7777777778));
+  height:min(100vh,calc(100vw / 1.7777777778));
+  aspect-ratio:16/9;
   flex:none;
+  overflow:hidden;
+  background:radial-gradient(circle at 50% 38%,#173d59 0,#0b2237 72%);
   box-shadow:0 0 80px rgba(0,16,32,.45);
 }
-.start-screen-art{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;pointer-events:none}
+.start-screen-art{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;object-position:center;pointer-events:none}
 .start-screen-hit{
   position:absolute;display:block;border:0;border-radius:12px;
   background:rgba(255,255,255,.008);cursor:pointer;
