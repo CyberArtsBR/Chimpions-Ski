@@ -22,7 +22,7 @@ export function createScorePresentation({hud=document.querySelector('.hud')}={})
   const scoreStat=document.createElement('div');
   scoreStat.className='stat is-score';
   scoreStat.setAttribute('aria-label','Score');
-  scoreStat.innerHTML='<small>SCORE</small><strong>0</strong>';
+  scoreStat.innerHTML='<small><svg class="hud-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 5 4 4-7 4 7 5-4-2 12H5Z M6 22h12"/></svg>SCORE</small><strong>0</strong>';
   hud?.append(scoreStat);
   const scoreValue=scoreStat.querySelector('strong');
 
@@ -106,22 +106,11 @@ export function createScorePresentation({hud=document.querySelector('.hud')}={})
     const label=String(trickEvent.label||(failed?'TRICK FAILED':trickEvent.phase==='start'?'AIR TIME':trickEvent.type||'TRICK'));
     pop.className='trick-pop';
     pop.textContent=success&&points?label+' +'+points:label;
-    Object.assign(pop.style,{
-      padding:'9px 16px',
-      borderRadius:'999px',
-      border:failed?'1px solid rgba(255,174,142,.74)':'1px solid rgba(210,247,255,.62)',
-      background:failed?'rgba(76,25,18,.82)':'rgba(4,30,48,.82)',
-      color:failed?'#ffd0ba':success?'#fff0a5':'#d4f7ff',
-      boxShadow:'0 10px 28px rgba(2,20,34,.24)',
-      textShadow:'0 2px 8px rgba(0,0,0,.46)',
-      backdropFilter:'blur(8px)',
-      fontSize:success?'19px':'12px',
-      fontWeight:'950',
-      letterSpacing:success?'.08em':'.14em',
-      whiteSpace:'nowrap'
-    });
+    pop.classList.toggle('is-success',success);
+    pop.classList.toggle('is-failed',failed);
     trickLayer.append(pop);
-    const animation=pop.animate?.([
+    const reduceMotion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const animation=reduceMotion?null:pop.animate?.([
       {opacity:0,transform:'translateY(10px) scale(.86)'},
       {opacity:1,transform:'translateY(0) scale(1.06)',offset:.20},
       {opacity:1,transform:'translateY(-6px) scale(1)',offset:.70},
