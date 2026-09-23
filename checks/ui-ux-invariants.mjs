@@ -54,6 +54,8 @@ const css=readFileSync(new URL('../src/style.css',import.meta.url),'utf8');
 const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 
 assert(ui.includes('data-menu-default="true">NO'),'leave confirmation NO is not marked as the safe default');
+assert(ui.includes("if(!results.hidden){showLeaveConfirm(giveUpResult);return true;}"),'results cancel/back does not route through safe leave confirmation');
+assert(!/setMode\('menu'\);\s*setTimeout\(/.test(ui),'menu focus is deferred and can restore to a hidden prior overlay');
 assert(ui.includes("byId('result-score')"),'results score payload is not rendered');
 assert(main.includes('score:state.score'),'main does not pass the existing score into results');
 assert(ui.includes('showTrickHint'),'contextual trick onboarding is missing');

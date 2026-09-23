@@ -316,9 +316,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     overlay.hidden=false;
     overlay.classList.remove('is-leaving');
     setMode('menu');
-    setTimeout(()=>{
-      if(!document.querySelector('.selector-dialog[open]'))menuFocus.open({root:overlay,defaultElement:startButton});
-    },0);
+    if(!document.querySelector('.selector-dialog[open]'))menuFocus.open({root:overlay,defaultElement:startButton});
   }
   function updateHud(values={}){
     const d=Math.max(0,Number(values.distance)||0);
@@ -416,6 +414,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   }
   function cancelActiveMenu(){
     if(!leaveConfirm.hidden){hideLeaveConfirm();return true;}
+    if(!results.hidden){showLeaveConfirm(giveUpResult);return true;}
     if(mode==='paused'){onResume?.();return true;}
     if(mode==='playing'){onPause?.();return true;}
     return false;
