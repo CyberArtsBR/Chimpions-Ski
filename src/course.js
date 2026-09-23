@@ -345,14 +345,17 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       :rand(T.COURSE_NORMAL_SPACING_MIN,T.COURSE_NORMAL_SPACING_MAX);
   }
 
-  function addSpecialHazard(placements,startZ,length,safeHint=0,chance=.64,progress=0){
+  function addSpecialHazard(placements,startZ,length,safeHint=0,chance=.64,progress=0,postMaxPressure=0){
     const p=clamp(progress,0,1);
-    const effectiveChance=clamp(chance+p*.14,0,.96);
+    const post=clamp(postMaxPressure,0,1);
+    const effectiveChance=clamp(chance+p*.14+post*.08,0,.98);
     if(random()>effectiveChance)return false;
     const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
     const roll=random();
-    const oilCut=lerp(.48,.53,p);
-    const wideCut=oilCut+lerp(.32,.29,p);
+    // Wide horizontal logs are a stronger part of the mix at every speed,
+    // then gain a little more weight during the post-300 pressure ramp.
+    const oilCut=lerp(.40,.46,p);
+    const wideCut=Math.min(.94,oilCut+lerp(.40,.44,clamp(p*.55+post*.45,0,1)));
     const kind=roll<oilCut?'oil':roll<wideCut?'wideLog':'log';
     const extra=kind==='wideLog'?2.0:kind==='oil'?.85:.25;
     const minGap=3.0+extra;
@@ -394,14 +397,17 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     length,
     safeHint=0,
     chance=T.SIDE_HAZARD_SECTION_CHANCE,
-    progress=0
+    progress=0,
+    postMaxPressure=0
   ){
     const p=clamp(progress,0,1);
-    const effectiveChance=clamp(chance+p*.10,0,.94);
+    const post=clamp(postMaxPressure,0,1);
+    const effectiveChance=clamp(chance+p*.10+post*.12,0,.97);
     if(random()>effectiveChance)return 0;
 
     const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-    const count=1+(random()<T.SIDE_HAZARD_SECOND_CHANCE+p*.10?1:0);
+    const secondChance=clamp(T.SIDE_HAZARD_SECOND_CHANCE+p*.10+post*.18,0,.72);
+    const count=1+(random()<secondChance?1:0);
     const minZ=startZ-length+12;
     const maxZ=startZ-12;
     let side=lastThreatSide===0?(random()<.5?-1:1):(random()<.72?-lastThreatSide:lastThreatSide);
@@ -444,6 +450,93 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         placed=true;
       }
     }
+    return added;
+  }
+
+  function addSparseGapPressure(placements,startZ,length,safeHint=0,postMaxPressure=0){
+    const pressure=clamp(postMaxPressure,0,1);
+    if(pressure<=0)return 0;
+
+    const chance=clamp(.38+pressure*.62,0,1);
+    if(random()>chance)return 0;
+
+    const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+    const maxExtra=Math.max(1,Math.floor(T.POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION||3));
+    const target=Math.min(
+      maxExtra,
+      pressure<.34?1:pressure<.68?2:3
+    );
+    const topZ=startZ-10;
+    const bottomZ=startZ-length+10;
+    const occupied=placements
+      .filter(p=>PHYSICAL_HAZARDS.has(p.kind)&&p.z<=topZ&&p.z>=bottomZ)
+      .map(p=>p.z)
+      .sort((a,b)=>b-a);
+    occupied.unshift(topZ);
+    occupied.push(bottomZ);
+
+    let added=0;
+    while(added<target){
+      let bestIndex=-1;
+      let bestGap=0;
+      for(let i=0;i<occupied.length-1;i++){
+        const gap=occupied[i]-occupied[i+1];
+        if(gap>bestGap){
+          bestGap=gap;
+          bestIndex=i;
+        }
+      }
+      if(bestIndex<0||bestGap<9.2)break;
+
+      const upper=occupied[bestIndex];
+      const lower=occupied[bestIndex+1];
+      const z=(upper+lower)*.5+rand(-Math.min(1.4,bestGap*.10),Math.min(1.4,bestGap*.10));
+
+      const roll=random();
+      const wideCut=.38+pressure*.18;
+      const oilCut=wideCut+.18;
+      const logCut=oilCut+.22;
+      const preferredKind=roll<wideCut?'wideLog':roll<oilCut?'oil':roll<logCut?'log':'rock';
+      const kindOrder=[preferredKind,'wideLog','log','oil','rock'].filter((kind,index,list)=>list.indexOf(kind)===index);
+      const preferredSide=(added+sectionIndex)%2===0?-1:1;
+      let placed=false;
+
+      for(const kind of kindOrder){
+        const limit=placementCenterLimit(kind);
+        const routeGap=collisionHalfWidth(kind)+(kind==='wideLog'?1.18:.86);
+        for(const side of [preferredSide,-preferredSide]){
+          const x=clamp(
+            safe+side*(routeGap+rand(.55,2.45)),
+            -limit,
+            limit
+          );
+          if(Math.abs(x-safe)<=routeGap)continue;
+          if(placements.some(p=>
+            PHYSICAL_HAZARDS.has(p.kind)&&
+            Math.abs(p.z-z)<6.2&&
+            Math.abs(p.x-x)<collisionHalfWidth(p.kind)+collisionHalfWidth(kind)+.55
+          ))continue;
+
+          placements.push(place(kind,x,z,safe,{
+            formation:'ISOLATED',
+            postMaxPressure:true,
+            densityBoost:pressure
+          }));
+          occupied.splice(bestIndex+1,0,z);
+          added++;
+          placed=true;
+          break;
+        }
+        if(placed)break;
+      }
+
+      if(!placed){
+        // Mark this gap as unavailable so another iteration tries a different
+        // empty patch instead of repeatedly probing the same geometry.
+        occupied.splice(bestIndex+1,0,(upper+lower)*.5);
+      }
+    }
+
     return added;
   }
 
@@ -562,10 +655,20 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
   }
 
-  function next({startZ,difficulty=0,speed}){
+  function next({startZ,difficulty=0,speed,postMaxTime=0}){
     const currentSpeed=effectiveSpeed(speed,difficulty);
     const type=chooseType(difficulty);
     const hazardProgress=clamp(difficulty*.55+getSpeedProgress(currentSpeed)*.45,0,1);
+    const elapsedPostMax=Math.max(0,Number(postMaxTime)||0);
+    const postMaxPressure=elapsedPostMax>0
+      ?clamp(
+        T.POST_MAX_HAZARD_START_PRESSURE+
+          (elapsedPostMax/Math.max(1,T.POST_MAX_HAZARD_RAMP_SECONDS))*
+          (1-T.POST_MAX_HAZARD_START_PRESSURE),
+        T.POST_MAX_HAZARD_START_PRESSURE,
+        1
+      )
+      :0;
     const placements=[];
     const phase=sectionIndex*.73;
     const sectionBand=pickBand();
@@ -580,8 +683,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['tree','rock'],hazardProgress,.85),intensity:.35});
         z-=spacing(false);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.82,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.82,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.70);
     }
 
@@ -596,8 +699,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,formation,z,safeX,{kinds:progressiveHazardKinds(i%2?['tree','rock']:['rock','tree'],hazardProgress,.85),intensity:.58});
         z-=spacing(false);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.74,hazardProgress);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.74,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.62);
     }
 
@@ -609,8 +712,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,i===0?'ISOLATED':chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['rock','tree'],hazardProgress,.75),intensity:.38});
         z-=spacing(false);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.58,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.58,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.64,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.94);
     }
 
@@ -624,8 +727,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['tree','tree','rock'],hazardProgress,1.10),intensity:.72});
         z-=spacing(true);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.88,hazardProgress);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.78,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.88,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.54);
     }
 
@@ -640,8 +743,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         addFormation(placements,chooseFormation(type),z,safeX,{kinds:progressiveHazardKinds(['rock','rock','tree'],hazardProgress,.70),intensity:.78});
         z-=spacing(true);
       }
-      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.72,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.86,hazardProgress);
+      addSpecialHazard(placements,startZ,length,safeRoute.previousSafeX,.72,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,safeRoute.previousSafeX,.86,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,safeRoute.previousSafeX,.58);
     }
 
@@ -728,10 +831,23 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const secondSafe=safeAt(z,currentSpeed,firstSafe,2.7);
       addFormation(placements,chooseFormation(type),z,secondSafe,{kinds:progressiveHazardKinds(['tree','rock'],hazardProgress,.65),intensity:.38});
 
-      addSpecialHazard(placements,startZ,length,secondSafe,.52,hazardProgress);
-      addSideHazardPressure(placements,startZ,length,secondSafe,.52,hazardProgress);
+      addSpecialHazard(placements,startZ,length,secondSafe,.52,hazardProgress,postMaxPressure);
+      addSideHazardPressure(placements,startZ,length,secondSafe,.52,hazardProgress,postMaxPressure);
       addBananaEvent(placements,startZ,length,secondSafe,.74);
       pendingLanding=null;
+    }
+
+    // Once 300 km/h has been reached, fill otherwise-empty longitudinal
+    // patches gradually. Jump sections keep their existing protected flight /
+    // landing envelopes and are intentionally excluded from this density pass.
+    if(type!=='RAMP'&&type!=='LOG JUMP'){
+      addSparseGapPressure(
+        placements,
+        startZ,
+        length,
+        safeRoute.previousSafeX,
+        postMaxPressure
+      );
     }
 
     pruneExcessiveOverlap(placements);
@@ -754,6 +870,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       length,
       speed:currentSpeed,
       hazardProgress,
+      postMaxPressure,
       pendingLanding:pendingLanding?{
         safeX:pendingLanding.safeX,
         touchdownSafeX:pendingLanding.touchdownSafeX,

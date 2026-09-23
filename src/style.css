@@ -492,6 +492,32 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
 }
 .presentation-actions button{
   box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 8px 18px rgba(7,44,65,.12);
+  position:relative;
+  transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease,filter .12s ease;
+}
+.presentation-actions button.is-controller-selected{
+  outline:4px solid #ffd95a;
+  outline-offset:4px;
+  transform:translateY(-2px) scale(1.035);
+  border-color:#6ee4ff;
+  filter:saturate(1.08) brightness(1.05);
+  box-shadow:
+    0 0 0 2px rgba(31,173,220,.72),
+    0 0 0 7px rgba(255,217,90,.20),
+    0 0 28px rgba(73,205,247,.42),
+    0 12px 28px rgba(5,45,69,.20),
+    inset 0 1px 0 rgba(255,255,255,.42);
+}
+.presentation-actions button.is-controller-selected::before{
+  content:"▶";
+  position:absolute;
+  left:-25px;
+  top:50%;
+  transform:translateY(-50%);
+  color:#ffd95a;
+  font-size:15px;
+  font-weight:1000;
+  text-shadow:0 2px 8px rgba(4,32,48,.45);
 }
 .presentation-actions .primary{
   border:1px solid rgba(170,239,255,.68);

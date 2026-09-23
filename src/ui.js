@@ -7,7 +7,7 @@ function buttonList(root){
   return Array.from(root.querySelectorAll('button:not([disabled]),[role="button"][tabindex]:not([aria-disabled="true"])')).filter(isVisible);
 }
 
-export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}){
+export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,onChoose}){
   const overlay=byId('overlay');
   const startButton=byId('start');
   const chooseButton=byId('choose');
@@ -84,6 +84,26 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
   let padButtons=[];
   let axisLatchX=0;
   let axisLatchY=0;
+  let controllerSelected=null;
+
+  function setControllerSelection(element){
+    const next=element?.matches?.('button:not([disabled])')?element:null;
+    if(controllerSelected===next)return;
+    controllerSelected?.classList.remove('is-controller-selected');
+    controllerSelected?.removeAttribute('data-controller-selected');
+    controllerSelected=next;
+    if(controllerSelected){
+      controllerSelected.classList.add('is-controller-selected');
+      controllerSelected.setAttribute('data-controller-selected','true');
+    }
+  }
+  function clearControllerSelection(root=null){
+    if(!controllerSelected)return;
+    if(root&&!root.contains(controllerSelected))return;
+    controllerSelected.classList.remove('is-controller-selected');
+    controllerSelected.removeAttribute('data-controller-selected');
+    controllerSelected=null;
+  }
 
   function setMode(next){
     mode=next;
@@ -211,9 +231,13 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     results.hidden=true;
     setMode('paused');
     syncAudioButtons();
-    setTimeout(()=>resumeButton?.focus(),0);
+    setTimeout(()=>{
+      resumeButton?.focus();
+      setControllerSelection(resumeButton);
+    },0);
   }
   function hidePause(){
+    clearControllerSelection(pause);
     pause.hidden=true;
     setMode('playing');
   }
@@ -229,13 +253,17 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       eyebrow.textContent=crashType?String(crashType).replace(/[-_]/g,' ').toUpperCase():'RUN COMPLETE';
       results.hidden=false;
       pause.hidden=true;
-      setTimeout(()=>restartResult?.focus(),0);
+      setTimeout(()=>{
+        restartResult?.focus();
+        setControllerSelection(restartResult);
+      },0);
     },delay);
   }
   function showMenu(){
     clearTimeout(resultTimer);
     resultTimer=0;
     cancelCountdown();
+    clearControllerSelection();
     results.hidden=true;
     pause.hidden=true;
     overlay.hidden=false;
@@ -314,13 +342,17 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     const current=buttons.indexOf(document.activeElement);
     const index=current<0?(direction>0?0:buttons.length-1):(current+direction+buttons.length)%buttons.length;
     buttons[index].focus();
+    setControllerSelection(buttons[index]);
     audio.play('menu',.18);
+    haptics?.menuMove?.();
   }
   function clickFocused(root){
     const buttons=buttonList(root);
     if(!buttons.length)return;
     const active=buttons.includes(document.activeElement)?document.activeElement:(root.querySelector('.primary:not([disabled])')||buttons[0]);
     active?.focus();
+    setControllerSelection(active);
+    haptics?.menuConfirm?.();
     active?.click();
   }
   function updateController(pad,selector){
@@ -361,6 +393,13 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
     }else{axisLatchX=0;axisLatchY=0;}
     padButtons=buttons.slice();
+  }
+
+  for(const root of [pause,results]){
+    root.addEventListener('focusin',event=>{
+      const button=event.target.closest?.('button:not([disabled])');
+      if(button&&root.contains(button))setControllerSelection(button);
+    });
   }
 
   startButton?.addEventListener('click',()=>onStart?.());

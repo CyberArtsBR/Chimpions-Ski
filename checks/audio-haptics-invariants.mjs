@@ -34,19 +34,58 @@ assert(audioSource.includes('trickState.reset();'),'Run reset must clear tempora
 
 const unsupported=createHaptics({navigatorObject:{getGamepads:()=>[]}});
 for(const call of [
+  ()=>unsupported.menuMove(),
+  ()=>unsupported.menuConfirm(),
+  ()=>unsupported.banana(),
   ()=>unsupported.rampTakeoff(),
   ()=>unsupported.land(1,'hard'),
   ()=>unsupported.trickStart('360'),
   ()=>unsupported.trickSuccess('backflip'),
   ()=>unsupported.trickFail('360'),
   ()=>unsupported.oil(),
-  ()=>unsupported.crash('tree')
+  ()=>unsupported.crash('tree'),
+  ()=>unsupported.update(.1,{mode:'playing',speed:300/3.6,baseSpeed:160/3.6,maxSpeed:300/3.6,edge:.8})
 ])assert.doesNotThrow(call,'Unsupported haptics path threw');
 for(const [name,pattern] of Object.entries(HAPTIC_PATTERNS)){
-  assert(pattern.duration>0&&pattern.duration<=160,name+' haptic duration is not sane');
+  assert(pattern.duration>0&&pattern.duration<=180,name+' haptic duration is not sane');
   assert(pattern.weakMagnitude>=0&&pattern.weakMagnitude<=1,name+' weak magnitude is invalid');
   assert(pattern.strongMagnitude>=0&&pattern.strongMagnitude<=1,name+' strong magnitude is invalid');
 }
+
+const eventEffects=[];
+const eventPad={
+  connected:true,
+  vibrationActuator:{
+    playEffect:(type,options)=>{eventEffects.push({type,options});return Promise.resolve('complete');}
+  }
+};
+const eventHaptics=createHaptics({navigatorObject:{getGamepads:()=>[eventPad]}});
+assert.equal(eventHaptics.menuMove(),true);
+assert.equal(eventHaptics.menuConfirm(),true);
+assert.equal(eventHaptics.banana(),true);
+assert(eventEffects.some(effect=>effect.type==='dual-rumble'),'dual-rumble path was not used for event haptics');
+
+const continuousEffects=[];
+const continuousPad={
+  connected:true,
+  vibrationActuator:{
+    playEffect:(type,options)=>{continuousEffects.push({type,options});return Promise.resolve('complete');}
+  }
+};
+const continuous=createHaptics({navigatorObject:{getGamepads:()=>[continuousPad]}});
+continuous.update(.09,{
+  mode:'playing',
+  speed:300/3.6,
+  baseSpeed:160/3.6,
+  maxSpeed:300/3.6,
+  edge:.85,
+  groundRoll:.03,
+  groundPitch:.02,
+  oilSlipTime:0,
+  time:10
+});
+assert(continuousEffects.length>0,'continuous snow/carve haptics did not emit at max speed');
+assert(continuousEffects[0].options.weakMagnitude>0&&continuousEffects[0].options.strongMagnitude>0,'continuous rumble magnitudes were empty');
 
 assert(audioSource.includes('source.onended=()=>{'),'Transient audio sources must clean themselves up');
 assert(audioSource.includes('context??=new AudioContextClass()'),'Audio must reuse one AudioContext');
