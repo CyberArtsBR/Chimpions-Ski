@@ -614,8 +614,8 @@ function crash(kind='tree',item=null){
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
   ui.setMode('crashed');
-  feedback.onCrash();
-  if(!isTrickCrash)haptics.crash(state.crashType);
+  const crashFeedback=feedback.onCrash({kind:state.crashType,velocity:state.crashVelocity});
+  if(!isTrickCrash)haptics.crash(state.crashType,crashFeedback?.hapticStrength);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
   ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
 }
@@ -742,10 +742,10 @@ function update(dt){
       if(trickLanding.interrupted){
         resolveTrickAudio(scoreTrickFailure(state,trickLanding));
         crash('trick');
-      }else{
-        haptics.land(Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
+      }else if(state.mode==='playing'){
+        const landingFeedback=feedback.onLanding(landing,{jumpSource:landingSource,verticalVelocity:landing.impact});
+        haptics.land(landingFeedback?.hapticStrength??Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
       }
-      if(state.mode==='playing')feedback.onLanding(landing);
     }
 
     player.position.x=state.x;player.position.y=state.y;
@@ -956,7 +956,16 @@ function update(dt){
   audio.update({
     mode:state.mode,
     speed:state.speed,
+    baseSpeed:state.baseSpeed,
+    maxSpeed:state.maxSpeed,
     carve:state.edge,
+    edge:state.edge,
+    carveLoad:state.carveLoad,
+    lateralVelocity:state.vx,
+    grounded:state.grounded,
+    groundRoll:state.groundRoll,
+    groundPitch:state.groundPitch,
+    landingGripLoss:state.landingGripLoss,
     air:state.air,
     intensity:state.difficulty,
     jumpSource:state.jumpSource,
