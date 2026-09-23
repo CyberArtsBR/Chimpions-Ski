@@ -15,7 +15,7 @@ function setInstance(mesh,index,x,y,z,sx,sy,sz,ry=0){
   mesh.setMatrixAt(index,_dummy.matrix);
 }
 
-export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
+export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detailLevel=1}){
   const moundCount=54;
   const ridgeCount=72;
   const moundGeometry=new THREE.SphereGeometry(1,12,7);
@@ -48,6 +48,17 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
   const moundData=new Array(moundCount);
   const ridgeData=new Array(ridgeCount);
   let travel=0;
+  let currentDetailLevel=1;
+
+  function setDetailLevel(value=1){
+    const numeric=Number(value);
+    currentDetailLevel=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1);
+    mounds.count=Math.round(moundCount*currentDetailLevel);
+    ridges.count=Math.round(ridgeCount*currentDetailLevel);
+    mounds.visible=mounds.count>0;
+    ridges.visible=ridges.count>0;
+    return currentDetailLevel;
+  }
 
   function resetEntry(entry,i,isRidge){
     entry.x=(hash(i*3.17+4)-.5)*(isRidge?23:25);
@@ -111,5 +122,6 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
   }
 
   reset();
-  return {update,reset,moundMaterial,ridgeMaterial};
+  setDetailLevel(detailLevel);
+  return {update,reset,moundMaterial,ridgeMaterial,setDetailLevel,getDetailLevel:()=>currentDetailLevel};
 }

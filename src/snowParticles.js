@@ -101,12 +101,21 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
   pool.alphaAttribute.needsUpdate=true;
 }
 
-export function createSnowParticles({scene}){
+export function createSnowParticles({scene,densityMultiplier=1}={}){
   const mist=createPool(scene,460,.072,.50);
   const chunks=createPool(scene,210,.165,.72);
   let emitCarry=0;
   let bumpCarry=0;
   let lastLanding=0;
+  let currentDensity=1;
+
+  function setDensityMultiplier(value=1){
+    const numeric=Number(value);
+    currentDensity=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1.5);
+    return currentDensity;
+  }
+  const scaledCount=value=>Math.max(0,Math.round(value*currentDensity));
+  setDensityMultiplier(densityMultiplier);
 
   function spray(dt,x,y,z,speed,edge,air,landingPulse,running){
     if(!running)return;
@@ -114,7 +123,7 @@ export function createSnowParticles({scene}){
 
     if(!air){
       const carve=Math.abs(edge);
-      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28));
+      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28))*currentDensity;
       const total=Math.min(22,Math.floor(emitCarry));
       if(total>0){
         const inside=carve>.20?Math.max(1,Math.floor(total*(.14+carve*.08))):0;
@@ -129,17 +138,19 @@ export function createSnowParticles({scene}){
         emitCarry-=total;
       }
 
-      bumpCarry+=dt*(.55+speed01*.95);
+      bumpCarry+=dt*(.55+speed01*.95)*currentDensity;
       if(bumpCarry>=1){
         bumpCarry-=1;
-        const bumpCount=2+Math.floor(speed01*3);
-        emit(chunks,x,y,z,edge,speed,bumpCount,false,false);
+        const bumpCount=scaledCount(2+Math.floor(speed01*3));
+        if(bumpCount>0)emit(chunks,x,y,z,edge,speed,bumpCount,false,false);
       }
     }
 
     if(landingPulse>.18&&lastLanding<=.18){
-      emit(mist,x,y,z,edge,speed,54+Math.floor(speed01*28),true,false);
-      emit(chunks,x,y,z,edge,speed,22+Math.floor(speed01*15),true,false);
+      const landingMist=scaledCount(54+Math.floor(speed01*28));
+      const landingChunks=scaledCount(22+Math.floor(speed01*15));
+      if(landingMist>0)emit(mist,x,y,z,edge,speed,landingMist,true,false);
+      if(landingChunks>0)emit(chunks,x,y,z,edge,speed,landingChunks,true,false);
     }
     lastLanding=landingPulse;
   }
@@ -200,5 +211,5 @@ export function createSnowParticles({scene}){
     chunks.material.uniforms.uColor.value.copy(color);
   }
 
-  return {spray,update,reset,setTint};
+  return {spray,update,reset,setTint,setDensityMultiplier,getDensityMultiplier:()=>currentDensity};
 }

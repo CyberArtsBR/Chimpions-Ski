@@ -8,6 +8,7 @@ import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 import {createAmbientFlybys} from './ambientFlybys.js';
+import {normalizeEnvironmentQuality} from './environmentQuality.js';
 import {
   COURSE_FLAG_X,
   MOUNTAIN_FIELD_LAYOUTS,
@@ -26,15 +27,12 @@ const _snowCapGeometry=new THREE.ConeGeometry(.64,.92,12);
 const _branchTierGeometry=makeSerratedFirGeometry(1.06,.94,12,1.7);
 const _branchInnerGeometry=makeSerratedFirGeometry(.82,.82,12,3.4);
 const _branchSnowGeometry=new THREE.ConeGeometry(1.00,.17,12);
-const _trunkCollarGeometry=new THREE.CylinderGeometry(.34,.39,.18,12);
 const _rockAccentGeometry=new THREE.DodecahedronGeometry(.43,0);
 const _stripeGeometry=new THREE.BoxGeometry(.68,.045,.13);
 const _lipGeometry=new THREE.BoxGeometry(2.34,.07,.14);
 const _entryGeometry=new THREE.BoxGeometry(2.32,.055,.12);
 const _rampRailGeometry=new THREE.BoxGeometry(.085,.10,2.98);
 const _logSnowGeometry=new THREE.CylinderGeometry(.075,.11,1,12,1,false);
-const _logBandGeometry=new THREE.TorusGeometry(.265,.020,6,16);
-const _logKnotGeometry=new THREE.CylinderGeometry(.070,.090,.028,12);
 const _rampBankGeometry=new THREE.SphereGeometry(1,12,7);
 const _snowDetailMaterial=new THREE.MeshPhysicalMaterial({color:0xfbfeff,roughness:.74,metalness:0,clearcoat:.14,clearcoatRoughness:.56,sheen:.28,sheenColor:new THREE.Color(0xd7f2ff),sheenRoughness:.68});
 const _jumpMaterial=new THREE.MeshStandardMaterial({color:0x42bddf,roughness:.39,metalness:.02,emissive:0x063947,emissiveIntensity:.21});
@@ -420,10 +418,11 @@ function makeSky(){
       high:{value:new THREE.Color(0x8bc9e6)},
       horizon:{value:new THREE.Color(0xe2f4fb)},
       sunColor:{value:new THREE.Color(0xfff1c8)},
-      time:{value:0}
+      time:{value:0},
+      sceneryDetail:{value:1}
     },
     vertexShader:'varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.0); }',
-    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } float ridgeBand(float a,float phase,float base,float amp){ return base+sin(a*4.2+phase)*amp+sin(a*9.7+phase*1.7)*amp*.42+sin(a*18.3-phase*.8)*amp*.20; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); float downhill=atan(d.x,-d.z); float sideMask=smoothstep(.18,.48,abs(downhill)); float farH=ridgeBand(downhill,.7,.035,.020); float nearH=ridgeBand(downhill,2.4,.012,.028); float lowerFade=smoothstep(-.13,-.035,d.y); float farMask=(1.0-smoothstep(farH,farH+.010,d.y))*lowerFade*sideMask; float nearMask=(1.0-smoothstep(nearH,nearH+.009,d.y))*lowerFade*sideMask; vec3 farRidge=mix(horizon,vec3(.42,.57,.63),.54); vec3 nearRidge=mix(horizon,vec3(.28,.42,.48),.66); c=mix(c,farRidge,farMask*.64); c=mix(c,nearRidge,nearMask*.58); gl_FragColor=vec4(c,1.0); }'
+    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; uniform float sceneryDetail; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } float ridgeBand(float a,float phase,float base,float amp){ return base+sin(a*4.2+phase)*amp+sin(a*9.7+phase*1.7)*amp*.42+sin(a*18.3-phase*.8)*amp*.20; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); float downhill=atan(d.x,-d.z); float sideMask=smoothstep(.18,.48,abs(downhill)); float farH=ridgeBand(downhill,.7,.035,.020); float nearH=ridgeBand(downhill,2.4,.012,.028); float lowerFade=smoothstep(-.13,-.035,d.y); float farMask=(1.0-smoothstep(farH,farH+.010,d.y))*lowerFade*sideMask; float nearMask=(1.0-smoothstep(nearH,nearH+.009,d.y))*lowerFade*sideMask; vec3 farRidge=mix(horizon,vec3(.42,.57,.63),.54); vec3 nearRidge=mix(horizon,vec3(.28,.42,.48),.66); c=mix(c,farRidge,farMask*.64*sceneryDetail); c=mix(c,nearRidge,nearMask*.58*sceneryDetail); gl_FragColor=vec4(c,1.0); }'
   });
   const sky=new THREE.Mesh(new THREE.SphereGeometry(220,40,20),material);
   sky.frustumCulled=false;
@@ -461,9 +460,9 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
 
 function makeContactShadow(scene){
   const material=new THREE.MeshBasicMaterial({
-    color:0x456b7f,
+    color:0x385f76,
     transparent:true,
-    opacity:.16,
+    opacity:.18,
     depthWrite:false
   });
   const shadow=new THREE.Mesh(new THREE.CircleGeometry(.62,28),material);
@@ -479,77 +478,93 @@ export function decorateCourseObject(root,kind){
   root.userData.environmentDecorated=true;
 
   if(kind==='tree'){
-    const collar=new THREE.Mesh(_trunkCollarGeometry,_barkDarkMaterial);
-    collar.position.y=.16;
-    collar.scale.set(1,.78,1);
-    collar.castShadow=true;
-    root.add(collar);
+    const meshes=root.children.filter(child=>child?.isMesh);
+    const trunk=meshes[0];
+    if(trunk){
+      trunk.material=_barkMaterial;
+      trunk.castShadow=true;
+      trunk.receiveShadow=true;
+    }
 
-    for(const [y,s,ry,rz] of [[1.10,1.18,.10,.035],[1.62,1.08,-.14,-.028],[2.12,.94,.17,.022],[2.68,.74,-.11,-.018]]){
-      const tier=new THREE.Mesh(_branchTierGeometry,ry>0?_pineMaterial2:_pineMaterial);
-      tier.position.set(ry*.22,y,ry*.10);
-      tier.rotation.set(0,ry,rz);
-      tier.scale.set(s,1,s*.92);
-      tier.castShadow=true;
-      root.add(tier);
-    }
-    for(const [y,s,ry] of [[1.38,.86,-.19],[2.35,.67,.22]]){
-      const inner=new THREE.Mesh(_branchInnerGeometry,_pineMaterial);
-      inner.position.set(-ry*.24,y,ry*.16);
-      inner.rotation.y=ry;
-      inner.scale.set(s,1,s*.88);
-      inner.castShadow=true;
-      root.add(inner);
-    }
-    for(const [y,s,ry] of [[1.45,1.08,.08],[2.05,.92,-.10],[2.67,.70,.13]]){
+    const foliage=meshes.slice(1,4);
+    const specs=[
+      {geometry:_branchTierGeometry,material:_pineMaterial2,y:1.28,sx:1.14,sy:1.66,sz:1.05,ry:.08,rz:.025},
+      {geometry:_branchInnerGeometry,material:_pineMaterial,y:2.05,sx:1.18,sy:1.56,sz:1.10,ry:-.12,rz:-.020},
+      {geometry:_branchTierGeometry,material:_pineMaterial2,y:2.78,sx:.82,sy:1.36,sz:.76,ry:.15,rz:.018}
+    ];
+    foliage.forEach((mesh,index)=>{
+      const spec=specs[index];
+      if(!spec)return;
+      const previous=mesh.geometry;
+      mesh.geometry=spec.geometry;
+      if(previous&&previous!==spec.geometry)previous.dispose?.();
+      mesh.material=spec.material;
+      mesh.position.set(index===1?-.035:.025,spec.y,index===1?.025:-.015);
+      mesh.rotation.set(0,spec.ry,spec.rz);
+      mesh.scale.set(spec.sx,spec.sy,spec.sz);
+      mesh.castShadow=true;
+      mesh.receiveShadow=true;
+    });
+
+    for(const [y,s,ry] of [[1.72,1.05,.08],[2.42,.80,-.10]]){
       const shelf=new THREE.Mesh(_branchSnowGeometry,_snowDetailMaterial);
-      shelf.position.set(ry*.12,y,ry*.07);
+      shelf.position.set(ry*.10,y,ry*.05);
       shelf.rotation.y=ry;
-      shelf.scale.set(s,.92,s*.92);
-      shelf.castShadow=true;
+      shelf.scale.set(s,.82,s*.92);
+      shelf.castShadow=false;
+      shelf.receiveShadow=true;
       root.add(shelf);
     }
     const cap=new THREE.Mesh(_snowCapGeometry,_snowDetailMaterial);
-    cap.position.set(.025,3.28,-.015);
+    cap.position.set(.025,3.27,-.015);
     cap.rotation.z=.018;
-    cap.scale.set(.60,.62,.58);
-    cap.castShadow=true;
+    cap.scale.set(.58,.60,.56);
+    cap.castShadow=false;
+    cap.receiveShadow=true;
     root.add(cap);
+    root.userData.visualPrototype='serrated-fir-v2';
   }else if(kind==='rock'){
     const accent=new THREE.Mesh(_rockAccentGeometry,_rockAccentMaterial);
     accent.position.set(.12,.33,-.08);
     accent.scale.set(.78,.48,.72);
     accent.rotation.set(.18,.42,-.08);
+    accent.castShadow=false;
+    accent.receiveShadow=true;
     root.add(accent);
 
-    root.rotation.y=(wave(root.id*.71)-.5)*.68;
-    root.scale.x*=.88+wave(root.id*.37)*.25;
-    root.scale.z*=.90+wave(root.id*.51)*.18;
+    root.rotation.y=(wave(root.id*.71)-.5)*.52;
+    root.scale.x*=.92+wave(root.id*.37)*.16;
+    root.scale.z*=.93+wave(root.id*.51)*.13;
+    root.userData.visualPrototype='faceted-rock-v2';
   }else if(kind==='ramp'){
     const deck=root.children[0];
-    if(deck?.isMesh)deck.material=_jumpMaterial;
-    if(deck){
-      for(const z of [.80,.16,-.48]){
-        const left=new THREE.Mesh(_stripeGeometry,_jumpStripeMaterial);
-        const right=new THREE.Mesh(_stripeGeometry,_jumpStripeMaterial);
-        left.position.set(-.22,.148,z);
-        right.position.set(.22,.148,z);
-        left.rotation.y=.62;
-        right.rotation.y=-.62;
-        deck.add(left,right);
+    if(deck?.isMesh){
+      deck.material=_jumpMaterial;
+      deck.receiveShadow=true;
+      for(const [index,z] of [.80,.16,-.48].entries()){
+        const stripe=new THREE.Mesh(_stripeGeometry,_jumpStripeMaterial);
+        stripe.position.set(0,.148,z);
+        stripe.rotation.y=index%2===0?.055:-.055;
+        stripe.scale.set(2.06,1,1);
+        stripe.castShadow=false;
+        deck.add(stripe);
       }
 
       const entry=new THREE.Mesh(_entryGeometry,_jumpEntryMaterial);
       entry.position.set(0,.145,1.43);
+      entry.castShadow=false;
       deck.add(entry);
 
       const lip=new THREE.Mesh(_lipGeometry,_jumpStripeMaterial);
       lip.position.set(0,.165,-1.47);
+      lip.castShadow=false;
       deck.add(lip);
 
       for(const side of [-1,1]){
         const rail=new THREE.Mesh(_rampRailGeometry,_jumpSideMaterial);
         rail.position.set(side*1.15,.05,0);
+        rail.castShadow=false;
+        rail.receiveShadow=true;
         deck.add(rail);
       }
     }
@@ -558,9 +573,11 @@ export function decorateCourseObject(root,kind){
       const bank=new THREE.Mesh(_rampBankGeometry,_snowDetailMaterial);
       bank.position.set(side*1.32,.00,.12);
       bank.scale.set(.35,.17,1.62);
-      bank.castShadow=true;
+      bank.castShadow=false;
+      bank.receiveShadow=true;
       root.add(bank);
     }
+    root.userData.visualPrototype='readable-ramp-v2';
   }else if(kind==='log'||kind==='wideLog'){
     const wide=kind==='wideLog';
     if(!wide){
@@ -568,40 +585,22 @@ export function decorateCourseObject(root,kind){
       snow.position.set(0,.545,-.015);
       snow.rotation.z=Math.PI/2;
       snow.scale.set(1.05,2.58,2.30);
-      snow.castShadow=true;
+      snow.castShadow=false;
+      snow.receiveShadow=true;
       root.add(snow);
     }
-
-    const bandXs=wide?[-2.18,0,2.18]:[-.92,.92];
-    for(const x of bandXs){
-      const band=new THREE.Mesh(_logBandGeometry,_barkDarkMaterial);
-      band.rotation.y=Math.PI/2;
-      band.position.set(x,wide?.35:.28,0);
-      band.scale.setScalar(wide?1.30:1);
-      band.castShadow=true;
-      root.add(band);
-    }
-
-    const knotSpecs=wide?[[-1.25,.41,.30],[1.34,.40,.30]]:[[-.42,.33,.235],[.58,.31,.24]];
-    for(const [x,y,z] of knotSpecs){
-      const knot=new THREE.Mesh(_logKnotGeometry,_logEndMaterial);
-      knot.position.set(x,y,z);
-      knot.rotation.x=Math.PI/2;
-      knot.rotation.z=(wave(root.id+x*2.7)-.5)*.45;
-      knot.scale.set(1.05,1,wide?1.20:1);
-      knot.castShadow=true;
-      root.add(knot);
-    }
+    root.userData.visualPrototype=wide?'wide-log-v2':'log-v2';
   }
   return root;
 }
 
-export function createSkiEnvironment({scene,world,renderer,camera}){
+export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
+  let environmentQuality=normalizeEnvironmentQuality(quality);
   scene.background=new THREE.Color(0xd4edf8);
   scene.fog=new THREE.Fog(0xd8eef7,48,268);
   renderer.toneMappingExposure=1.11;
 
-  const snowMaterials=createSnowMaterials(renderer);
+  const snowMaterials=createSnowMaterials(renderer,{detailLevel:environmentQuality.snowDetailLevel});
 
   const sky=makeSky();
   scene.add(sky);
@@ -683,7 +682,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const snowShelfMid=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
   const snowShelfUpper=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
   const capMesh=new THREE.InstancedMesh(new THREE.ConeGeometry(.62,.86,12),_snowDetailMaterial,treeCount);
-  for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfMid,snowShelfUpper,capMesh]){
+  const decorativeTreeMeshes=[trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfMid,snowShelfUpper,capMesh];
+  for(const mesh of decorativeTreeMeshes){
     mesh.castShadow=true;
     mesh.receiveShadow=true;
     mesh.frustumCulled=false;
@@ -727,13 +727,45 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     makeSnowLayer(310,.050,.52,25,-31,11,.42,true)
   ];
   for(const layer of snowLayers)scene.add(layer.points);
-  const snowParticles=createSnowParticles({scene});
-  const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank});
-  const boundaryMarkers=createBoundaryMarkers({world,terrainHeight,limit:COURSE_FLAG_X,countPerSide:40,spacing:7.2});
+  const snowParticles=createSnowParticles({scene,densityMultiplier:environmentQuality.particleDensityMultiplier});
+  const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank,detailLevel:environmentQuality.snowDetailLevel});
+  const boundaryMarkers=createBoundaryMarkers({
+    world,terrainHeight,limit:COURSE_FLAG_X,countPerSide:40,spacing:7.2,
+    woodTexture:_barkTexture,
+    decorativeShadows:environmentQuality.decorativeShadows
+  });
   const contactShadow=makeContactShadow(scene);
   const dayCycle=createDayCycle({
     scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
   });
+
+  function setQualityProfile(overrides={}){
+    environmentQuality=normalizeEnvironmentQuality({...environmentQuality,...(overrides||{})});
+    const treeRenderCount=Math.round(treeCount*environmentQuality.decorativeDensity);
+    for(const mesh of decorativeTreeMeshes){
+      mesh.count=treeRenderCount;
+      mesh.castShadow=environmentQuality.decorativeShadows;
+    }
+    bankMesh.castShadow=environmentQuality.decorativeShadows;
+
+    const layerDensity=Math.min(1,environmentQuality.particleDensityMultiplier);
+    for(const layer of snowLayers){
+      const drawCount=Math.round(layer.count*layerDensity);
+      layer.geometry.setDrawRange(0,drawCount);
+      layer.points.visible=drawCount>0;
+    }
+
+    snowParticles.setDensityMultiplier(environmentQuality.particleDensityMultiplier);
+    surfaceDetail.setDetailLevel(environmentQuality.snowDetailLevel);
+    snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
+    boundaryMarkers.setDecorativeShadows(environmentQuality.decorativeShadows);
+    sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
+    return {...environmentQuality};
+  }
+  function getQualityProfile(){
+    return {...environmentQuality};
+  }
+  setQualityProfile();
 
   let visualTravel=0;
   function refreshBanks(group){
@@ -803,7 +835,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     boundaryMarkers.reset();
     ambientFlybys.reset();
     contactShadow.position.y=-100;
-    contactShadow.material.opacity=.16;
+    contactShadow.material.opacity=.18;
     contactShadow.scale.set(1.45,.52,1);
     dayCycle.apply(0);
   }
@@ -876,7 +908,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
     contactShadow.position.set(playerX,Math.max(.006,groundY-.108),playerZ+.02);
     const groundAlpha=air?0:THREE.MathUtils.clamp(1-landingPulse*.12,.72,1);
-    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.19*groundAlpha,1-Math.pow(1-(air?.22:.38),dt*60));
+    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.21*groundAlpha,1-Math.pow(1-(air?.22:.38),dt*60));
     const contactScale=1+landingPulse*.12;
     contactShadow.scale.set(1.42*contactScale,.5*contactScale,1);
   }
@@ -885,6 +917,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     update,
     reset,
     ambientFlybys,
+    setQualityProfile,
+    getQualityProfile,
     terrainMaterial:snowMaterials.terrain,
     courseMaterials:{
       trunk:_barkMaterial,
