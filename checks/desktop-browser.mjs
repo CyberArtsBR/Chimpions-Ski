@@ -116,6 +116,9 @@ try{
   }
   await page.setViewportSize({width:1440,height:900});
 
+  // Reuse the already-loaded boot rider so selector QA is deterministic and network-light.
+  await selector.locator('#chimpion-search').fill('The Drownsy');
+  await page.waitForFunction(()=>document.querySelectorAll('.chimpion-card').length>0);
   await page.keyboard.press('ArrowDown');
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('chimpion-card'));
   assert.equal(await page.locator('.chimpion-card.is-menu-selected').count(),1,'Keyboard focus did not share the selector visual state');
