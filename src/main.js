@@ -302,7 +302,7 @@ const startCrowd=createStartCrowd({
   terrainHeight,
   // CI/browser smoke tests validate flow with a tiny crowd; production keeps
   // the full 50 unique Chimpion start line enforced by START_CROWD_COUNT.
-  maxSpectators:smokeTestMode?4:quality.getSettings().crowdMaxSpectators
+  maxSpectators:smokeTestMode?4:undefined
 });
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
