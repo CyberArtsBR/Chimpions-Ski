@@ -96,9 +96,6 @@ const oilMat=new THREE.MeshStandardMaterial({
 const oilSheenMat=new THREE.MeshBasicMaterial({
   color:0x39496f,transparent:true,opacity:.30,depthWrite:false
 });
-const wideLogSnowMat=new THREE.MeshStandardMaterial({
-  color:0xf1f8fb,roughness:.94
-});
 
 const tiles=[];
 for(let i=0;i<9;i++){
@@ -161,8 +158,6 @@ function makeWideLog(){
   const g=new THREE.Group();
   const log=new THREE.Mesh(new THREE.CylinderGeometry(.30,.35,tuning.length,14),logMat);
   log.rotation.z=Math.PI/2;log.position.y=.35;log.castShadow=log.receiveShadow=true;g.add(log);
-  const snow=new THREE.Mesh(new THREE.BoxGeometry(tuning.snowLength,.08,.34),wideLogSnowMat);
-  snow.position.set(0,.64,-.03);snow.rotation.z=.012;snow.castShadow=true;g.add(snow);
   for(const side of [-1,1]){
     const cap=new THREE.Mesh(new THREE.CylinderGeometry(.23,.23,.18,14),logEndMat);
     cap.rotation.z=Math.PI/2;cap.position.set(side*tuning.capOffset,.35,0);cap.castShadow=true;g.add(cap);

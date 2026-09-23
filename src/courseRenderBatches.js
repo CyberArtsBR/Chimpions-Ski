@@ -81,7 +81,8 @@ export function createCourseRenderBatches({
   for(const kind of BATCHED_COURSE_KINDS){
     const prototype=prototypes[kind];
     if(!prototype)throw new Error('Missing course batch prototype for '+kind);
-    kinds[kind]=collectComponents(world,kind,prototype,capacity);
+    const variants=(prototype.userData.visualVariants||[prototype]).map(visual=>collectComponents(world,kind,visual,capacity));
+    kinds[kind]={variants,metadata:copyGameplayMetadata(prototype,kind),count:0};
     kindCounts[kind]=0;
   }
 
@@ -96,7 +97,7 @@ export function createCourseRenderBatches({
     const item={
       position:new THREE.Vector3(),
       visible:false,
-      userData:{...info.metadata,batchSerial:id}
+      userData:{...info.metadata,batchSerial:id,visualVariant:Math.floor(hash01(id*4.73)*info.variants.length)}
     };
 
     if(kind==='rock'){
@@ -104,7 +105,7 @@ export function createCourseRenderBatches({
       item.userData.visualScaleX=.92+hash01(id*2.37)*.16;
       item.userData.visualScaleZ=.93+hash01(id*3.11)*.14;
     }else{
-      item.userData.visualYaw=0;
+      item.userData.visualYaw=kind==='tree'?hash01(id*2.17)*Math.PI*2:0;
       item.userData.visualScaleX=1;
       item.userData.visualScaleZ=1;
     }
@@ -124,7 +125,10 @@ export function createCourseRenderBatches({
   function sync(course,force=false){
     if(!dirty&&!force)return lastDiagnostics;
 
-    for(const kind of BATCHED_COURSE_KINDS)kinds[kind].count=0;
+    for(const kind of BATCHED_COURSE_KINDS){
+      kinds[kind].count=0;
+      for(const variant of kinds[kind].variants)variant.count=0;
+    }
     let activeLogical=0;
     let renderedInstances=0;
     let overflow=0;
@@ -137,22 +141,24 @@ export function createCourseRenderBatches({
       activeLogical++;
       if(item.position.z<renderMinZ||item.position.z>renderMaxZ)continue;
 
-      const index=info.count++;
-      if(index>=capacity){
+      const logicalIndex=info.count++;
+      if(logicalIndex>=capacity){
         overflow++;
         continue;
       }
 
+      const variant=info.variants[item.userData.visualVariant||0];
+      const index=variant.count++;
       _extraYaw.setFromAxisAngle(_yAxis,item.userData.visualYaw||0);
-      _composedQuaternion.copy(info.baseQuaternion).multiply(_extraYaw);
+      _composedQuaternion.copy(variant.baseQuaternion).multiply(_extraYaw);
       _composedScale.set(
-        info.baseScale.x*(item.userData.visualScaleX||1),
-        info.baseScale.y,
-        info.baseScale.z*(item.userData.visualScaleZ||1)
+        variant.baseScale.x*(item.userData.visualScaleX||1),
+        variant.baseScale.y,
+        variant.baseScale.z*(item.userData.visualScaleZ||1)
       );
       _rootMatrix.compose(item.position,_composedQuaternion,_composedScale);
 
-      for(const component of info.components){
+      for(const component of variant.components){
         _instanceMatrix.multiplyMatrices(_rootMatrix,component.relative);
         component.mesh.setMatrixAt(index,_instanceMatrix);
       }
@@ -165,12 +171,14 @@ export function createCourseRenderBatches({
       const info=kinds[kind];
       const drawCount=Math.min(info.count,capacity);
       kindCounts[kind]=drawCount;
-      for(const component of info.components){
-        component.mesh.count=drawCount;
-        component.mesh.instanceMatrix.needsUpdate=true;
+      for(const variant of info.variants){
+        for(const component of variant.components){
+          component.mesh.count=variant.count;
+          component.mesh.instanceMatrix.needsUpdate=true;
+        }
+        if(variant.count>0)batchDrawCalls+=variant.components.length;
+        legacyDrawCalls+=variant.count*variant.components.length;
       }
-      if(drawCount>0)batchDrawCalls+=info.components.length;
-      legacyDrawCalls+=info.count*info.components.length;
     }
 
     lastDiagnostics.activeLogical=activeLogical;
@@ -188,7 +196,7 @@ export function createCourseRenderBatches({
 
   function getComponentCounts(){
     const result={};
-    for(const kind of BATCHED_COURSE_KINDS)result[kind]=kinds[kind].components.length;
+    for(const kind of BATCHED_COURSE_KINDS)result[kind]=kinds[kind].variants[0].components.length;
     return result;
   }
 

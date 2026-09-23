@@ -18,7 +18,7 @@ function configureTexture(texture,renderer,repeatX,repeatY,color=false){
 }
 
 function makeSnowTextures(renderer){
-  const size=256;
+  const size=512;
   const albedoData=new Uint8Array(size*size*4);
   const microData=new Uint8Array(size*size*4);
   const normalData=new Uint8Array(size*size*4);
@@ -28,16 +28,13 @@ function makeSnowTextures(renderer){
   for(let y=0;y<size;y++){
     for(let x=0;x<size;x++){
       const i=(y*size+x)*4;
-      const broad=
-        Math.sin(x*.095+y*.024)*.58+
-        Math.sin(x*.028-y*.073+1.9)*.32+
-        Math.sin((x+y)*.019+4.2)*.22;
-      const wind=
-        Math.sin(x*.18+y*.036+Math.sin(y*.04)*1.3)*.72+
-        Math.sin(x*.36+y*.058+2.4)*.28;
-      const drift=Math.sin(y*.041+Math.sin(x*.024)*1.7);
-      const ripples=Math.sin(x*.52+y*.082+Math.sin(y*.021)*2.2)*.20;
-      const crust=Math.sin(x*.016-y*.021+1.1)*.28+Math.sin((x-y)*.031)*.18;
+      const u=x/size*Math.PI*2,v=y/size*Math.PI*2;
+      // Integer periods make every generated channel seamless, including derivatives.
+      const broad=Math.sin(u*2+v)*.58+Math.sin(u-v*3+1.9)*.32+Math.sin(u+v+4.2)*.22;
+      const wind=Math.sin(u*7+v+Math.sin(v*2)*1.3)*.72+Math.sin(u*15+v*2+2.4)*.28;
+      const drift=Math.sin(v*2+Math.sin(u)*1.7);
+      const ripples=Math.sin(u*29+v*4+Math.sin(v)*2.2)*.20;
+      const crust=Math.sin(u-v+1.1)*.28+Math.sin(u-v*2)*.18;
       const grain=(hash2(x,y)-.5);
       const sparkle=hash2(x*2.37+17,y*2.11+31)>.990?1:0;
       const icy=hash2(x*1.73+7,y*1.91+13)>.985?1:0;
@@ -95,27 +92,27 @@ function makeSnowTextures(renderer){
   const albedo=configureTexture(
     new THREE.DataTexture(albedoData,size,size,THREE.RGBAFormat),
     renderer,
-    7.2,
-    10.8,
+    8,
+    12,
     true
   );
   const micro=configureTexture(
     new THREE.DataTexture(microData,size,size,THREE.RGBAFormat),
     renderer,
-    8.4,
-    12.2
+    11,
+    17
   );
   const normal=configureTexture(
     new THREE.DataTexture(normalData,size,size,THREE.RGBAFormat),
     renderer,
-    9.2,
-    13.4
+    13,
+    19
   );
   const roughness=configureTexture(
     new THREE.DataTexture(roughnessData,size,size,THREE.RGBAFormat),
     renderer,
-    6.7,
-    10.1
+    7,
+    11
   );
   return {albedo,micro,normal,roughness};
 }
@@ -125,16 +122,16 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
   const terrain=new THREE.MeshPhysicalMaterial({
     color:0xf2f9fd,
     map:textures.albedo,
-    roughness:.70,
+    roughness:.86,
     roughnessMap:textures.roughness,
     metalness:0,
     normalMap:textures.normal,
     normalScale:new THREE.Vector2(.50,.76),
     bumpMap:textures.micro,
     bumpScale:.033,
-    clearcoat:.18,
+    clearcoat:.07,
     clearcoatRoughness:.52,
-    sheen:.30,
+    sheen:.42,
     sheenColor:new THREE.Color(0xc9ecff),
     sheenRoughness:.66
   });
@@ -161,14 +158,54 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     bumpScale:.015
   });
 
+  const snowTravel={value:0},snowDetail={value:detailLevel};
+  terrain.onBeforeCompile=shader=>{
+    shader.uniforms.snowTravel=snowTravel;shader.uniforms.snowDetail=snowDetail;
+    shader.vertexShader='varying vec3 vSnowWorld;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
+      vSnowWorld=(modelMatrix*vec4(transformed,1.0)).xyz;
+    `);
+    shader.fragmentShader=`
+      varying vec3 vSnowWorld;
+      uniform float snowTravel,snowDetail;
+      float snowHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+      float snowNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(snowHash(i),snowHash(i+vec2(1,0)),f.x),mix(snowHash(i+vec2(0,1)),snowHash(i+vec2(1,1)),f.x),f.y);}
+    `+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
+      vec2 snowP=vec2(vSnowWorld.x,vSnowWorld.z-snowTravel);
+      float snowMacro=snowNoise(snowP*.055)*.67+snowNoise(snowP*.143+17.0)*.33;
+      float snowPacked=1.0-smoothstep(7.0,13.0,abs(snowP.x));
+      float snowMeso=snowNoise(snowP*vec2(.48,.16));
+      float snowPhase=snowP.x*68.0+sin(snowP.y*.16)*.7+snowMeso*1.3;
+      float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
+      float grooming=sin(snowPhase)*snowAA*snowPacked*.012*snowDetail;
+      vec3 snowCold=mix(vec3(.77,.88,.99),vec3(1.0),smoothstep(.15,.85,snowMacro));
+      diffuseColor.rgb*=snowCold*(.97+snowMeso*.035+grooming);
+    `);
+    shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
+      roughnessFactor=clamp(roughnessFactor+snowMeso*.13-snowPacked*.055,.57,.96);
+    `);
+    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+      float crystalDistance=1.0-smoothstep(8.0,28.0,length(vViewPosition));
+      vec2 crystalGrid=snowP*84.0;
+      float crystalAA=1.0-smoothstep(.4,1.5,max(fwidth(crystalGrid.x),fwidth(crystalGrid.y)));
+      float crystal=pow(max(0.0,snowHash(floor(crystalGrid))-.965)/.035,5.0);
+      float glint=pow(max(0.0,dot(normal,normalize(vViewPosition))),18.0);
+      outgoingLight+=vec3(.72,.85,1.0)*crystal*glint*crystalDistance*crystalAA*.18*snowDetail;
+      #include <opaque_fragment>
+    `);
+  };
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v1';
+
   let currentDetailLevel=1;
   function setDetailLevel(value=1){
     const numeric=Number(value);
     currentDetailLevel=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1);
     const t=currentDetailLevel;
+    snowDetail.value=t;
     terrain.normalScale.set(.16+.34*t,.24+.52*t);
     terrain.bumpScale=.008+.025*t;
-    terrain.clearcoat=.10+.08*t;
+    terrain.clearcoat=.025+.045*t;
     terrain.clearcoatRoughness=.60-.08*t;
     bank.normalScale.set(.10+.18*t,.16+.26*t);
     bank.bumpScale=.005+.014*t;
@@ -184,6 +221,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     texture:textures.albedo,
     textures,
     setDetailLevel,
+    setTravel:value=>{snowTravel.value=Number.isFinite(value)?value:0;},
     getDetailLevel:()=>currentDetailLevel
   };
 }

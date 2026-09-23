@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import {makeSerratedFirGeometry,makeBarkTexture} from './alpineArt.js';
+import {makeBarkTexture} from './alpineArt.js';
+import {applyPremiumObstacle,getPremiumObstacleLibrary} from './premiumObstacles.js';
+import {createAlpineSky} from './alpineSky.js';
+import {createAlpineLandscape} from './alpineLandscape.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
 import {terrainHeight} from './terrainContact.js';
@@ -9,44 +12,24 @@ import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 import {createAmbientFlybys} from './ambientFlybys.js';
 import {normalizeEnvironmentQuality} from './environmentQuality.js';
-import {
-  COURSE_FLAG_X,
-  MOUNTAIN_FIELD_LAYOUTS,
-  RIDGE_LAYOUTS,
-  SCENERY_SIDE_MIN_CENTER_X,
-  mountainCenterForSide,
-  mountainVisualHalfWidth,
-  sideForIndex
-} from './environmentCorridor.js';
+import {COURSE_FLAG_X,SCENERY_SIDE_MIN_CENTER_X,sideForIndex} from './environmentCorridor.js';
 
 // clearHorizon contract: mountains stay on left/right sides outside the central exclusion corridor; recycled scenery preserves side assignment.
 
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
-const _snowCapGeometry=new THREE.ConeGeometry(.64,.92,12);
-const _branchTierGeometry=makeSerratedFirGeometry(1.06,.94,12,1.7);
-const _branchInnerGeometry=makeSerratedFirGeometry(.82,.82,12,3.4);
-const _branchSnowGeometry=new THREE.ConeGeometry(1.00,.17,12);
-const _rockAccentGeometry=new THREE.DodecahedronGeometry(.43,0);
 const _stripeGeometry=new THREE.BoxGeometry(.68,.045,.13);
 const _lipGeometry=new THREE.BoxGeometry(2.34,.07,.14);
 const _entryGeometry=new THREE.BoxGeometry(2.32,.055,.12);
 const _rampRailGeometry=new THREE.BoxGeometry(.085,.10,2.98);
-const _logSnowGeometry=new THREE.CylinderGeometry(.075,.11,1,12,1,false);
-const _rampBankGeometry=new THREE.SphereGeometry(1,12,7);
-const _snowDetailMaterial=new THREE.MeshPhysicalMaterial({color:0xfbfeff,roughness:.74,metalness:0,clearcoat:.14,clearcoatRoughness:.56,sheen:.28,sheenColor:new THREE.Color(0xd7f2ff),sheenRoughness:.68});
 const _jumpMaterial=new THREE.MeshStandardMaterial({color:0x42bddf,roughness:.39,metalness:.02,emissive:0x063947,emissiveIntensity:.21});
 const _jumpStripeMaterial=new THREE.MeshStandardMaterial({color:0xffd943,roughness:.32,emissive:0x754000,emissiveIntensity:.48});
 const _jumpEntryMaterial=new THREE.MeshStandardMaterial({color:0xe9fbff,roughness:.42,emissive:0x164e5c,emissiveIntensity:.14});
 const _jumpSideMaterial=new THREE.MeshStandardMaterial({color:0x17647e,roughness:.58,metalness:.02});
-const _logSnowMaterial=new THREE.MeshPhysicalMaterial({color:0xf9fdff,roughness:.74,metalness:0,clearcoat:.12,clearcoatRoughness:.58,sheen:.18,sheenColor:new THREE.Color(0xdff6ff)});
 const _barkTexture=makeBarkTexture();
 const _barkMaterial=new THREE.MeshStandardMaterial({color:0x87583b,map:_barkTexture,roughness:.78,metalness:0,flatShading:true});
-const _barkDarkMaterial=new THREE.MeshStandardMaterial({color:0x4a2d20,map:_barkTexture,roughness:.91,metalness:0,flatShading:true});
 const _pineMaterial=new THREE.MeshStandardMaterial({color:0x0d594b,roughness:.72,metalness:0,flatShading:true});
-const _pineMaterial2=new THREE.MeshStandardMaterial({color:0x16705f,roughness:.74,metalness:0,flatShading:true});
 const _rockMaterial=new THREE.MeshStandardMaterial({color:0x455f6c,roughness:.90});
-const _rockAccentMaterial=new THREE.MeshStandardMaterial({color:0x344c58,roughness:.95});
 const _bananaMaterial=new THREE.MeshStandardMaterial({color:0xffd32f,roughness:.36,emissive:0x784500,emissiveIntensity:.19});
 const _logMaterial=new THREE.MeshStandardMaterial({color:0x77482c,roughness:.76,metalness:0,flatShading:true});
 const _logEndMaterial=new THREE.MeshStandardMaterial({color:0xc08b58,roughness:.80,metalness:0,flatShading:true});
@@ -56,305 +39,12 @@ function wave(seed){
   return x-Math.floor(x);
 }
 
-function ridgeGeometry(width,height,baseY,segments,seed){
-  const positions=[];
-  let prevX=-width*.5;
-  let prevY=baseY+height*(.34+wave(seed)*.3);
-  for(let i=1;i<=segments;i++){
-    const t=i/segments;
-    const x=-width*.5+width*t;
-    const macro=Math.sin(t*Math.PI)*.5+Math.sin(t*Math.PI*3.1+seed)*.16;
-    const tooth=(wave(seed+i*1.91)-.5)*.42;
-    const y=baseY+height*(.28+macro+tooth);
-    positions.push(
-      prevX,baseY,0, prevX,prevY,0, x,y,0,
-      prevX,baseY,0, x,y,0, x,baseY,0
-    );
-    prevX=x;prevY=y;
-  }
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-function createRidge(width,height,y,z,color,opacity,seed,segments=26){
-  const material=new THREE.MeshBasicMaterial({
-    color,
-    transparent:opacity<1,
-    opacity,
-    depthWrite:false,
-    fog:true
-  });
-  material.userData.atmosphereRole='mountain';
-  const mesh=new THREE.Mesh(ridgeGeometry(width,height,-height*.46,segments,seed),material);
-  mesh.position.set(0,y,z);
-  mesh.renderOrder=-20;
-  return mesh;
-}
-
-function createSideRidgePair({width,height,y,z,color,opacity,seed,segments=26,innerEdge}){
-  const group=new THREE.Group();
-  const center=innerEdge+width*.5;
-  for(const side of [-1,1]){
-    const ridge=createRidge(width,height,y,z,color,opacity,seed+(side>0?17.3:0),segments);
-    ridge.position.x=side*center;
-    ridge.userData.corridorSide=side;
-    group.add(ridge);
-  }
-  return group;
-}
-
-function createMountainField({count,z,outerEdge,exclusionHalfWidth,baseY,heightMin,heightMax,widthMin,widthMax,color,snowColor,seed}){
-  const group=new THREE.Group();
-  const mountainGeometry=new THREE.ConeGeometry(1,1,6,1);
-  mountainGeometry.rotateY(Math.PI/6);
-  const capGeometry=new THREE.ConeGeometry(1,1,6,1);
-  capGeometry.rotateY(Math.PI/6);
-
-  const mountainMaterial=new THREE.MeshStandardMaterial({
-    color,
-    roughness:1,
-    metalness:0,
-    flatShading:true
-  });
-  mountainMaterial.userData.atmosphereRole='mountain';
-  const capMaterial=new THREE.MeshStandardMaterial({
-    color:snowColor,
-    roughness:.96,
-    metalness:0,
-    flatShading:true
-  });
-  capMaterial.userData.atmosphereRole='snowcap';
-
-  const mountains=new THREE.InstancedMesh(mountainGeometry,mountainMaterial,count);
-  const caps=new THREE.InstancedMesh(capGeometry,capMaterial,count);
-  mountains.receiveShadow=false;
-  caps.receiveShadow=false;
-
-  for(let i=0;i<count;i++){
-    const side=sideForIndex(i);
-    const depth=(wave(seed+i*4.73)-.5)*15;
-    const h=heightMin+wave(seed+i*5.91)*(heightMax-heightMin);
-    const w=widthMin+wave(seed+i*7.31)*(widthMax-widthMin);
-    const ry=(wave(seed+i*3.37)-.5)*.44;
-    const visualHalfWidth=mountainVisualHalfWidth(w,w*.74,ry);
-    const x=mountainCenterForSide({
-      side,
-      visualHalfWidth,
-      exclusionHalfWidth,
-      outerEdge,
-      jitter01:wave(seed+i*2.17)
-    });
-    const peakZ=z+depth;
-    setInstance(mountains,i,x,baseY+h*.5,peakZ,w,h,w*.74,ry);
-    setInstance(caps,i,x,baseY+h*.83,peakZ-.02,w*.62,h*.34,w*.46,ry);
-  }
-
-  mountains.instanceMatrix.needsUpdate=true;
-  caps.instanceMatrix.needsUpdate=true;
-  group.userData.exclusionHalfWidth=exclusionHalfWidth;
-  group.userData.outerEdge=outerEdge;
-  group.add(mountains,caps);
-  return group;
-}
-
-function createLateralMountainRun({
-  segments=28,
-  zNear=-24,
-  zFar=-274,
-  innerEdge=25.5,
-  outerEdge=76,
-  baseY=-5.0,
-  heightMin=12,
-  heightMax=20,
-  widthMin=10,
-  widthMax=16,
-  color=0x496a78,
-  snowColor=0xf4f9fb,
-  seed=93.4,
-  speedFactor=.94
-}={}){
-  const count=segments*2;
-  const group=new THREE.Group();
-  const mountainGeometry=new THREE.ConeGeometry(1,1,7,1);
-  const capGeometry=new THREE.ConeGeometry(1,1,7,1);
-  mountainGeometry.rotateY(Math.PI/7);
-  capGeometry.rotateY(Math.PI/7);
-
-  const mountainMaterial=new THREE.MeshStandardMaterial({
-    color,roughness:.94,metalness:0,flatShading:true
-  });
-  const capMaterial=new THREE.MeshPhysicalMaterial({
-    color:snowColor,roughness:.88,metalness:0,flatShading:true,
-    clearcoat:.04,clearcoatRoughness:.78
-  });
-  mountainMaterial.userData.atmosphereRole='mountain';
-  capMaterial.userData.atmosphereRole='snowcap';
-
-  const mountains=new THREE.InstancedMesh(mountainGeometry,mountainMaterial,count);
-  const caps=new THREE.InstancedMesh(capGeometry,capMaterial,count);
-  mountains.frustumCulled=false;
-  caps.frustumCulled=false;
-
-  const entries=new Array(count);
-  const span=Math.max(48,Math.abs(zFar-zNear));
-  const recycleNear=Math.max(24,zNear+38);
-
-  function configureEntry(entry,index,generation,z){
-    const segment=Math.floor(index/2);
-    const side=sideForIndex(index);
-    const cycleSeed=seed+segment*6.71+side*2.37+generation*31.17;
-    const h=heightMin+wave(cycleSeed+5.31)*(heightMax-heightMin);
-    const w=widthMin+wave(cycleSeed+7.13)*(widthMax-widthMin);
-    const ry=(wave(cycleSeed+4.17)-.5)*.34;
-    const depth=w*(.68+wave(cycleSeed+8.91)*.10);
-    const visualHalfWidth=mountainVisualHalfWidth(w,depth,ry);
-    const x=mountainCenterForSide({
-      side,
-      visualHalfWidth,
-      exclusionHalfWidth:innerEdge,
-      outerEdge,
-      jitter01:wave(cycleSeed+8.37)
-    });
-    Object.assign(entry,{side,generation,x,z,h,w,depth,ry});
-  }
-
-  function writeEntry(entry,index){
-    setInstance(mountains,index,entry.x,baseY+entry.h*.5,entry.z,entry.w,entry.h,entry.depth,entry.ry);
-    setInstance(caps,index,entry.x,baseY+entry.h*.83,entry.z-.02,entry.w*.59,entry.h*.32,entry.depth*.60,entry.ry);
-  }
-
-  function refresh(){
-    for(let i=0;i<entries.length;i++)writeEntry(entries[i],i);
-    mountains.instanceMatrix.needsUpdate=true;
-    caps.instanceMatrix.needsUpdate=true;
-  }
-
-  function reset(){
-    for(let segment=0;segment<segments;segment++){
-      const t=segments<=1?0:segment/(segments-1);
-      const baseZ=THREE.MathUtils.lerp(zNear,zFar,t)+(wave(seed+segment*3.19)-.5)*7.5;
-      for(let sideSlot=0;sideSlot<2;sideSlot++){
-        const index=segment*2+sideSlot;
-        const entry=entries[index]||{};
-        configureEntry(entry,index,0,baseZ);
-        entries[index]=entry;
-      }
-    }
-    refresh();
-  }
-
-  function update(dt,worldSpeed){
-    const dz=worldSpeed*dt*speedFactor;
-    if(!Number.isFinite(dz)||Math.abs(dz)<1e-7)return;
-    for(let i=0;i<entries.length;i++){
-      const entry=entries[i];
-      entry.z+=dz;
-      if(entry.z>recycleNear){
-        const side=entry.side; // recycling preserves the left/right side assignment.
-        const generation=entry.generation+1;
-        let recycledZ=entry.z-span;
-        while(recycledZ>recycleNear)recycledZ-=span;
-        configureEntry(entry,i,generation,recycledZ);
-        entry.side=side;
-      }
-    }
-    refresh();
-  }
-
-  group.userData.exclusionHalfWidth=innerEdge;
-  group.userData.outerEdge=outerEdge;
-  group.userData.lateralRun=true;
-  group.userData.streaming=true;
-  group.add(mountains,caps);
-  reset();
-  return {group,entries,update,reset};
-}
-
 function setInstance(mesh,index,x,y,z,sx,sy,sz,ry=0,rx=0,rz=0){
   _dummy.position.set(x,y,z);
   _dummy.rotation.set(rx,ry,rz);
   _dummy.scale.set(sx,sy,sz);
   _dummy.updateMatrix();
   mesh.setMatrixAt(index,_dummy.matrix);
-}
-
-function createDistantForest(count,seed=81){
-  const geometry=new THREE.ConeGeometry(1,2.8,7);
-  const material=new THREE.MeshStandardMaterial({
-    color:0x315861,
-    roughness:1,
-    metalness:0,
-    flatShading:true
-  });
-  material.userData.atmosphereRole='mountain';
-  const mesh=new THREE.InstancedMesh(geometry,material,count);
-  mesh.frustumCulled=false;
-
-  for(let i=0;i<count;i++){
-    const side=i%2===0?-1:1;
-    const rank=Math.floor(i/2);
-    const x=side*(COURSE_FLAG_X+10.5+wave(i*2.91+seed)*42+rank*.14);
-    const z=-64-wave(i*4.77+seed)*42;
-    const h=1.0+wave(i*6.13+seed)*1.6;
-    const w=.72+wave(i*8.21+seed)*.70;
-    setInstance(mesh,i,x,-3.2+h*.55,z,w,h,w,wave(i*3.31+seed)*Math.PI);
-  }
-  mesh.instanceMatrix.needsUpdate=true;
-  return mesh;
-}
-
-function createDistantValley(material){
-  const xSegments=24;
-  const zSegments=14;
-  const width=220;
-  const zNear=-172;
-  const zFar=-268;
-  const positions=[];
-  const uvs=[];
-  const indices=[];
-
-  for(let zi=0;zi<=zSegments;zi++){
-    const t=zi/zSegments;
-    const z=THREE.MathUtils.lerp(zNear,zFar,t);
-    for(let xi=0;xi<=xSegments;xi++){
-      const u=xi/xSegments;
-      const nx=u*2-1;
-      const x=nx*width*.5;
-      const side=Math.pow(Math.abs(nx),1.55);
-      const y=
-        -1.0-t*7.1+
-        side*(5.5+t*4.6)+
-        Math.sin(x*.043+z*.031)*.20+
-        Math.sin(z*.064)*.12;
-      positions.push(x,y,z);
-      uvs.push(u*8,t*4);
-    }
-  }
-
-  const stride=xSegments+1;
-  for(let z=0;z<zSegments;z++){
-    for(let x=0;x<xSegments;x++){
-      const a=z*stride+x;
-      const b=a+1;
-      const c=a+stride;
-      const d=c+1;
-      indices.push(a,c,b,b,c,d);
-    }
-  }
-
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uvs,2));
-  geometry.setIndex(indices);
-  geometry.computeVertexNormals();
-
-  const mesh=new THREE.Mesh(geometry,material);
-  mesh.receiveShadow=true;
-  mesh.frustumCulled=false;
-  mesh.renderOrder=-8;
-  return mesh;
 }
 
 function createMovingInstances(count,mesh,makeEntry){
@@ -388,7 +78,6 @@ function resetTree(entry,i){
   entry.width=.80+wave(i*9.13+12)*.38;
   entry.trunk=.86+wave(i*6.47+15)*.26;
   entry.variant=Math.min(3,Math.floor(wave(i*11.19+5)*4));
-  entry.snow=.46+wave(i*7.63+29)*.54;
   entry.asym=(wave(i*5.83+41)-.5)*.22;
   entry.lean=(wave(i*3.41+37)-.5)*.045;
   entry.ry=wave(i*2.61+6)*Math.PI*2;
@@ -399,7 +88,6 @@ function resetTree(entry,i){
   const heavy=entry.variant===3;
   entry.heightScale=young?.90:(large?1.15:(heavy?1.06:1));
   entry.widthScale=entry.width*(young?.72:(large?1.16:(heavy?1.08:1)));
-  entry.snowScale=entry.snow*(heavy?1.20:(young?.62:1));
   entry.asymScaled=entry.asym*entry.s;
   entry.trunkScale=entry.s*entry.trunk;
 
@@ -409,26 +97,6 @@ function resetTree(entry,i){
   if(Math.abs(entry.x)<minTreeCenter)entry.x=side*minTreeCenter;
 }
 
-function makeSky(){
-  const material=new THREE.ShaderMaterial({
-    side:THREE.BackSide,
-    depthWrite:false,
-    uniforms:{
-      zenith:{value:new THREE.Color(0x4fa5d6)},
-      high:{value:new THREE.Color(0x8bc9e6)},
-      horizon:{value:new THREE.Color(0xe2f4fb)},
-      sunColor:{value:new THREE.Color(0xfff1c8)},
-      time:{value:0},
-      sceneryDetail:{value:1}
-    },
-    vertexShader:'varying vec3 vDir; void main(){ vDir=normalize(position); gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.0); }',
-    fragmentShader:'varying vec3 vDir; uniform vec3 zenith; uniform vec3 high; uniform vec3 horizon; uniform vec3 sunColor; uniform float time; uniform float sceneryDetail; float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); } float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),f.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),f.x),f.y); } float fbm(vec2 p){ float v=0.0,a=.55; for(int i=0;i<3;i++){ v+=noise(p)*a; p=p*2.03+vec2(7.1,3.7); a*=.48; } return v; } float ridgeBand(float a,float phase,float base,float amp){ return base+sin(a*4.2+phase)*amp+sin(a*9.7+phase*1.7)*amp*.42+sin(a*18.3-phase*.8)*amp*.20; } void main(){ vec3 d=normalize(vDir); float y=clamp(d.y*.5+.5,0.0,1.0); vec3 c=mix(horizon,high,smoothstep(.38,.67,y)); c=mix(c,zenith,smoothstep(.66,1.0,y)); float horizonGlow=pow(1.0-clamp(abs(d.y),0.0,1.0),5.5); c+=mix(horizon,sunColor,.45)*horizonGlow*.10; vec3 sunDir=normalize(vec3(-.48,.30,-.82)); float sun=pow(max(dot(d,sunDir),0.0),112.0); c+=sunColor*sun*.44; float a=atan(d.z,d.x); vec2 cp=vec2(a*1.85+d.y*.72,d.y*7.4); float drift=time*.006; float cloudA=fbm(cp+vec2(drift,-drift*.24)); float cloudB=fbm(cp*1.72+vec2(-drift*.62,9.3)); float cloudNoise=mix(cloudA,cloudB,.34); float cloudBand=smoothstep(.49,.59,y)*(1.0-smoothstep(.83,.94,y)); float cloud=smoothstep(.57,.76,cloudNoise)*cloudBand; vec3 cloudTint=mix(high,vec3(1.0),.58); c=mix(c,cloudTint,cloud*.48); float veil=smoothstep(.52,.70,cloudA)*cloudBand*.08; c=mix(c,cloudTint,veil); float downhill=atan(d.x,-d.z); float sideMask=smoothstep(.18,.48,abs(downhill)); float farH=ridgeBand(downhill,.7,.035,.020); float nearH=ridgeBand(downhill,2.4,.012,.028); float lowerFade=smoothstep(-.13,-.035,d.y); float farMask=(1.0-smoothstep(farH,farH+.010,d.y))*lowerFade*sideMask; float nearMask=(1.0-smoothstep(nearH,nearH+.009,d.y))*lowerFade*sideMask; vec3 farRidge=mix(horizon,vec3(.42,.57,.63),.54); vec3 nearRidge=mix(horizon,vec3(.28,.42,.48),.66); c=mix(c,farRidge,farMask*.64*sceneryDetail); c=mix(c,nearRidge,nearMask*.58*sceneryDetail); gl_FragColor=vec4(c,1.0); }'
-  });
-  const sky=new THREE.Mesh(new THREE.SphereGeometry(220,40,20),material);
-  sky.frustumCulled=false;
-  sky.renderOrder=-100;
-  return sky;
-}
 function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=false){
   const positions=new Float32Array(count*3);
   const fall=new Float32Array(count);
@@ -459,8 +127,15 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
 }
 
 function makeContactShadow(scene){
+  const size=64,data=new Uint8Array(size*size*4);
+  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
+    const r=Math.hypot((x+.5)/size*2-1,(y+.5)/size*2-1);
+    const i=(y*size+x)*4;data[i]=data[i+1]=data[i+2]=255;
+    data[i+3]=Math.pow(Math.max(0,1-r*r),2)*255;
+  }
+  const map=new THREE.DataTexture(data,size,size);map.magFilter=THREE.LinearFilter;map.needsUpdate=true;
   const material=new THREE.MeshBasicMaterial({
-    color:0x385f76,
+    color:0x385f76,map,
     transparent:true,
     opacity:.18,
     depthWrite:false
@@ -477,66 +152,8 @@ export function decorateCourseObject(root,kind){
   if(!root||root.userData.environmentDecorated)return root;
   root.userData.environmentDecorated=true;
 
-  if(kind==='tree'){
-    const meshes=root.children.filter(child=>child?.isMesh);
-    const trunk=meshes[0];
-    if(trunk){
-      trunk.material=_barkMaterial;
-      trunk.castShadow=true;
-      trunk.receiveShadow=true;
-    }
-
-    const foliage=meshes.slice(1,4);
-    const specs=[
-      {geometry:_branchTierGeometry,material:_pineMaterial2,y:1.28,sx:1.14,sy:1.66,sz:1.05,ry:.08,rz:.025},
-      {geometry:_branchInnerGeometry,material:_pineMaterial,y:2.05,sx:1.18,sy:1.56,sz:1.10,ry:-.12,rz:-.020},
-      {geometry:_branchTierGeometry,material:_pineMaterial2,y:2.78,sx:.82,sy:1.36,sz:.76,ry:.15,rz:.018}
-    ];
-    foliage.forEach((mesh,index)=>{
-      const spec=specs[index];
-      if(!spec)return;
-      const previous=mesh.geometry;
-      mesh.geometry=spec.geometry;
-      if(previous&&previous!==spec.geometry)previous.dispose?.();
-      mesh.material=spec.material;
-      mesh.position.set(index===1?-.035:.025,spec.y,index===1?.025:-.015);
-      mesh.rotation.set(0,spec.ry,spec.rz);
-      mesh.scale.set(spec.sx,spec.sy,spec.sz);
-      mesh.castShadow=true;
-      mesh.receiveShadow=true;
-    });
-
-    for(const [y,s,ry] of [[1.72,1.05,.08],[2.42,.80,-.10]]){
-      const shelf=new THREE.Mesh(_branchSnowGeometry,_snowDetailMaterial);
-      shelf.position.set(ry*.10,y,ry*.05);
-      shelf.rotation.y=ry;
-      shelf.scale.set(s,.82,s*.92);
-      shelf.castShadow=false;
-      shelf.receiveShadow=true;
-      root.add(shelf);
-    }
-    const cap=new THREE.Mesh(_snowCapGeometry,_snowDetailMaterial);
-    cap.position.set(.025,3.27,-.015);
-    cap.rotation.z=.018;
-    cap.scale.set(.58,.60,.56);
-    cap.castShadow=false;
-    cap.receiveShadow=true;
-    root.add(cap);
-    root.userData.visualPrototype='serrated-fir-v2';
-  }else if(kind==='rock'){
-    const accent=new THREE.Mesh(_rockAccentGeometry,_rockAccentMaterial);
-    accent.position.set(.12,.33,-.08);
-    accent.scale.set(.78,.48,.72);
-    accent.rotation.set(.18,.42,-.08);
-    accent.castShadow=false;
-    accent.receiveShadow=true;
-    root.add(accent);
-
-    root.rotation.y=(wave(root.id*.71)-.5)*.52;
-    root.scale.x*=.92+wave(root.id*.37)*.16;
-    root.scale.z*=.93+wave(root.id*.51)*.13;
-    root.userData.visualPrototype='faceted-rock-v2';
-  }else if(kind==='ramp'){
+  if(applyPremiumObstacle(root,kind))return root;
+  if(kind==='ramp'){
     const deck=root.children[0];
     if(deck?.isMesh){
       deck.material=_jumpMaterial;
@@ -569,27 +186,7 @@ export function decorateCourseObject(root,kind){
       }
     }
 
-    for(const side of [-1,1]){
-      const bank=new THREE.Mesh(_rampBankGeometry,_snowDetailMaterial);
-      bank.position.set(side*1.32,.00,.12);
-      bank.scale.set(.35,.17,1.62);
-      bank.castShadow=false;
-      bank.receiveShadow=true;
-      root.add(bank);
-    }
     root.userData.visualPrototype='readable-ramp-v2';
-  }else if(kind==='log'||kind==='wideLog'){
-    const wide=kind==='wideLog';
-    if(!wide){
-      const snow=new THREE.Mesh(_logSnowGeometry,_logSnowMaterial);
-      snow.position.set(0,.545,-.015);
-      snow.rotation.z=Math.PI/2;
-      snow.scale.set(1.05,2.58,2.30);
-      snow.castShadow=false;
-      snow.receiveShadow=true;
-      root.add(snow);
-    }
-    root.userData.visualPrototype=wide?'wide-log-v2':'log-v2';
   }
   return root;
 }
@@ -606,15 +203,13 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
   const snowMaterials=createSnowMaterials(renderer,{detailLevel:environmentQuality.snowDetailLevel});
 
-  const sky=makeSky();
+  const sky=createAlpineSky();
   scene.add(sky);
   const ambientFlybys=createAmbientFlybys({scene,camera});
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
-  // The distant alpine horizon now lives inside the existing sky shader.
-  // This keeps the visual depth while removing the streamed 3D mountain draw calls
-  // and all per-frame mountain instance updates from gameplay.
+  const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
   const ambient=new THREE.HemisphereLight(0xe8f8ff,0x6d879a,1.36);
   scene.add(ambient);
 
@@ -669,63 +264,17 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   let activeBankCount=banks.entries.length;
   let activeWindBankCount=windBanks.entries.length;
 
-  // Decorative non-playable forest only: reduced by ~90% (152 -> 15).
-  // Gameplay obstacle trees are generated elsewhere and are intentionally unchanged.
-  const treeCount=15;
-  const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.31,2.08,12),_barkMaterial,treeCount);
-  const branchGeo=makeSerratedFirGeometry(1.06,1.18,12,5.3);
-  const crownGeo=makeSerratedFirGeometry(.72,1.52,12,7.8);
-  const snowGeo=new THREE.ConeGeometry(1.00,.17,12);
-  branchGeo.rotateY(Math.PI/12);
-  crownGeo.rotateY(Math.PI/12);
-  snowGeo.rotateY(Math.PI/12);
-  const foliageLower=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
-  const foliageLowMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
-  const foliageMid=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
-  const foliageHighMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
-  const foliageUpper=new THREE.InstancedMesh(crownGeo,_pineMaterial,treeCount);
-  const snowShelfLower=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const snowShelfMid=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const snowShelfUpper=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const capMesh=new THREE.InstancedMesh(new THREE.ConeGeometry(.62,.86,12),_snowDetailMaterial,treeCount);
-  const decorativeTreeMeshes=[trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfMid,snowShelfUpper,capMesh];
-  for(const mesh of decorativeTreeMeshes){
-    mesh.castShadow=true;
-    mesh.receiveShadow=true;
-    mesh.frustumCulled=false;
-    world.add(mesh);
-  }
-  const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
-  let activeTreeCount=trees.entries.length;
-
-  function applyTreeInstanceColors(){
-    for(let i=0;i<trees.entries.length;i++){
-      const e=trees.entries[i];
-      const variant=e.variant;
-      const cool=wave(i*3.77+19);
-      const green=variant===0
-        ?[.90,.99,.93]
-        :variant===2
-          ?[.78,.91,.84]
-          :variant===3
-            ?[.84,.94,.89]
-            :[.86,.97,.90];
-      _instanceColor.setRGB(
-        green[0]*(.94+cool*.06),
-        green[1]*(.95+cool*.05),
-        green[2]*(.94+cool*.06)
-      );
-      for(const mesh of [foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
-        mesh.setColorAt(i,_instanceColor);
-      }
-      _instanceColor.setRGB(.84+cool*.10,.82+cool*.08,.80+cool*.07);
-      trunkMesh.setColorAt(i,_instanceColor);
-    }
-    for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper]){
-      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-    }
-  }
-  applyTreeInstanceColors();
+  const treeCount=120;
+  const forestPrototypes=getPremiumObstacleLibrary().trees;
+  const forestBatches=forestPrototypes.map(prototype=>prototype.children.map(child=>{
+    const mesh=new THREE.InstancedMesh(child.geometry,child.material,treeCount);
+    mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;
+    mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);return mesh;
+  }));
+  const decorativeTreeMeshes=forestBatches.flat();
+  const trees={entries:Array.from({length:treeCount},(_,i)=>{const e={};resetTree(e,i);return e;})};
+  let activeTreeCount=treeCount;
+  const forestCounts=new Uint16Array(forestBatches.length);
 
   const snowLayers=[
     makeSnowLayer(190,.042,.34,35,-62,10,.90,false),
@@ -746,6 +295,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
   });
 
+  let visualTravel=0;
   function setQualityProfile(overrides={}){
     const input=overrides||{};
     if(input.profile)environmentProfileName=String(input.profile);
@@ -767,10 +317,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     bankMesh.count=activeBankCount;
     windMesh.count=activeWindBankCount;
     for(const mesh of decorativeTreeMeshes){
-      mesh.count=activeTreeCount;
       mesh.castShadow=environmentQuality.decorativeShadows;
     }
     bankMesh.castShadow=environmentQuality.decorativeShadows;
+    refreshTrees();
 
     for(const layer of snowLayers){
       layer.activeCount=Math.max(1,Math.min(layer.count,Math.round(layer.count*environmentSnowLayerDensity)));
@@ -783,6 +333,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
     boundaryMarkers.setDecorativeShadows(environmentQuality.decorativeShadows);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
+    landscape.setDetail(environmentQuality.distantSceneryDetail);
 
     if(sun.shadow.mapSize.x!==environmentShadowMapSize||sun.shadow.mapSize.y!==environmentShadowMapSize){
       sun.shadow.mapSize.set(environmentShadowMapSize,environmentShadowMapSize);
@@ -817,8 +368,6 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     };
   }
   setQualityProfile();
-
-  let visualTravel=0;
   function refreshBanks(group,activeCount=group.entries.length){
     const {mesh,entries}=group;
     for(let i=0;i<activeCount;i++){
@@ -830,40 +379,21 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   }
 
   function refreshTrees(time=0){
+    forestCounts.fill(0);
     for(let i=0;i<activeTreeCount;i++){
-      const e=trees.entries[i],s=e.s;
-      const sway=Math.sin(time*.72+e.phase)*.014;
-      const height=e.heightScale;
-      const width=e.widthScale;
-      const snow=e.snowScale;
-      const asym=e.asymScaled;
-      const lean=e.lean;
-      const trunkScale=e.trunkScale;
+      const e=trees.entries[i],slot=forestCounts[e.variant]++;
       const ground=terrainHeight(e.x,e.z-visualTravel);
-
-      setInstance(trunkMesh,i,e.x,ground+.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
-
-      setInstance(foliageLower,i,e.x+asym,ground+1.38*s*height,e.z-asym*.18,1.24*s*width,1.02*s,1.16*s*width,e.ry+.04,0,sway*.20+lean);
-      setInstance(foliageLowMid,i,e.x-asym*.55,ground+1.91*s*height,e.z+asym*.15,1.09*s*width,.98*s,1.03*s*width,e.ry-.10,0,sway*.35+lean);
-      setInstance(foliageMid,i,e.x+asym*.32,ground+2.43*s*height,e.z-asym*.10,.92*s*width,.92*s,.87*s*width,e.ry+.15,0,sway*.52+lean);
-      setInstance(foliageHighMid,i,e.x-asym*.24,ground+2.91*s*height,e.z+asym*.08,.74*s*width,.83*s,.70*s*width,e.ry-.17,0,sway*.70+lean);
-      setInstance(foliageUpper,i,e.x+asym*.15,ground+3.37*s*height,e.z,.56*s*width,.80*s,.53*s*width,e.ry+.22,0,sway+lean);
-
-      setInstance(snowShelfLower,i,e.x+asym*.40,ground+1.66*s*height,e.z,1.12*s*width*snow,.82*s,1.05*s*width*snow,e.ry+.02,0,sway*.25+lean);
-      setInstance(snowShelfMid,i,e.x-asym*.10,ground+2.18*s*height,e.z+asym*.05,.94*s*width*snow,.80*s,.89*s*width*snow,e.ry+.09,0,sway*.43+lean);
-      setInstance(snowShelfUpper,i,e.x-asym*.18,ground+2.66*s*height,e.z,.82*s*width*snow,.78*s,.77*s*width*snow,e.ry-.12,0,sway*.58+lean);
-      setInstance(capMesh,i,e.x+asym*.10,ground+3.64*s*height,e.z,.49*s*width*snow,.61*s,.47*s*width*snow,e.ry+.20,0,sway*.90+lean);
+      const sway=Math.sin(time*.72+e.phase)*.009;
+      _instanceColor.setRGB(.88+wave(i+3)*.12,.91+wave(i+5)*.09,.88+wave(i+7)*.12);
+      for(const mesh of forestBatches[e.variant]){
+        setInstance(mesh,slot,e.x,ground,e.z,e.s*e.widthScale,e.s*e.heightScale,e.s*e.widthScale,e.ry,0,e.lean+sway);
+        mesh.setColorAt(slot,_instanceColor);
+      }
     }
-    trunkMesh.instanceMatrix.needsUpdate=true;
-    foliageLower.instanceMatrix.needsUpdate=true;
-    foliageLowMid.instanceMatrix.needsUpdate=true;
-    foliageMid.instanceMatrix.needsUpdate=true;
-    foliageHighMid.instanceMatrix.needsUpdate=true;
-    foliageUpper.instanceMatrix.needsUpdate=true;
-    snowShelfLower.instanceMatrix.needsUpdate=true;
-    snowShelfMid.instanceMatrix.needsUpdate=true;
-    snowShelfUpper.instanceMatrix.needsUpdate=true;
-    capMesh.instanceMatrix.needsUpdate=true;
+    for(let v=0;v<forestBatches.length;v++)for(const mesh of forestBatches[v]){
+      mesh.count=forestCounts[v];mesh.instanceMatrix.needsUpdate=true;
+      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+    }
   }
 
   refreshBanks(banks,activeBankCount);refreshBanks(windBanks,activeWindBankCount);refreshTrees();
@@ -887,10 +417,12 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     surfaceDetail.reset();
     boundaryMarkers.reset();
     ambientFlybys.reset();
+    landscape.reset();
     contactShadow.position.y=-100;
     contactShadow.material.opacity=.18;
     contactShadow.scale.set(1.45,.52,1);
     dayCycle.apply(0);
+    snowMaterials.setTravel(0);
   }
   function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time){
     time+=dt;
@@ -898,12 +430,13 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     sky.position.copy(camera.position);
     sky.material.uniforms.time.value=time;
     dayCycle.apply(runTime);
+    snowMaterials.setTravel(visualTravel);
     ambientFlybys.update(dt,{running,skyColor:scene.background});
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
     surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
-    _snowDetailMaterial.color.copy(snowMaterials.bank.color);
-    _logSnowMaterial.color.copy(snowMaterials.bank.color);
+
+
     for(const layer of snowLayers)layer.points.material.color.copy(snowMaterials.terrain.color);
 
     let sceneryStep=dt;
@@ -917,6 +450,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
     const speed01=getSpeedFeel(speed);
     if(refreshScenery){
+      landscape.update(sceneryStep,worldSpeed);
       for(let i=0;i<activeBankCount;i++){
         const e=banks.entries[i];e.z+=worldSpeed*sceneryStep;
         if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
@@ -968,6 +502,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running);
     snowParticles.update(dt,worldSpeed);
     surfaceDetail.update(dt,worldSpeed);
+
     boundaryMarkers.update(dt,worldSpeed);
 
     contactShadow.position.set(playerX,Math.max(.006,groundY-.108),playerZ+.02);
