@@ -753,13 +753,11 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     if(Number.isFinite(Number(input.snowLayerDensity)))environmentSnowLayerDensity=Math.max(.1,Math.min(1,Number(input.snowLayerDensity)));
     if(Number.isFinite(Number(input.distantSceneryUpdateHz)))distantSceneryUpdateHz=Math.max(0,Number(input.distantSceneryUpdateHz));
 
-    const mapped={
-      ...input,
-      particleDensityMultiplier:input.snowParticleDensity??input.particleDensityMultiplier,
-      decorativeDensity:input.environmentDecorationDensity??input.decorativeDensity,
-      decorativeShadows:input.decorativeShadowCasting??input.decorativeShadows,
-      snowDetailLevel:input.snowSurfaceDetailDensity??input.snowDetailLevel
-    };
+    const mapped={...input};
+    if(input.snowParticleDensity!=null||input.particleDensityMultiplier!=null)mapped.particleDensityMultiplier=input.snowParticleDensity??input.particleDensityMultiplier;
+    if(input.environmentDecorationDensity!=null||input.decorativeDensity!=null)mapped.decorativeDensity=input.environmentDecorationDensity??input.decorativeDensity;
+    if(input.decorativeShadowCasting!=null||input.decorativeShadows!=null)mapped.decorativeShadows=input.decorativeShadowCasting??input.decorativeShadows;
+    if(input.snowSurfaceDetailDensity!=null||input.snowDetailLevel!=null)mapped.snowDetailLevel=input.snowSurfaceDetailDensity??input.snowDetailLevel;
     if(input.profile&&input.distantSceneryDetail==null)mapped.distantSceneryDetail=environmentProfileName==='reduced'?.72:1;
     environmentQuality=normalizeEnvironmentQuality({...environmentQuality,...mapped});
 
