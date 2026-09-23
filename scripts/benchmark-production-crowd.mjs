@@ -131,11 +131,15 @@ async function chooseCurrentAvatarAndSki(page){
   const card=(await selected.count())?selected:page.locator('.chimpion-card').first();
   await card.click();
   await page.locator('#ride-mode-step:not([hidden])').waitFor({state:'visible',timeout:5000});
-  const framePromise=sampleFrames(page,1600);
   const started=performance.now();
-  await page.locator('[data-ride-mode="ski"]').click();
-  const countdown=await waitDiag(page,d=>d.mode==='countdown'||d.mode==='playing',10000);
-  return {blockingMs:performance.now()-started,countdown,frameTiming:await framePromise};
+  const [countdown,frameTiming]=await Promise.all([
+    (async()=>{
+      await page.locator('[data-ride-mode="ski"]').click();
+      return waitDiag(page,d=>d.mode==='countdown'||d.mode==='playing',10000);
+    })(),
+    sampleFrames(page,1600)
+  ]);
+  return {blockingMs:performance.now()-started,countdown,frameTiming};
 }
 
 async function observeUntilRelease(page,timeout=12000){
@@ -160,11 +164,15 @@ async function restartAfterRelease(page){
   if(!released?.startCrowdReleased)throw new Error('Crowd did not release before warm restart probe');
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay:not([hidden])').waitFor({state:'visible',timeout:3000});
-  const framePromise=sampleFrames(page,1400);
   const started=performance.now();
-  await page.locator('#restart-pause').click();
-  const countdown=await waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
-  return {blockingMs:performance.now()-started,countdown,frameTiming:await framePromise};
+  const [countdown,frameTiming]=await Promise.all([
+    (async()=>{
+      await page.locator('#restart-pause').click();
+      return waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
+    })(),
+    sampleFrames(page,1400)
+  ]);
+  return {blockingMs:performance.now()-started,countdown,frameTiming};
 }
 
 async function coldFullPreparation(browser){
@@ -281,11 +289,31 @@ const report={
   ]
 };
 
-let browser;
+let coldBrowser;
+let lifecycleBrowser;
 try{
-  browser=await chromium.launch({headless:true});
-  report.coldFullPreparation=await coldFullPreparation(browser);
-  report.startLifecycle=await coldStartAndWarmRestarts(browser);
+  coldBrowser=await chromium.launch({headless:true});
+  report.coldFullPreparation=await coldFullPreparation(coldBrowser);
+  console.log('COLD_FULL '+JSON.stringify({
+    completed:report.coldFullPreparation.completed,
+    wallMs:report.coldFullPreparation.wallMs,
+    loadedCount:report.coldFullPreparation.loadedCount,
+    modelSourceCount:report.coldFullPreparation.modelSourceCount,
+    glbRequests:report.coldFullPreparation.network.requestCount,
+    failedGlbRequests:report.coldFullPreparation.network.failedCount,
+    transferBytes:report.coldFullPreparation.resources.transferBytes,
+    encodedBytes:report.coldFullPreparation.resources.encodedBytes,
+    heapBefore:report.coldFullPreparation.heapBefore,
+    heapAfter:report.coldFullPreparation.heapAfter,
+    rendererGeometries:report.coldFullPreparation.rendererGeometries,
+    rendererTextures:report.coldFullPreparation.rendererTextures,
+    frameTiming:report.coldFullPreparation.frameTiming
+  }));
+  await coldBrowser.close();
+  coldBrowser=null;
+
+  lifecycleBrowser=await chromium.launch({headless:true});
+  report.startLifecycle=await coldStartAndWarmRestarts(lifecycleBrowser);
   report.finishedAt=new Date().toISOString();
   report.summary={
     productionCrowdCount:report.coldFullPreparation.initialCrowdCount,
@@ -315,5 +343,6 @@ try{
   if(!report.startLifecycle.cold.released)process.exitCode=1;
   if(report.startLifecycle.warmRestarts.some(item=>!item.released||item.newFailedGlbRequests>0))process.exitCode=1;
 }finally{
-  if(browser)await browser.close().catch(()=>{});
+  if(coldBrowser)await coldBrowser.close().catch(()=>{});
+  if(lifecycleBrowser)await lifecycleBrowser.close().catch(()=>{});
 }
