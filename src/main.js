@@ -20,9 +20,9 @@ import {resetAirborneScoring,resetHazardScoring,updateAirborneScoring,tryScoreAi
 import {createStartScreen} from './startScreen.js';
 import {createScorePresentation} from './scorePresentation.js';
 import {createCourseRenderBatches} from './courseRenderBatches.js';
-import {readTrickIntent} from './trickInput.js';
+import {readAirborneTrickIntent,readTrickIntent} from './trickInput.js';
 import {createTrickSystem} from './trickSystem.js';
-import {announceTrickStart,resetTrickScoring,scoreTrickLanding} from './trickScoring.js';
+import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFailure} from './trickScoring.js';
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
@@ -511,7 +511,9 @@ function resumeGame(){
 function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
   clearActiveRamp();
-  tricks.clearRampArm();
+  const interruptedTrick=kind==='trick'?null:tricks.abort({reason:'collision'});
+  if(interruptedTrick)resolveTrickAudio(scoreTrickFailure(state,interruptedTrick));
+  tricks.reset();
   const runDistance=Math.floor(state.distance);
   const previousBest=state.best;
   const newBest=runDistance>previousBest;
@@ -598,10 +600,16 @@ function update(dt){
     updateJumpAssist(state,pressedThisStep,dt);
     const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&!activeRamp)tricks.clearRampArm();
+    tricks.updateTiming(state,{landingHeight:groundY,gravity:SKI_TUNING.GRAVITY});
 
     if(pressedThisStep&&state.air){
-      if(tricks.startSecondPress360(state,{startTime:state.time})){
-        announceTrickAudio(announceTrickStart(state,tricks.state.type,tricks.state.source));
+      const airborneTrick=readAirborneTrickIntent(keys,pad);
+      if(tricks.requestAirborne(airborneTrick,state,{
+        startTime:state.time,
+        landingHeight:groundY,
+        gravity:SKI_TUNING.GRAVITY
+      })){
+        announceTrickAudio(announceTrickStart(state,airborneTrick,state.jumpSource||'manual'));
       }
     }else if(pressedThisStep&&ridingRamp&&trickIntent){
       if(tricks.armRamp(trickIntent)){
@@ -612,21 +620,30 @@ function update(dt){
 
     if(!ridingRamp&&tryManualJump(state,groundY)){
       feedback.onManualTakeoff();
-      if(trickIntent&&tricks.start(trickIntent,{source:'manual',startTime:state.time})){
+      if(trickIntent&&tricks.start(trickIntent,{
+        source:'manual',
+        startTime:state.time,
+        physicsState:state,
+        landingHeight:groundY,
+        gravity:SKI_TUNING.GRAVITY
+      })){
         announceTrickAudio(announceTrickStart(state,trickIntent,'manual'));
       }
     }
 
     const landingSource=state.jumpSource;
     tricks.step(dt);
+    const completedTrick=tricks.consumeCompletion();
+    if(completedTrick){
+      resolveTrickAudio(scoreTrickCompletion(state,completedTrick));
+    }
+
     const landing=stepAir(state,dt,groundY);
     if(landing.landed){
       const trickLanding=tricks.land({jumpSource:landingSource});
-      if(trickLanding.hadTrick){
-        const event=scoreTrickLanding(state,trickLanding);
-        resolveTrickAudio(event);
-        if(!trickLanding.success)crash('trick');
-        else tricks.finishLanding();
+      if(trickLanding.interrupted){
+        resolveTrickAudio(scoreTrickFailure(state,trickLanding));
+        crash('trick');
       }else{
         haptics.land(Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
       }
@@ -749,7 +766,13 @@ function update(dt){
             feedback.onRampTakeoff();
             haptics.rampTakeoff();
             const rampTrick=tricks.consumeRampArm();
-            if(rampTrick&&tricks.start(rampTrick,{source:'ramp',startTime:state.time})){
+            if(rampTrick&&tricks.start(rampTrick,{
+              source:'ramp',
+              startTime:state.time,
+              physicsState:state,
+              landingHeight:groundY,
+              gravity:SKI_TUNING.GRAVITY
+            })){
               announceTrickAudio(announceTrickStart(state,rampTrick,'ramp'));
             }
             skiTrails.breakTrail();
@@ -899,9 +922,16 @@ window.chimpionsSki=()=>{
     landingQuality:state.landingQuality,
     rampGrace:state.rampGrace,
     trickState:tricks.state.state,
-    trickType:tricks.state.type,
+    trickType:tricks.state.type||tricks.state.lastCompletedType||'',
+    trickActive:tricks.state.state==='SPIN_360'||tricks.state.state==='BACKFLIP',
     trickRotation:tricks.state.rotation,
+    trickProgress:tricks.state.progress,
     trickSystemProgress:tricks.state.progress,
+    tricksThisAir:tricks.state.tricksThisAir,
+    remainingAirTime:tricks.state.remainingAirTime,
+    trickAllowed:tricks.state.trickAllowed,
+    pendingTrick:tricks.state.pendingTrick,
+    trickRejectionReason:tricks.state.rejectionReason,
     trickVisualPivot:trickVisualPivot.name,
     rendererCalls:renderer.info.render.calls,
     rendererTriangles:renderer.info.render.triangles,

@@ -73,11 +73,18 @@ export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stance
   stripe.position.set(0,.060,.02);
   root.add(stripe);
 
-  for(const [index,zOffset] of [-bindingOffset,bindingOffset].entries()){
+  const bindingSpecs=[
+    {foot:'left',role:'front',zOffset:-bindingOffset,angle:-.16},
+    {foot:'right',role:'rear',zOffset:bindingOffset,angle:.08}
+  ];
+  for(const [index,spec] of bindingSpecs.entries()){
     const sign=index===0?-1:1;
     const binding=new THREE.Group();
-    binding.position.set(0,.086,zOffset);
-    binding.rotation.y=sign*.16;
+    binding.name=`snowboard-${spec.foot}-${spec.role}-binding`;
+    binding.userData.foot=spec.foot;
+    binding.userData.stanceRole=spec.role;
+    binding.position.set(0,.086,spec.zOffset);
+    binding.rotation.y=spec.angle;
 
     const plate=new THREE.Mesh(new THREE.BoxGeometry(.34,.045,.17),bindingMaterial);
     plate.castShadow=true;
@@ -100,6 +107,10 @@ export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stance
 
   root.position.set(centerX,.058,z);
   root.userData.restPosition=root.position.clone();
+  root.userData.stance='regular';
+  root.userData.frontFoot='left';
+  root.userData.rearFoot='right';
+  root.userData.stanceHalfLength=bindingOffset;
 
   const trailContacts=[-1,1].map(side=>{
     const contact=new THREE.Object3D();
