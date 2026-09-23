@@ -530,6 +530,29 @@ button:disabled{cursor:wait;opacity:.54;filter:saturate(.65)}
   background:linear-gradient(180deg,rgba(255,255,255,.90),rgba(216,236,245,.84));
   border:1px solid rgba(72,139,168,.18);
 }
+.leave-actions{margin-top:14px}
+.leave-game-button,.leave-confirm-yes{
+  border:1px solid rgba(186,72,72,.28);
+  background:linear-gradient(180deg,#fff2f0,#f7d8d4);
+  color:#8a302b;
+  font-weight:900;
+  letter-spacing:.035em;
+}
+.leave-game-button{
+  margin-top:4px;
+  font-size:10px;
+  min-height:40px;
+}
+.leave-confirm-overlay{z-index:16;background:rgba(4,19,30,.56);backdrop-filter:blur(10px)}
+.leave-confirm-card{width:min(440px,calc(100vw - 70px));padding:28px}
+.leave-confirm-card h2{
+  font-size:31px;
+  line-height:1.08;
+  letter-spacing:-.035em;
+  margin-bottom:22px;
+}
+.leave-confirm-card .presentation-actions{gap:12px}
+.leave-confirm-card .presentation-actions button{min-width:118px}
 .result-grid>div{
   border-radius:18px;
   border:1px solid rgba(103,169,195,.14);
