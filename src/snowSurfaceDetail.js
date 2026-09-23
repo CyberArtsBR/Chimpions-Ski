@@ -47,6 +47,8 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
 
   const moundData=new Array(moundCount);
   const ridgeData=new Array(ridgeCount);
+  let activeMounds=moundCount;
+  let activeRidges=ridgeCount;
   let travel=0;
 
   function resetEntry(entry,i,isRidge){
@@ -72,16 +74,18 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
   }
 
   function refresh(){
-    for(let i=0;i<moundCount;i++){
+    for(let i=0;i<activeMounds;i++){
       const e=moundData[i];
       const ground=terrainHeight(e.x,e.z-travel);
       setInstance(mounds,i,e.x,ground-e.sy*.45,e.z,e.sx,e.sy,e.sz,e.ry);
     }
-    for(let i=0;i<ridgeCount;i++){
+    for(let i=0;i<activeRidges;i++){
       const e=ridgeData[i];
       const ground=terrainHeight(e.x,e.z-travel);
       setInstance(ridges,i,e.x,ground+.010,e.z,e.sx,1,e.sz,e.ry);
     }
+    mounds.count=activeMounds;
+    ridges.count=activeRidges;
     mounds.instanceMatrix.needsUpdate=true;
     ridges.instanceMatrix.needsUpdate=true;
   }
@@ -90,16 +94,23 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
     if(worldSpeed===0)return;
     const dz=worldSpeed*dt;
     travel+=dz;
-    for(let i=0;i<moundCount;i++){
+    for(let i=0;i<activeMounds;i++){
       const e=moundData[i];
       e.z+=dz;
       if(e.z>18)e.z-=225;
     }
-    for(let i=0;i<ridgeCount;i++){
+    for(let i=0;i<activeRidges;i++){
       const e=ridgeData[i];
       e.z+=dz;
       if(e.z>18)e.z-=225;
     }
+    refresh();
+  }
+
+  function setDensity(value=1){
+    const density=THREE.MathUtils.clamp(Number(value)||1,.1,1);
+    activeMounds=Math.max(1,Math.round(moundCount*density));
+    activeRidges=Math.max(1,Math.round(ridgeCount*density));
     refresh();
   }
 
@@ -110,6 +121,10 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial}){
     refresh();
   }
 
+  function getDiagnostics(){
+    return {activeMounds,activeRidges,moundCapacity:moundCount,ridgeCapacity:ridgeCount};
+  }
+
   reset();
-  return {update,reset,moundMaterial,ridgeMaterial};
+  return {update,reset,setDensity,getDiagnostics,moundMaterial,ridgeMaterial};
 }
