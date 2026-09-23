@@ -62,13 +62,14 @@ function createPool(scene,count,size,opacity){
   points.frustumCulled=false;
   scene.add(points);
   return {
-    count,positions,velocity,life,maxLife,floorY,alphas,sizes,
+    count,activeCount:count,positions,velocity,life,maxLife,floorY,alphas,sizes,
     geometry,positionAttribute,alphaAttribute,sizeAttribute,
     material,baseSize:size,opacity,cursor:0
   };
 }
 
 function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
+  if(pool.activeCount<=0||count<=0)return;
   const turnSign=Math.sign(edge);
   const speed01=THREE.MathUtils.clamp((speed-30)/30,0,1);
   const direction=turnSign===0?(hash(pool.cursor+3)>.5?1:-1):(inside?turnSign:-turnSign);
@@ -76,7 +77,7 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
   const strength=inside?.58:1;
 
   for(let n=0;n<count;n++){
-    const i=pool.cursor++%pool.count;
+    const i=pool.cursor++%pool.activeCount;
     const k=i*3;
     const r1=hash(pool.cursor*1.17+n*2.3);
     const r2=hash(pool.cursor*2.71+n*5.1);
@@ -101,12 +102,13 @@ function emit(pool,x,y,z,edge,speed,count,landing=false,inside=false){
   pool.alphaAttribute.needsUpdate=true;
 }
 
-export function createSnowParticles({scene}){
+export function createSnowParticles({scene,densityMultiplier=1}={}){
   const mist=createPool(scene,460,.072,.50);
   const chunks=createPool(scene,210,.165,.72);
   let emitCarry=0;
   let bumpCarry=0;
   let lastLanding=0;
+  let densityScale=1;
 
   function spray(dt,x,y,z,speed,edge,air,landingPulse,running){
     if(!running)return;
@@ -114,7 +116,7 @@ export function createSnowParticles({scene}){
 
     if(!air){
       const carve=Math.abs(edge);
-      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28));
+      emitCarry+=dt*(5+speed01*14+carve*(36+speed01*28))*densityScale;
       const total=Math.min(22,Math.floor(emitCarry));
       if(total>0){
         const inside=carve>.20?Math.max(1,Math.floor(total*(.14+carve*.08))):0;
@@ -132,21 +134,21 @@ export function createSnowParticles({scene}){
       bumpCarry+=dt*(.55+speed01*.95);
       if(bumpCarry>=1){
         bumpCarry-=1;
-        const bumpCount=2+Math.floor(speed01*3);
+        const bumpCount=Math.max(1,Math.round((2+Math.floor(speed01*3))*densityScale));
         emit(chunks,x,y,z,edge,speed,bumpCount,false,false);
       }
     }
 
     if(landingPulse>.18&&lastLanding<=.18){
-      emit(mist,x,y,z,edge,speed,54+Math.floor(speed01*28),true,false);
-      emit(chunks,x,y,z,edge,speed,22+Math.floor(speed01*15),true,false);
+      emit(mist,x,y,z,edge,speed,Math.max(1,Math.round((54+Math.floor(speed01*28))*densityScale)),true,false);
+      emit(chunks,x,y,z,edge,speed,Math.max(1,Math.round((22+Math.floor(speed01*15))*densityScale)),true,false);
     }
     lastLanding=landingPulse;
   }
 
   function updatePool(pool,dt,worldSpeed,gravity){
     let dirty=false;
-    for(let i=0;i<pool.count;i++){
+    for(let i=0;i<pool.activeCount;i++){
       if(pool.life[i]<=0)continue;
       const k=i*3;
       pool.life[i]-=dt;
@@ -195,10 +197,44 @@ export function createSnowParticles({scene}){
     lastLanding=0;
   }
 
+  function setPoolDensity(pool,density){
+    const next=Math.max(1,Math.min(pool.count,Math.round(pool.count*density)));
+    if(next===pool.activeCount)return;
+    if(next<pool.activeCount){
+      for(let i=next;i<pool.count;i++){
+        pool.life[i]=0;
+        pool.alphas[i]=0;
+        pool.positions[i*3+1]=-100;
+      }
+      pool.positionAttribute.needsUpdate=true;
+      pool.alphaAttribute.needsUpdate=true;
+    }
+    pool.activeCount=next;
+    pool.cursor%=next;
+    pool.geometry.setDrawRange(0,next);
+  }
+
+  function setDensity(value=1){
+    densityScale=THREE.MathUtils.clamp(Number(value)||1,.1,1);
+    setPoolDensity(mist,densityScale);
+    setPoolDensity(chunks,densityScale);
+  }
+
   function setTint(color){
     mist.material.uniforms.uColor.value.copy(color);
     chunks.material.uniforms.uColor.value.copy(color);
   }
 
-  return {spray,update,reset,setTint};
+  function getDiagnostics(){
+    return {
+      densityScale,
+      mistActive:mist.activeCount,
+      mistCapacity:mist.count,
+      chunksActive:chunks.activeCount,
+      chunksCapacity:chunks.count
+    };
+  }
+
+  setDensity(densityMultiplier);
+  return {spray,update,reset,setTint,setDensity,getDiagnostics,setDensityMultiplier:setDensity,getDensityMultiplier:()=>densityScale};
 }

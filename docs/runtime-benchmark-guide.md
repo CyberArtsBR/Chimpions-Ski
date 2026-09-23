@@ -20,6 +20,32 @@ BASE_URL=https://chimpions-ski.onrender.com node scripts/benchmark-ski-runtime.m
 
 No credentials are required or accepted by the harness.
 
+
+## Rendering quality profiles
+
+The runtime now exposes one authoritative rendering-quality service from `src/renderQuality.js`:
+
+- `quality.current` — `high` or `reduced`.
+- `quality.getSettings()` — immutable settings for the current profile.
+- `quality.setProfile(name)` — switch profile without throwing on the supported values.
+- `quality.subscribe(listener)` — integration hook for renderer/environment/crowd systems.
+
+HIGH remains the default. No device is silently downgraded. For deterministic benchmark runs, use the benchmark-only environment selector, which appends the matching `?quality=` query parameter:
+
+```bash
+QUALITY_PROFILE=high BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-high.json node scripts/benchmark-ski-runtime.mjs
+QUALITY_PROFILE=reduced BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-reduced.json node scripts/benchmark-ski-runtime.mjs
+node scripts/compare-performance-results.mjs benchmark-baseline.json benchmark-high.json benchmark-reduced.json benchmark-comparison.json
+```
+
+The reduced profile materially lowers DPR, shadow-map size, snow workload, decorative instance workload, the crowd budget hook and distant-scenery update frequency. It does not alter collision reliability, physics substeps, course generation, game balance or camera behavior.
+
+## Hotspot telemetry
+
+The runtime diagnostics expose rolling CPU timings for the areas called out by the audit: course traversal/collision, course batch synchronization and environment update work. The benchmark samples both average and p95 rolling values without changing gameplay. These timings are intended to decide whether an optimization is justified; a suspected hotspot should not be rewritten solely because it appears expensive in source code.
+
+Frame summaries also include browser Long Task observations when Chromium exposes the Long Tasks API. Missing Long Task support is treated as unavailable instrumentation rather than a benchmark failure.
+
 ## Benchmark phases
 
 The machine-readable report contains these independent phases:

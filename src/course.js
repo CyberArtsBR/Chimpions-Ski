@@ -63,6 +63,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let edgeThreatCountdown=3;
   let lastThreatSide=0;
   let routeDecisionSerial=0;
+  let recentFormations=[];
+  let denseFormationStreak=0;
   const safeRoute=createSafeRouteTracker(0,null);
 
   // Seven conceptual lanes remain useful for fairness, but formation jitter/stagger
@@ -175,6 +177,14 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return safeRoute.constrain(desiredSafe(z,base,range),z,speed);
   }
 
+  const DENSE_FORMATIONS=new Set(['STAGGER','CLUSTER','SCATTER']);
+
+  function recordFormation(type){
+    denseFormationStreak=DENSE_FORMATIONS.has(type)?denseFormationStreak+1:0;
+    recentFormations.push(type);
+    if(recentFormations.length>3)recentFormations.shift();
+  }
+
   function chooseFormation(sectionKind='OPEN CARVE'){
     edgeThreatCountdown--;
     if(edgeThreatCountdown<=0){
@@ -190,6 +200,30 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       'RECOVERY':[.13,.08,.19,.08,.10,.18,.24],
       'BANANA LINE':[.14,.08,.16,.09,.09,.21,.23]
     }[sectionKind]||[.20,.15,.10,.09,.09,.20,.165];
+
+    // Preserve each section family's authored vocabulary, but avoid letting
+    // late-game pressure read as repeated/noisy copies of the same pattern.
+    const last=recentFormations.at(-1);
+    const previous=recentFormations.at(-2);
+    if(last){
+      const index=FORMATION_TYPES.indexOf(last);
+      if(index>=0)weights[index]*=.22;
+    }
+    if(previous){
+      const index=FORMATION_TYPES.indexOf(previous);
+      if(index>=0)weights[index]*=.62;
+    }
+    if(denseFormationStreak>=2){
+      for(const dense of DENSE_FORMATIONS){
+        const index=FORMATION_TYPES.indexOf(dense);
+        if(index>=0)weights[index]*=.24;
+      }
+      for(const release of ['ISOLATED','OFFSET_GATE','DIAGONAL']){
+        const index=FORMATION_TYPES.indexOf(release);
+        if(index>=0)weights[index]*=1.18;
+      }
+    }
+
     return FORMATION_TYPES[weightedIndex(weights)];
   }
 
@@ -211,6 +245,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   }
 
   function addFormation(placements,type,z,safeX,{kinds=['tree','rock'],intensity=.5,landingProtected=false}={}){
+    recordFormation(type);
     const decisionSerial=routeDecisionSerial++;
     const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(3.15,2.85,intensity);
     const kindAt=i=>kinds[(i+sectionIndex)%kinds.length];
@@ -893,6 +928,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       edgeThreatCountdown=3;
       lastThreatSide=0;
       routeDecisionSerial=0;
+      recentFormations=[];
+      denseFormationStreak=0;
       safeRoute.reset(0,null);
     },
     get lastType(){return lastType;},

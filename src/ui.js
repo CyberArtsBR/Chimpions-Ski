@@ -1,4 +1,7 @@
 import {SKI_TUNING} from './gameplayTuning.js';
+import {MENU_ACTION,createMenuFocusController,menuActionFromKeyboardEvent} from './menuNavigation.js';
+import {CONTROL_COPY} from './controlCopy.js';
+import {createMenuInputRepeat} from './menuInputRepeat.js';
 
 function byId(id){return document.getElementById(id);}
 function isVisible(element){return !!element&&!element.hidden&&element.getClientRects().length>0;}
@@ -26,7 +29,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
 
   const hudMeta=document.createElement('div');
   hudMeta.className='hud-meta';
-  hudMeta.innerHTML='<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">SPACE / A · JUMP</span><span class="hud-run-state" id="hud-run-state">READY</span>';
+  hudMeta.innerHTML=`<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">${CONTROL_COPY.jump} · JUMP</span><span class="hud-run-state" id="hud-run-state">READY</span>`;
   hud?.append(hudMeta);
   const hudBestReadout=byId('hud-best-readout');
   const hudJumpHint=byId('hud-jump-hint');
@@ -44,6 +47,17 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   speedUpCallout.textContent='SPEED UP';
   hud?.append(speedUpCallout);
   let speedUpTimer=0;
+
+  const trickHint=document.createElement('aside');
+  trickHint.id='trick-discovery-hint';
+  trickHint.className='trick-discovery-hint';
+  trickHint.hidden=true;
+  trickHint.setAttribute('role','status');
+  trickHint.setAttribute('aria-live','polite');
+  trickHint.innerHTML=`<small>TRICKS</small><strong>${CONTROL_COPY.trick360}</strong><strong>${CONTROL_COPY.trickBackflip}</strong><span>${CONTROL_COPY.controllerTrick}</span>`;
+  document.body.append(trickHint);
+  let trickHintTimer=0;
+  let trickHintShown=false;
 
   const countdown=document.createElement('div');
   countdown.id='run-countdown';
@@ -64,21 +78,21 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   pause.id='pause-overlay';
   pause.className='presentation-overlay';
   pause.hidden=true;
-  pause.innerHTML='<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>← → / LEFT STICK</b> Carve</span><span><b>SPACE / A · CROSS</b> Jump</span><span><b>ESC / START · MENU</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="leave-game-button" id="give-up-pause">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">Controller and keyboard ready</p></section>';
+  pause.innerHTML=`<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>${CONTROL_COPY.carve}</b> Carve</span><span><b>${CONTROL_COPY.jump}</b> Jump</span><span><b>${CONTROL_COPY.pause}</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game" data-menu-default="true">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="quality-profile" hidden>QUALITY · HIGH</button><button class="leave-game-button" id="give-up-pause">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(pause);
 
   const results=document.createElement('div');
   results.id='result-overlay';
   results.className='presentation-overlay';
   results.hidden=true;
-  results.innerHTML='<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">ENTER / A · Restart &nbsp; · &nbsp; SPACE / A · Jump during run</p></section>';
+  results.innerHTML=`<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>SCORE</small><strong id="result-score">0</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result" data-menu-default="true">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(results);
 
   const leaveConfirm=document.createElement('div');
   leaveConfirm.id='leave-confirm-overlay';
   leaveConfirm.className='presentation-overlay leave-confirm-overlay';
   leaveConfirm.hidden=true;
-  leaveConfirm.innerHTML='<section class="presentation-card leave-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="leave-confirm-title"><small class="eyebrow">LEAVE RUN</small><h2 id="leave-confirm-title">Do you really want to leave the game?</h2><div class="presentation-actions"><button class="secondary" id="leave-confirm-no">NO</button><button class="leave-confirm-yes" id="leave-confirm-yes">YES</button></div></section>';
+  leaveConfirm.innerHTML='<section class="presentation-card leave-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="leave-confirm-title"><small class="eyebrow">LEAVE RUN</small><h2 id="leave-confirm-title">Do you really want to leave the game?</h2><div class="presentation-actions"><button class="secondary" id="leave-confirm-no" data-menu-default="true">NO</button><button class="leave-confirm-yes" id="leave-confirm-yes">YES</button></div><p class="controller-hint">NO is selected by default · ESC / B cancels</p></section>';
   document.body.append(leaveConfirm);
 
   const resumeButton=byId('resume-game');
@@ -87,6 +101,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   const chooseResult=byId('choose-result');
   const sfxButton=byId('toggle-sfx');
   const musicButton=byId('toggle-music');
+  const qualityButton=byId('quality-profile');
   const giveUpPause=byId('give-up-pause');
   const giveUpResult=byId('give-up-result');
   const leaveNo=byId('leave-confirm-no');
@@ -99,56 +114,32 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   let previousSpeedBucket=0;
   let bestDistance=0;
   let bestCelebrated=false;
-  let padButtons=[];
-  let axisLatchX=0;
-  let axisLatchY=0;
-  let controllerSelected=null;
-  let leaveReturnFocus=null;
+  let activeControllerSelector=null;
+  let qualityMode='high';
+  let qualityOptions=[];
+  let qualityCallback=null;
 
-  function setControllerSelection(element){
-    const next=element?.matches?.('button:not([disabled])')?element:null;
-    if(controllerSelected===next)return;
-    controllerSelected?.classList.remove('is-controller-selected');
-    controllerSelected?.removeAttribute('data-controller-selected');
-    controllerSelected=next;
-    if(controllerSelected){
-      controllerSelected.classList.add('is-controller-selected');
-      controllerSelected.setAttribute('data-controller-selected','true');
-    }
-  }
-  function clearControllerSelection(root=null){
-    if(!controllerSelected)return;
-    if(root&&!root.contains(controllerSelected))return;
-    controllerSelected.classList.remove('is-controller-selected');
-    controllerSelected.removeAttribute('data-controller-selected');
-    controllerSelected=null;
-  }
+  const menuFocus=createMenuFocusController({
+    getRoot:()=>activeRoot(),
+    getItems:buttonList,
+    onMove:()=>{audio.play('menu',.18);haptics?.menuMove?.();},
+    onConfirm:()=>haptics?.menuConfirm?.(),
+    onCancel:()=>cancelActiveMenu(),
+    onMenu:()=>toggleMenuFromAction()
+  });
 
   function showLeaveConfirm(origin=null){
-    leaveReturnFocus=origin||document.activeElement;
     leaveConfirm.hidden=false;
-    setTimeout(()=>{
-      leaveNo?.focus();
-      setControllerSelection(leaveNo);
-    },0);
+    menuFocus.open({root:leaveConfirm,defaultElement:leaveNo,restoreFrom:origin||document.activeElement});
   }
   function hideLeaveConfirm(){
     if(leaveConfirm.hidden)return;
-    clearControllerSelection(leaveConfirm);
     leaveConfirm.hidden=true;
-    const target=leaveReturnFocus;
-    leaveReturnFocus=null;
-    setTimeout(()=>{
-      if(target?.isConnected&&!target.disabled){
-        target.focus();
-        setControllerSelection(target);
-      }
-    },0);
+    menuFocus.close({root:leaveConfirm,restore:true});
   }
   function confirmLeave(){
-    clearControllerSelection(leaveConfirm);
     leaveConfirm.hidden=true;
-    leaveReturnFocus=null;
+    menuFocus.close({root:leaveConfirm,restore:false});
     onGiveUp?.();
   }
 
@@ -215,6 +206,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
+    menuFocus.reset();
     overlay.classList.add('is-leaving');
     setTimeout(()=>{if(mode==='countdown')overlay.hidden=true;},220);
     distanceStat?.classList.remove('is-best');
@@ -275,7 +267,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     countdown.classList.remove('is-active','is-launching');
   }
   function showRunLoading(){
-    clearControllerSelection();
+    menuFocus.reset();
     runLoading.hidden=false;
   }
   function hideRunLoading(){
@@ -289,21 +281,19 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     results.hidden=true;
     setMode('paused');
     syncAudioButtons();
-    setTimeout(()=>{
-      resumeButton?.focus();
-      setControllerSelection(resumeButton);
-    },0);
+    setTimeout(()=>menuFocus.open({root:pause,defaultElement:resumeButton}),0);
   }
   function hidePause(){
-    clearControllerSelection(pause);
+    menuFocus.close({root:pause,restore:false});
     pause.hidden=true;
     setMode('playing');
   }
-  function showResults({distance=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
+  function showResults({distance=0,score=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
     clearTimeout(resultTimer);
     resultTimer=setTimeout(()=>{
       leaveConfirm.hidden=true;
       byId('result-distance').textContent=Math.floor(distance)+' m';
+      byId('result-score').textContent=Math.max(0,Math.floor(Number(score)||0)).toLocaleString();
       byId('result-bananas').textContent=String(bananas);
       byId('result-best').textContent=Math.floor(best)+' m';
       const banner=byId('new-best-banner');
@@ -312,24 +302,21 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       eyebrow.textContent=crashType?String(crashType).replace(/[-_]/g,' ').toUpperCase():'RUN COMPLETE';
       results.hidden=false;
       pause.hidden=true;
-      setTimeout(()=>{
-        restartResult?.focus();
-        setControllerSelection(restartResult);
-      },0);
+      setTimeout(()=>menuFocus.open({root:results,defaultElement:restartResult}),0);
     },delay);
   }
   function showMenu(){
     clearTimeout(resultTimer);
     resultTimer=0;
     cancelCountdown();
-    clearControllerSelection();
+    menuFocus.reset();
     leaveConfirm.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     overlay.hidden=false;
     overlay.classList.remove('is-leaving');
     setMode('menu');
-    setTimeout(()=>{if(!document.querySelector('.selector-dialog[open]'))startButton?.focus();},0);
+    if(!document.querySelector('.selector-dialog[open]'))menuFocus.open({root:overlay,defaultElement:startButton});
   }
   function updateHud(values={}){
     const d=Math.max(0,Number(values.distance)||0);
@@ -386,9 +373,38 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       hudJumpHint.classList.remove('jump-pulse');
       void hudJumpHint.offsetWidth;
       hudJumpHint.classList.add('jump-pulse');
-      setTimeout(()=>{hudJumpHint.textContent='SPACE / A · JUMP';hudJumpHint.classList.remove('jump-pulse');},520);
+      setTimeout(()=>{hudJumpHint.textContent=CONTROL_COPY.jump+' · JUMP';hudJumpHint.classList.remove('jump-pulse');},520);
     }
   }
+  function showTrickHint(){
+    if(trickHintShown)return false;
+    trickHintShown=true;
+    clearTimeout(trickHintTimer);
+    trickHint.hidden=false;
+    trickHintTimer=setTimeout(()=>{trickHint.hidden=true;},4200);
+    return true;
+  }
+  function configureQuality({mode='high',options=['high','reduced'],onChange=null}={}){
+    qualityOptions=Array.from(new Set((options||[]).map(value=>String(value).toLowerCase()).filter(Boolean)));
+    qualityMode=String(mode||qualityOptions[0]||'high').toLowerCase();
+    if(qualityOptions.length&&!qualityOptions.includes(qualityMode))qualityOptions.unshift(qualityMode);
+    qualityCallback=typeof onChange==='function'?onChange:null;
+    if(qualityButton){
+      qualityButton.hidden=!(qualityCallback&&qualityOptions.length>1);
+      qualityButton.textContent='QUALITY · '+qualityMode.toUpperCase();
+      qualityButton.setAttribute('aria-label','Quality profile '+qualityMode);
+    }
+  }
+  function cycleQuality(){
+    if(!qualityCallback||qualityOptions.length<2)return false;
+    const current=Math.max(0,qualityOptions.indexOf(qualityMode));
+    qualityMode=qualityOptions[(current+1)%qualityOptions.length];
+    qualityButton.textContent='QUALITY · '+qualityMode.toUpperCase();
+    qualityButton.setAttribute('aria-label','Quality profile '+qualityMode);
+    qualityCallback(qualityMode);
+    return true;
+  }
+
   function activeRoot(){
     if(!leaveConfirm.hidden)return leaveConfirm;
     if(!pause.hidden)return pause;
@@ -396,86 +412,60 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(overlay&&!overlay.hidden)return overlay;
     return null;
   }
-  function focusMove(direction){
-    const root=activeRoot();
-    const buttons=buttonList(root);
-    if(!buttons.length)return;
-    const current=buttons.indexOf(document.activeElement);
-    const index=current<0?(direction>0?0:buttons.length-1):(current+direction+buttons.length)%buttons.length;
-    buttons[index].focus();
-    setControllerSelection(buttons[index]);
-    audio.play('menu',.18);
-    haptics?.menuMove?.();
+  function cancelActiveMenu(){
+    if(!leaveConfirm.hidden){hideLeaveConfirm();return true;}
+    if(!results.hidden){showLeaveConfirm(giveUpResult);return true;}
+    if(mode==='paused'){onResume?.();return true;}
+    if(mode==='playing'){onPause?.();return true;}
+    return false;
   }
-  function clickFocused(root){
-    const buttons=buttonList(root);
-    if(!buttons.length)return;
-    const active=buttons.includes(document.activeElement)?document.activeElement:(root.querySelector('.primary:not([disabled])')||buttons[0]);
-    active?.focus();
-    setControllerSelection(active);
-    haptics?.menuConfirm?.();
-    active?.click();
+  function toggleMenuFromAction(){
+    if(mode==='playing'){onPause?.();return true;}
+    if(mode==='paused'){onResume?.();return true;}
+    if(mode==='menu'){onStart?.();return true;}
+    if(mode==='crashed'&&!results.hidden){onRestart?.();return true;}
+    return false;
   }
-  function updateController(pad,selector){
-    if(document.body.classList.contains('start-screen-active')){
-      padButtons=pad.buttons?.slice?.()||[];
-      axisLatchX=0;axisLatchY=0;
-      return;
+  function handleMenuAction(action,selector=null){
+    if(!action||document.body.classList.contains('start-screen-active'))return false;
+    if(selector?.dialog?.open)return !!selector.handleMenuAction?.(action);
+    if(mode==='countdown')return false;
+    if(action===MENU_ACTION.MENU)return toggleMenuFromAction();
+    return menuFocus.handle(action);
+  }
+  // Controller owns device selection + repeat timing; UI owns semantic focus/navigation.
+  const directionAction={up:MENU_ACTION.UP,down:MENU_ACTION.DOWN,left:MENU_ACTION.LEFT,right:MENU_ACTION.RIGHT};
+  const menuInput=createMenuInputRepeat({
+    adapter:{
+      move(direction){const action=directionAction[direction];if(action)handleMenuAction(action,activeControllerSelector);},
+      confirm(){handleMenuAction(MENU_ACTION.CONFIRM,activeControllerSelector);},
+      cancel(){handleMenuAction(MENU_ACTION.CANCEL,activeControllerSelector);},
+      menu(){handleMenuAction(MENU_ACTION.MENU,activeControllerSelector);}
     }
-    if(selector?.dialog?.open){
-      selector.updateGamepad?.(pad);
-      padButtons=pad.buttons?.slice?.()||[];
-      axisLatchX=0;axisLatchY=0;
-      return;
+  });
+  function updateController(pad={},selector=null){
+    activeControllerSelector=selector;
+    if(document.body.classList.contains('start-screen-active')||mode==='countdown'||!pad?.connected){
+      menuInput.reset();
+      return false;
     }
-    const buttons=pad.buttons||[];
-    if(mode==='countdown'){
-      padButtons=buttons.slice();
-      axisLatchX=0;axisLatchY=0;
-      return;
+    if(mode==='playing'){
+      const handled=!!pad?.edges?.pressed?.menu&&handleMenuAction(MENU_ACTION.MENU,selector);
+      menuInput.reset();
+      return handled;
     }
-    const pressed=index=>!!buttons[index]&&!padButtons[index];
-    if(!leaveConfirm.hidden){
-      if(pressed(1)){
-        hideLeaveConfirm();
-        padButtons=buttons.slice();
-        return;
-      }
-      const root=leaveConfirm;
-      if(pressed(0))clickFocused(root);
-      const x=pad.axis||0,y=pad.axisY||0;
-      if(Math.abs(x)<.35)axisLatchX=0;
-      if(Math.abs(y)<.35)axisLatchY=0;
-      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
-      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
-      padButtons=buttons.slice();
-      return;
+    if(!selector?.dialog?.open&&!activeRoot()){
+      menuInput.reset();
+      return false;
     }
-    if(pressed(9)){
-      if(mode==='playing')onPause?.();
-      else if(mode==='paused')onResume?.();
-      else if(mode==='menu')onStart?.();
-      else if(mode==='crashed'&&!results.hidden)onRestart?.();
-      padButtons=buttons.slice();
-      return;
-    }
-    const root=activeRoot();
-    if(root){
-      if(pressed(0))clickFocused(root);
-      if(pressed(1)&&mode==='paused')onResume?.();
-      const x=pad.axis||0,y=pad.axisY||0;
-      if(Math.abs(x)<.35)axisLatchX=0;
-      if(Math.abs(y)<.35)axisLatchY=0;
-      if(Math.abs(y)>.62&&!axisLatchY){axisLatchY=Math.sign(y);focusMove(Math.sign(y));}
-      else if(Math.abs(x)>.62&&!axisLatchX){axisLatchX=Math.sign(x);focusMove(Math.sign(x));}
-    }else{axisLatchX=0;axisLatchY=0;}
-    padButtons=buttons.slice();
+    const events=menuInput.update(pad);
+    return events.length>0;
   }
 
-  for(const root of [pause,results,leaveConfirm]){
+  for(const root of [overlay,pause,results,leaveConfirm].filter(Boolean)){
     root.addEventListener('focusin',event=>{
       const button=event.target.closest?.('button:not([disabled])');
-      if(button&&root.contains(button))setControllerSelection(button);
+      if(button&&root.contains(button))menuFocus.syncFromFocus(button);
     });
   }
 
@@ -497,30 +487,26 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     const next=!audio.getSettings().musicEnabled;
     audio.setMusicEnabled(next);syncAudioButtons();
   });
+  qualityButton?.addEventListener('click',cycleQuality);
   document.addEventListener('click',event=>{
     if(document.body.classList.contains('start-screen-active'))return;
     if(event.target.closest('button'))audio.play('button',.24);
   },true);
   document.addEventListener('keydown',event=>{
-    if(event.repeat)return;
-    if(document.body.classList.contains('start-screen-active'))return;
+    if(event.repeat||document.body.classList.contains('start-screen-active'))return;
     if(document.querySelector('.selector-dialog[open]'))return;
-    if(event.code==='Escape'){
-      if(!leaveConfirm.hidden){
-        event.preventDefault();
-        hideLeaveConfirm();
-      }else if(mode==='playing'){event.preventDefault();onPause?.();}
-      else if(mode==='paused'){event.preventDefault();onResume?.();}
-      return;
-    }
-    if(event.code==='Enter'&&!event.target.closest('button,input')){
-      if(mode==='menu'){event.preventDefault();onStart?.();}
-      else if(mode==='crashed'&&!results.hidden){event.preventDefault();onRestart?.();}
+    if(event.target.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+    const action=menuActionFromKeyboardEvent(event);
+    if(!action)return;
+    if(mode==='playing'&&action!==MENU_ACTION.CANCEL)return;
+    if(handleMenuAction(action)){
+      event.preventDefault();
+      event.stopPropagation();
     }
   });
 
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,updateController,syncAudioButtons,showLandingFeedback,showJumpFeedback,showSpeedUp};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,handleMenuAction,updateController,configureQuality,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp};
 }

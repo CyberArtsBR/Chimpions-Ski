@@ -27,6 +27,12 @@ function listEnv(name,fallback){
   if(!raw)return fallback;
   return raw.split(',').map(value=>value.trim()).filter(Boolean);
 }
+function qualityProfileEnv(){
+  const value=String(process.env.QUALITY_PROFILE||'').trim().toLowerCase();
+  if(!value)return null;
+  if(!['high','reduced'].includes(value))throw new Error('QUALITY_PROFILE must be high or reduced');
+  return value;
+}
 function normalizeBaseUrl(value){
   const url=new URL(value);
   if(!['http:','https:'].includes(url.protocol))throw new Error(`BASE_URL must use http:// or https://`);
@@ -41,6 +47,7 @@ function classifyTarget(baseUrl){
 export const CONFIG=Object.freeze({
   baseUrl:normalizeBaseUrl(process.env.BASE_URL||DEFAULT_BASE_URL),
   targetMode:classifyTarget(process.env.BASE_URL||DEFAULT_BASE_URL),
+  qualityProfile:qualityProfileEnv(),
   headless:boolEnv('HEADLESS',true),
   viewportWidth:integerEnv('VIEWPORT_WIDTH',1440,{min:640,max:7680}),
   viewportHeight:integerEnv('VIEWPORT_HEIGHT',900,{min:480,max:4320}),
@@ -59,6 +66,12 @@ export const CONFIG=Object.freeze({
   writeResults:boolEnv('WRITE_RESULTS',true),
   resultsPath:path.resolve(process.cwd(),process.env.RESULTS_PATH||DEFAULT_RESULTS_PATH)
 });
+
+export function benchmarkTargetUrl(){
+  const url=new URL(CONFIG.baseUrl);
+  if(CONFIG.qualityProfile)url.searchParams.set('quality',CONFIG.qualityProfile);
+  return url.toString();
+}
 
 export function round(value,digits=2){
   if(!Number.isFinite(value))return null;
@@ -90,6 +103,7 @@ export function summarizeFrames(frameTimes){
     frames:clean.length,
     durationMs:round(clean.reduce((sum,value)=>sum+value,0)),
     averageFrameMs:round(mean,3),
+    p50FrameMs:round(med,3),
     averageFps:round(1000/mean,2),
     medianFps:round(1000/med,2),
     onePercentLowFpsApprox:round(1000/p99,2),
@@ -201,6 +215,7 @@ export async function importPlaywright(){
 export async function attachFrameProbe(page){
   await page.addInitScript(()=>{
     const frameTimes=[];
+    const longTasks=[];
     let last=null;
     function tick(timestamp){
       if(last!=null&&frameTimes.length<100_000)frameTimes.push(timestamp-last);
@@ -208,19 +223,44 @@ export async function attachFrameProbe(page){
       requestAnimationFrame(tick);
     }
     requestAnimationFrame(tick);
+    try{
+      new PerformanceObserver(list=>{
+        for(const entry of list.getEntries()){
+          if(longTasks.length>=10_000)break;
+          longTasks.push({startTime:entry.startTime,duration:entry.duration});
+        }
+      }).observe({entryTypes:['longtask']});
+    }catch{}
     Object.defineProperty(window,'__chimpionsBenchmarkFrames',{value:{
-      mark:()=>frameTimes.length,
-      sliceFrom:index=>frameTimes.slice(Math.max(0,Number(index)||0)),
+      mark:()=>({frameIndex:frameTimes.length,longTaskIndex:longTasks.length}),
+      sliceFrom:mark=>{
+        const index=typeof mark==='object'?Number(mark?.frameIndex)||0:Number(mark)||0;
+        return frameTimes.slice(Math.max(0,index));
+      },
+      longTasksFrom:mark=>{
+        const index=typeof mark==='object'?Number(mark?.longTaskIndex)||0:0;
+        return longTasks.slice(Math.max(0,index));
+      },
       count:()=>frameTimes.length
     }});
   });
 }
 export async function frameMark(page){
-  return page.evaluate(()=>window.__chimpionsBenchmarkFrames?.mark?.()??0);
+  return page.evaluate(()=>window.__chimpionsBenchmarkFrames?.mark?.()??{frameIndex:0,longTaskIndex:0});
 }
 export async function frameSummarySince(page,mark){
-  const times=await page.evaluate(index=>window.__chimpionsBenchmarkFrames?.sliceFrom?.(index)??[],mark);
-  return summarizeFrames(times);
+  const captured=await page.evaluate(current=>({
+    times:window.__chimpionsBenchmarkFrames?.sliceFrom?.(current)??[],
+    longTasks:window.__chimpionsBenchmarkFrames?.longTasksFrom?.(current)??[]
+  }),mark);
+  const summary=summarizeFrames(captured.times);
+  const durations=captured.longTasks.map(item=>Number(item.duration)).filter(Number.isFinite);
+  summary.longTasks={
+    count:durations.length,
+    totalDurationMs:round(durations.reduce((sum,value)=>sum+value,0),3),
+    maxDurationMs:durations.length?round(Math.max(...durations),3):0
+  };
+  return summary;
 }
 
 export async function createNetworkTracker(context,page){
@@ -387,6 +427,24 @@ export async function sampleRuntime(page){
       rendererTriangles:d?.rendererTriangles??null,
       rendererGeometries:d?.rendererGeometries??null,
       rendererTextures:d?.rendererTextures??null,
+      qualityProfile:d?.qualityProfile??null,
+      rendererPixelRatio:d?.rendererPixelRatio??null,
+      environmentShadowMapSize:d?.environmentShadowMapSize??null,
+      decorativeShadowCasting:d?.decorativeShadowCasting??null,
+      activeBanks:d?.activeBanks??null,
+      activeWindBanks:d?.activeWindBanks??null,
+      activeDecorativeTrees:d?.activeDecorativeTrees??null,
+      activeSnowLayerParticles:d?.activeSnowLayerParticles??null,
+      snowParticleMistActive:d?.snowParticlePool?.mistActive??null,
+      snowParticleChunksActive:d?.snowParticlePool?.chunksActive??null,
+      snowSurfaceMoundsActive:d?.snowSurfaceDetail?.activeMounds??null,
+      snowSurfaceRidgesActive:d?.snowSurfaceDetail?.activeRidges??null,
+      perfCourseTraversalMs:d?.perfCourseTraversalMs??null,
+      perfCourseTraversalP95Ms:d?.perfCourseTraversalP95Ms??null,
+      perfCourseBatchSyncMs:d?.perfCourseBatchSyncMs??null,
+      perfCourseBatchSyncP95Ms:d?.perfCourseBatchSyncP95Ms??null,
+      perfEnvironmentUpdateMs:d?.perfEnvironmentUpdateMs??null,
+      perfEnvironmentUpdateP95Ms:d?.perfEnvironmentUpdateP95Ms??null,
       domNodes:document.getElementsByTagName('*').length,
       trickDomNodes:document.querySelectorAll('[class*="trick" i],[id*="trick" i]').length,
       scoreFeedbackNodes:document.querySelectorAll('.score-pop-layer *,.landing-callout,.speed-up-callout').length,

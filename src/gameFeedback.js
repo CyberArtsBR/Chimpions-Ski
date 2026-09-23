@@ -1,8 +1,19 @@
+import {calculateCrashFeedback,calculateLandingFeedback,createEdgeContactGate} from './gameFeelFeedback.js';
+
 export function createGameFeedback({audio,ui}){
   let speedTier=0;
+  let semanticEvent=null;
+  const edgeGate=createEdgeContactGate();
+
+  function remember(type,feedback){
+    semanticEvent=feedback?{type,...feedback}:null;
+    return feedback;
+  }
 
   function reset(){
     speedTier=0;
+    semanticEvent=null;
+    edgeGate.reset();
   }
 
   function onManualTakeoff(){
@@ -15,17 +26,30 @@ export function createGameFeedback({audio,ui}){
     ui?.showJumpFeedback?.('RAMP');
   }
 
-  function onLanding(landing={}){
-    if(!landing.landed)return;
-    const quality=landing.quality||'clean';
-    if(quality==='hard')audio.play('hardLand',.78);
-    else if(quality==='rough')audio.play('hardLand',.62);
-    else audio.play('land',.50);
+  function onLanding(landing={},context={}){
+    if(!landing.landed)return null;
+    const feedback=calculateLandingFeedback({...landing,...context});
+    audio.play(feedback.sound,feedback.audioGain,feedback.rateScale);
+    return remember('landing',feedback);
   }
 
-  function onCrash(){
-    audio.play('crash',.88);
+  function onCrash(crash={}){
+    const feedback=calculateCrashFeedback(crash);
+    audio.play('crash',feedback.audioGain,feedback.rateScale);
+    return remember('crash',feedback);
   }
+
+  function onEdgeContact(edgeContactIntensity,timeSeconds=0){
+    const feedback=edgeGate.request(edgeContactIntensity,timeSeconds);
+    if(feedback.play){
+      const handled=audio.playEdgeContact?.(feedback.intensity);
+      if(handled===undefined)audio.play('edgeScrape',feedback.audioGain,feedback.rateScale);
+      remember('edge',feedback);
+    }
+    return feedback;
+  }
+
+  function getSemanticEvent(){return semanticEvent?{...semanticEvent}:null;}
 
   function update(state,dt){
     const playing=state.mode==='playing';
@@ -41,5 +65,5 @@ export function createGameFeedback({audio,ui}){
     }
   }
 
-  return {reset,onManualTakeoff,onRampTakeoff,onLanding,onCrash,update};
+  return {reset,onManualTakeoff,onRampTakeoff,onLanding,onCrash,onEdgeContact,getSemanticEvent,update};
 }

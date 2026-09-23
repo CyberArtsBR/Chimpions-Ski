@@ -32,7 +32,7 @@ trickState.reset();
 assert.deepEqual(trickState.diagnostics(),{generation:0,activeType:null,recentEventCount:0,anonymousResultLatch:null});
 assert(audioSource.includes('trickState.reset();'),'Run reset must clear temporary trick/audio state');
 
-const unsupported=createHaptics({navigatorObject:{getGamepads:()=>[]}});
+const unsupported=createHaptics();
 for(const call of [
   ()=>unsupported.menuMove(),
   ()=>unsupported.menuConfirm(),
@@ -52,27 +52,37 @@ for(const [name,pattern] of Object.entries(HAPTIC_PATTERNS)){
   assert(pattern.strongMagnitude>=0&&pattern.strongMagnitude<=1,name+' strong magnitude is invalid');
 }
 
-const eventEffects=[];
-const eventPad={
-  connected:true,
-  vibrationActuator:{
-    playEffect:(type,options)=>{eventEffects.push({type,options});return Promise.resolve('complete');}
-  }
+const effectsA=[];
+const effectsB=[];
+const padA={
+  index:0,id:'Pad A',connected:true,
+  vibrationActuator:{playEffect:(type,options)=>{effectsA.push({type,options});return Promise.resolve('complete');}}
 };
-const eventHaptics=createHaptics({navigatorObject:{getGamepads:()=>[eventPad]}});
-assert.equal(eventHaptics.menuMove(),true);
-assert.equal(eventHaptics.menuConfirm(),true);
-assert.equal(eventHaptics.banana(),true);
-assert(eventEffects.some(effect=>effect.type==='dual-rumble'),'dual-rumble path was not used for event haptics');
+const padB={
+  index:1,id:'Pad B',connected:true,
+  vibrationActuator:{playEffect:(type,options)=>{effectsB.push({type,options});return Promise.resolve('complete');}}
+};
+const targeted=createHaptics();
+targeted.setActiveGamepad(padB);
+assert.equal(targeted.menuMove(),true);
+assert.equal(effectsA.length,0,'haptics leaked to an inactive lower-index controller');
+assert.equal(effectsB.length,1,'active controller did not receive menu haptics');
+targeted.setActiveGamepad(padA);
+assert.equal(targeted.menuConfirm(),true);
+assert.equal(effectsA.length,1,'haptic target did not follow controller takeover');
+assert.equal(targeted.diagnostics().activeIndex,0);
+targeted.clearActiveGamepad();
+assert.equal(targeted.crash('rock'),false,'cleared active controller still received haptics');
 
 const continuousEffects=[];
 const continuousPad={
-  connected:true,
+  index:2,id:'Continuous',connected:true,
   vibrationActuator:{
     playEffect:(type,options)=>{continuousEffects.push({type,options});return Promise.resolve('complete');}
   }
 };
-const continuous=createHaptics({navigatorObject:{getGamepads:()=>[continuousPad]}});
+const continuous=createHaptics();
+continuous.setActiveGamepad(continuousPad);
 continuous.update(.09,{
   mode:'playing',
   speed:300/3.6,
@@ -86,6 +96,30 @@ continuous.update(.09,{
 });
 assert(continuousEffects.length>0,'continuous snow/carve haptics did not emit at max speed');
 assert(continuousEffects[0].options.weakMagnitude>0&&continuousEffects[0].options.strongMagnitude>0,'continuous rumble magnitudes were empty');
+
+let rejectedCalls=0;
+let fallbackPulses=0;
+let unhandled=null;
+const onUnhandled=reason=>{unhandled=reason;};
+process.once('unhandledRejection',onUnhandled);
+const rejectingPad={
+  index:3,id:'Rejecting',connected:true,
+  vibrationActuator:{
+    playEffect:()=>{rejectedCalls++;return Promise.reject(new Error('unsupported dual-rumble'));},
+    pulse:()=>{fallbackPulses++;return Promise.resolve(true);}
+  }
+};
+const rejecting=createHaptics();
+rejecting.setActiveGamepad(rejectingPad);
+assert.equal(rejecting.menuMove(),true,'initial supported-looking haptic call was not attempted');
+await new Promise(resolve=>setImmediate(resolve));
+assert.equal(unhandled,null,'rejected vibration promise escaped as unhandled rejection');
+assert.equal(rejecting.menuMove(),true,'pulse fallback was not used after playEffect rejection');
+assert.equal(rejectedCalls,1,'rejected playEffect was retried repeatedly');
+assert.equal(fallbackPulses,1,'pulse fallback did not receive the second haptic request');
+process.removeListener('unhandledRejection',onUnhandled);
+
+assert.equal(targeted.emit('landing',{impact:.65,quality:'clean'}),false,'event routing ignored cleared active target');
 
 assert(audioSource.includes('source.onended=()=>{'),'Transient audio sources must clean themselves up');
 assert(audioSource.includes('context??=new AudioContextClass()'),'Audio must reuse one AudioContext');

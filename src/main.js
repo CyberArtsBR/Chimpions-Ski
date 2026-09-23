@@ -29,6 +29,8 @@ import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFail
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
+import {quality,QUALITY_PROFILE_NAMES} from './renderQuality.js';
+import {createPerformanceTelemetry} from './performanceTelemetry.js';
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -64,7 +66,8 @@ camera.lookAt(0,1,-12);
 const skiCamera=createSkiCamera(camera);
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+const performanceTelemetry=createPerformanceTelemetry();
+renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=true;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -74,6 +77,7 @@ app.prepend(renderer.domElement);
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
+quality.subscribe(settings=>renderer.setPixelRatio(Math.min(devicePixelRatio,settings.dprCap)));
 const snowMat=environment.terrainMaterial;
 const {
   trunk:trunkMat,
@@ -334,6 +338,15 @@ const ui=createGameUI({
     window.location.assign(startScreen.gameSelectionUrl);
   }
 });
+
+// Integration bridge: one authoritative quality profile drives every scalable subsystem.
+ui.configureQuality?.({mode:quality.current,options:QUALITY_PROFILE_NAMES,onChange:profile=>quality.setProfile(profile)});
+function applyRuntimeQuality(settings=quality.getSettings()){
+  startCrowd.setQuality?.({maxSpectators:smokeTestMode?4:settings.crowdMaxSpectators});
+  environment.applyQuality?.(settings);
+}
+quality.subscribe(applyRuntimeQuality,{immediate:true});
+
 const feedback=createGameFeedback({audio,ui});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
 const startScreen=createStartScreen({
@@ -344,14 +357,8 @@ const startScreen=createStartScreen({
     state.mode='menu';
     ui.showMenu();
     selector.open();
-    // Only start warming the 50 unique spectator GLBs after the selector is
-    // already open. This keeps the initial screen and first selector frame
-    // responsive; beginRun() reuses this same in-flight load when confirmed.
-    requestAnimationFrame(()=>{
-      setTimeout(()=>{
-        startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
-      },0);
-    });
+    // Keep spectator GLB work idle while the player is choosing a rider.
+    // The selected rider is interaction-critical and should not compete with crowd parsing.
     return true;
   },
   assetUrl:'/start/chimpions-ski-start.jpg'
@@ -462,6 +469,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
       catalog,
       onSelect:async(entry,rideMode)=>{
         await setAvatar(entry,rideMode);
+        // Rider selection has priority. Only after its GLB is ready do we give
+        // the start crowd a chance to warm the critical subset before beginRun().
+        startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
         if(initialSelectionFlow){
           initialSelectionFlow=false;
           setTimeout(()=>beginRun(),0);
@@ -614,10 +624,10 @@ function crash(kind='tree',item=null){
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
   ui.setMode('crashed');
-  feedback.onCrash();
-  if(!isTrickCrash)haptics.crash(state.crashType);
+  const crashFeedback=feedback.onCrash({kind:state.crashType,velocity:state.crashVelocity});
+  if(!isTrickCrash)haptics.crash(state.crashType,crashFeedback?.hapticStrength);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
-  ui.showResults({distance:runDistance,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
+  ui.showResults({distance:runDistance,score:state.score,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType},650);
 }
 addEventListener('keydown',e=>{
   if(state.mode!=='playing'||selector?.dialog?.open||e.target.closest?.('input,textarea,select,[contenteditable="true"]'))return;
@@ -642,11 +652,13 @@ document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInpu
 function update(dt){
   physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
+  haptics.setActiveGamepad?.(pad.activeGamepad);
   if(startScreen.isActive){
     startScreen.updateController(pad);
     lastPadJump=!!pad.jump;
     return;
   }
+  performanceTelemetry.beginFrame();
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
@@ -659,7 +671,7 @@ function update(dt){
   let worldDistance=0;
   if(state.mode==='playing'){
     // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
-    const steps=Math.ceil(dt/(1/180));
+    const steps=Math.ceil(dt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS);
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
     physicsSubsteps++;
@@ -710,6 +722,7 @@ function update(dt){
 
     if(!ridingRamp&&tryManualJump(state,groundY)){
       feedback.onManualTakeoff();
+      ui.showTrickHint?.();
       if(trickIntent==='BACKFLIP'){
         // Ground backflips get a dedicated vertical launch. Keep the full arc
         // even if the player releases Jump quickly so the rotation happens in air.
@@ -742,10 +755,10 @@ function update(dt){
       if(trickLanding.interrupted){
         resolveTrickAudio(scoreTrickFailure(state,trickLanding));
         crash('trick');
-      }else{
-        haptics.land(Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
+      }else if(state.mode==='playing'){
+        const landingFeedback=feedback.onLanding(landing,{jumpSource:landingSource,verticalVelocity:landing.impact});
+        haptics.land(landingFeedback?.hapticStrength??Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
       }
-      if(state.mode==='playing')feedback.onLanding(landing);
     }
 
     player.position.x=state.x;player.position.y=state.y;
@@ -785,6 +798,7 @@ function update(dt){
       skiTrails.breakTrail();
     }
 
+    const courseTraversalStarted=performance.now();
     let nearestSectionItem=null;
     for(let i=course.length-1;i>=0;i--){
       const item=course[i];
@@ -822,7 +836,7 @@ function update(dt){
         requiredClearance
       });
 
-      if(dz>radiusZ+.20||dx>radiusX+.30)continue;
+      if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
@@ -836,7 +850,7 @@ function update(dt){
       if(item.userData.kind==='ramp'){
         const approachDepth=player.position.z-item.position.z;
         const previousApproachDepth=player.position.z-previousItemZ;
-        const aligned=dx<=radiusX+.30;
+        const aligned=dx<=radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X;
 
         // Downhill travel is toward -Z. Engage on the uphill/low side (+Z end).
         // If the skier leaves the deck before the lip, cancel the engagement instead
@@ -910,6 +924,7 @@ function update(dt){
       state.courseSection=nearestSectionItem.userData.section||state.courseSection;
       state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
+    performanceTelemetry.record('courseTraversal',performance.now()-courseTraversalStarted);
     }
     if(state.mode==='playing')fillCourse(state.difficulty);
   }else if(state.mode==='countdown'){
@@ -938,11 +953,15 @@ function update(dt){
       displaceTerrainChunk(tile.geometry,tile.position.z-state.travel);
     }
   }
+  const batchSyncStarted=performance.now();
   courseRenderBatches.sync(course,worldDistance!==0);
+  performanceTelemetry.record('courseBatchSync',performance.now()-batchSyncStarted);
   startCrowd.update(dt,{mode:state.mode,worldDistance,time:performance.now()/1000});
   startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
+  const environmentUpdateStarted=performance.now();
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time);
+  performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});
   scorePresentation.update({
@@ -956,7 +975,16 @@ function update(dt){
   audio.update({
     mode:state.mode,
     speed:state.speed,
+    baseSpeed:state.baseSpeed,
+    maxSpeed:state.maxSpeed,
     carve:state.edge,
+    edge:state.edge,
+    carveLoad:state.carveLoad,
+    lateralVelocity:state.vx,
+    grounded:state.grounded,
+    groundRoll:state.groundRoll,
+    groundPitch:state.groundPitch,
+    landingGripLoss:state.landingGripLoss,
     air:state.air,
     intensity:state.difficulty,
     jumpSource:state.jumpSource,
@@ -975,6 +1003,7 @@ function update(dt){
     time:state.time
   });
   feedback.update(state,dt);
+  performanceTelemetry.endFrame();
 }
 
 function render(now){
@@ -995,7 +1024,7 @@ requestAnimationFrame(render);
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+  renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 }
 addEventListener('resize',resize);
 
@@ -1014,6 +1043,11 @@ window.chimpionsSki=()=>{
   const pooledObjects=Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0);
   return {
     ...state,
+    ...performanceTelemetry.getFlatSnapshot(),
+    ...environment.getQualityDiagnostics?.(),
+    qualityProfile:quality.current,
+    qualitySettings:quality.getSettings(),
+    rendererPixelRatio:renderer.getPixelRatio(),
     physicsSubsteps,
     activeRamp:!!activeRamp,
     activeRampState:activeRamp?(activeRamp.userData.consumed?'consumed':'engaged'):'none',
@@ -1032,6 +1066,13 @@ window.chimpionsSki=()=>{
     startCrowdLoadedCount:startCrowd.loadedCount,
     startCrowdPosedCount:startCrowd.posedCount,
     startCrowdModelSources:startCrowd.modelSourceCount,
+    startCrowdPlaceholderCount:startCrowd.placeholderCount,
+    startCrowdFailedCount:startCrowd.failedCount,
+    startCrowdStartReady:startCrowd.startReady,
+    startCrowdFullReady:startCrowd.fullReady,
+    startCrowdProgressivePaused:startCrowd.progressivePaused,
+    startCrowdCacheStats:startCrowd.cacheStats,
+    startCrowdQuality:startCrowd.quality,
     startCrowdVisible:startCrowd.visible,
     startCrowdReleased:startCrowd.released,
     startCameraPhase:startCamera.phase,
@@ -1085,3 +1126,14 @@ window.chimpionsSki=()=>{
     pooledCourseObjects:pooledObjects
   };
 };
+
+
+// Destructive crowd lifecycle controls are exposed only for dedicated production benchmarks.
+if(new URLSearchParams(window.location.search).has('crowdBenchmark')){
+  window.chimpionsSkiCrowdBenchmark={
+    prepareFull:()=>startCrowd.prepareFull(catalog),
+    prepareStart:()=>startCrowd.setSpectators(catalog),
+    release:()=>startCrowd.release(),
+    restart:()=>beginRun()
+  };
+}

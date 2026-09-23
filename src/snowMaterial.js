@@ -120,7 +120,7 @@ function makeSnowTextures(renderer){
   return {albedo,micro,normal,roughness};
 }
 
-export function createSnowMaterials(renderer){
+export function createSnowMaterials(renderer,{detailLevel=1}={}){
   const textures=makeSnowTextures(renderer);
   const terrain=new THREE.MeshPhysicalMaterial({
     color:0xf2f9fd,
@@ -161,11 +161,29 @@ export function createSnowMaterials(renderer){
     bumpScale:.015
   });
 
+  let currentDetailLevel=1;
+  function setDetailLevel(value=1){
+    const numeric=Number(value);
+    currentDetailLevel=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1);
+    const t=currentDetailLevel;
+    terrain.normalScale.set(.16+.34*t,.24+.52*t);
+    terrain.bumpScale=.008+.025*t;
+    terrain.clearcoat=.10+.08*t;
+    terrain.clearcoatRoughness=.60-.08*t;
+    bank.normalScale.set(.10+.18*t,.16+.26*t);
+    bank.bumpScale=.005+.014*t;
+    shadowBank.bumpScale=.004+.011*t;
+    return currentDetailLevel;
+  }
+  setDetailLevel(detailLevel);
+
   return {
     terrain,
     bank,
     shadowBank,
     texture:textures.albedo,
-    textures
+    textures,
+    setDetailLevel,
+    getDetailLevel:()=>currentDetailLevel
   };
 }

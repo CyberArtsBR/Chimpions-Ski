@@ -14,20 +14,11 @@ export const HAPTIC_PATTERNS=Object.freeze({
   trickBackflipSuccess:Object.freeze({duration:92,weakMagnitude:.30,strongMagnitude:.54}),
   trickFail:Object.freeze({duration:108,weakMagnitude:.36,strongMagnitude:.60}),
   oil:Object.freeze({duration:105,weakMagnitude:.48,strongMagnitude:.22}),
+  edgeScrape:Object.freeze({duration:54,weakMagnitude:.20,strongMagnitude:.12}),
   crash:Object.freeze({duration:155,weakMagnitude:.68,strongMagnitude:.94})
 });
 
 const CONTINUOUS_INTERVAL=.085;
-
-function getConnectedPad(navigatorObject){
-  try{
-    const getGamepads=navigatorObject?.getGamepads;
-    if(typeof getGamepads!=='function')return null;
-    const pads=getGamepads.call(navigatorObject);
-    for(const pad of pads||[]){if(pad?.connected)return pad;}
-  }catch{}
-  return null;
-}
 
 function getActuator(pad){
   if(!pad)return null;
@@ -37,42 +28,97 @@ function getActuator(pad){
   return null;
 }
 
-function safePattern(pattern){
+function safePattern(pattern,intensity=1){
+  const amount=clamp(Number(intensity)||0);
   return {
     duration:Math.max(0,Math.min(180,Math.round(Number(pattern?.duration)||0))),
-    weakMagnitude:clamp(Number(pattern?.weakMagnitude)||0),
-    strongMagnitude:clamp(Number(pattern?.strongMagnitude)||0)
+    weakMagnitude:clamp((Number(pattern?.weakMagnitude)||0)*amount),
+    strongMagnitude:clamp((Number(pattern?.strongMagnitude)||0)*amount)
   };
 }
 
-export function createHaptics({navigatorObject=globalThis.navigator}={}){
+function supportsDualRumble(actuator){
+  if(typeof actuator?.playEffect!=='function')return false;
+  try{
+    const effects=Array.from(actuator.effects||[]);
+    return !effects.length||effects.includes('dual-rumble');
+  }catch{
+    return true;
+  }
+}
+
+export function createHaptics({getActiveGamepad=null}={}){
+  let activeGamepad=null;
   let eventLock=0;
   let continuousClock=0;
+  const failedMethods=new WeakMap();
 
-  function play(pattern,{lock=true}={}){
-    const safe=safePattern(pattern);
-    if(!safe.duration||(!safe.weakMagnitude&&!safe.strongMagnitude))return false;
+  function failureSet(actuator){
+    if(!actuator||(typeof actuator!=='object'&&typeof actuator!=='function'))return null;
+    let set=failedMethods.get(actuator);
+    if(!set){
+      set=new Set();
+      failedMethods.set(actuator,set);
+    }
+    return set;
+  }
+  function methodFailed(actuator,method){
+    return !!failedMethods.get(actuator)?.has(method);
+  }
+  function markFailed(actuator,method){
+    failureSet(actuator)?.add(method);
+  }
+  function invoke(actuator,method,args){
+    if(methodFailed(actuator,method)||typeof actuator?.[method]!=='function')return false;
     try{
-      const actuator=getActuator(getConnectedPad(navigatorObject));
-      if(!actuator)return false;
-      if(lock)eventLock=Math.max(eventLock,safe.duration/1000+.025);
-      if(typeof actuator.playEffect==='function'){
-        const result=actuator.playEffect('dual-rumble',{
-          duration:safe.duration,
-          startDelay:0,
-          weakMagnitude:safe.weakMagnitude,
-          strongMagnitude:safe.strongMagnitude
-        });
-        result?.catch?.(()=>{});
-        return true;
-      }
-      if(typeof actuator.pulse==='function'){
-        const result=actuator.pulse(Math.max(safe.weakMagnitude,safe.strongMagnitude),safe.duration);
-        result?.catch?.(()=>{});
-        return true;
-      }
-    }catch{}
-    return false;
+      const result=actuator[method](...args);
+      result?.catch?.(()=>markFailed(actuator,method));
+      return true;
+    }catch{
+      markFailed(actuator,method);
+      return false;
+    }
+  }
+  function resolveActiveGamepad(){
+    let candidate=activeGamepad;
+    if(!candidate&&typeof getActiveGamepad==='function'){
+      try{candidate=getActiveGamepad()||null;}catch{}
+    }
+    if(candidate?.connected===false)return null;
+    return candidate||null;
+  }
+  function setActiveGamepad(gamepad){
+    activeGamepad=gamepad&&gamepad.connected!==false?gamepad:null;
+    return activeGamepad;
+  }
+  function clearActiveGamepad(){activeGamepad=null;}
+  function getActiveGamepad(){return resolveActiveGamepad();}
+
+  function play(pattern,{lock=true,intensity=1}={}){
+    const safe=safePattern(pattern,intensity);
+    if(!safe.duration||(!safe.weakMagnitude&&!safe.strongMagnitude))return false;
+
+    const pad=resolveActiveGamepad();
+    const actuator=getActuator(pad);
+    if(!actuator)return false;
+
+    let played=false;
+    if(supportsDualRumble(actuator)&&!methodFailed(actuator,'playEffect')){
+      played=invoke(actuator,'playEffect',['dual-rumble',{
+        duration:safe.duration,
+        startDelay:0,
+        weakMagnitude:safe.weakMagnitude,
+        strongMagnitude:safe.strongMagnitude
+      }]);
+    }
+    if(!played&&!methodFailed(actuator,'pulse')){
+      played=invoke(actuator,'pulse',[
+        Math.max(safe.weakMagnitude,safe.strongMagnitude),
+        safe.duration
+      ]);
+    }
+    if(played&&lock)eventLock=Math.max(eventLock,safe.duration/1000+.025);
+    return played;
   }
 
   function update(dt,feel={}){
@@ -90,11 +136,9 @@ export function createHaptics({navigatorObject=globalThis.navigator}={}){
     const speedProgress=clamp((speed-baseSpeed)/Math.max(.001,maxSpeed-baseSpeed));
     const carve=clamp(Math.abs(Number(feel.edge)||0));
     const terrain=clamp(Math.abs(Number(feel.groundRoll)||0)*2.6+Math.abs(Number(feel.groundPitch)||0)*1.1);
-    const oil=Number(feel.oilSlipTime)>0;
+    const oilActive=Number(feel.oilSlipTime)>0;
     const time=Number(feel.time)||0;
 
-    // Continuous snow feel is deliberately subtle. Event pulses (landing,
-    // tricks, crashes) temporarily suppress it so important impacts stay clear.
     if(eventLock>0)return false;
 
     let weak=.035+speedProgress*.060+carve*.095+terrain*.035;
@@ -105,7 +149,7 @@ export function createHaptics({navigatorObject=globalThis.navigator}={}){
       weak+=.025*maxBlend;
       strong+=.035*maxBlend;
     }
-    if(oil){
+    if(oilActive){
       const wobble=.5+.5*Math.sin(time*31);
       weak+=.12+.11*wobble;
       strong+=.045+.035*(1-wobble);
@@ -116,25 +160,30 @@ export function createHaptics({navigatorObject=globalThis.navigator}={}){
     return play({duration:96,weakMagnitude:weak,strongMagnitude:strong},{lock:false});
   }
 
-  function menuMove(){return play(HAPTIC_PATTERNS.menuMove,{lock:false});}
-  function menuConfirm(){return play(HAPTIC_PATTERNS.menuConfirm);}
-  function banana(){return play(HAPTIC_PATTERNS.banana);}
-  function rampTakeoff(){return play(HAPTIC_PATTERNS.rampTakeoff);}
+  function menuMove(intensity=1){return play(HAPTIC_PATTERNS.menuMove,{lock:false,intensity});}
+  function menuConfirm(intensity=1){return play(HAPTIC_PATTERNS.menuConfirm,{intensity});}
+  function banana(intensity=1){return play(HAPTIC_PATTERNS.banana,{intensity});}
+  function rampTakeoff(intensity=1){return play(HAPTIC_PATTERNS.rampTakeoff,{intensity});}
   function land(impact=0,quality='normal'){
     const amount=clamp(Number(impact)||0);
-    if(quality==='hard'||amount>=.72)return play(HAPTIC_PATTERNS.landHard);
-    if(quality==='clean'||amount>=.35)return play(HAPTIC_PATTERNS.landClean);
-    return play(HAPTIC_PATTERNS.landSoft);
+    const intensity=clamp(.45+amount*.55);
+    if(quality==='hard'||amount>=.72)return play(HAPTIC_PATTERNS.landHard,{intensity});
+    if(quality==='clean'||amount>=.35)return play(HAPTIC_PATTERNS.landClean,{intensity});
+    return play(HAPTIC_PATTERNS.landSoft,{intensity});
   }
-  function trickStart(type){
-    return play(type==='backflip'?HAPTIC_PATTERNS.trickBackflipStart:HAPTIC_PATTERNS.trick360Start);
+  function trickStart(type,intensity=1){
+    return play(type==='backflip'?HAPTIC_PATTERNS.trickBackflipStart:HAPTIC_PATTERNS.trick360Start,{intensity});
   }
-  function trickSuccess(type){
-    return play(type==='backflip'?HAPTIC_PATTERNS.trickBackflipSuccess:HAPTIC_PATTERNS.trick360Success);
+  function trickSuccess(type,intensity=1){
+    return play(type==='backflip'?HAPTIC_PATTERNS.trickBackflipSuccess:HAPTIC_PATTERNS.trick360Success,{intensity});
   }
-  function trickFail(){return play(HAPTIC_PATTERNS.trickFail);}
-  function oil(){return play(HAPTIC_PATTERNS.oil);}
-  function crash(kind='tree'){
+  function trickFail(type='360',intensity=1){
+    void type;
+    return play(HAPTIC_PATTERNS.trickFail,{intensity});
+  }
+  function oil(intensity=1){return play(HAPTIC_PATTERNS.oil,{intensity});}
+  function edgeScrape(intensity=.5){return play(HAPTIC_PATTERNS.edgeScrape,{lock:false,intensity});}
+  function crash(kind='tree',intensity=1){
     const base=HAPTIC_PATTERNS.crash;
     let multiplier=.88;
     if(kind==='rock')multiplier=1;
@@ -143,20 +192,55 @@ export function createHaptics({navigatorObject=globalThis.navigator}={}){
       duration:base.duration,
       weakMagnitude:base.weakMagnitude*multiplier,
       strongMagnitude:base.strongMagnitude*multiplier
-    });
+    },{intensity});
+  }
+  function emit(event,data={}){
+    const intensity=data.intensity??1;
+    switch(event){
+      case 'pickup':
+      case 'banana':return banana(intensity);
+      case 'rampLaunch':
+      case 'rampTakeoff':return rampTakeoff(intensity);
+      case 'landing':return land(data.impact??intensity,data.quality||'normal');
+      case 'trickStart':return trickStart(data.type,intensity);
+      case 'trickSuccess':return trickSuccess(data.type,intensity);
+      case 'trickFail':return trickFail(data.type,intensity);
+      case 'softHazard':
+      case 'oil':return oil(intensity);
+      case 'edgeScrape':return edgeScrape(intensity);
+      case 'crash':return crash(data.kind,intensity);
+      default:return false;
+    }
+  }
+  function diagnostics(){
+    const pad=resolveActiveGamepad();
+    return {
+      activeIndex:Number.isInteger(pad?.index)?pad.index:null,
+      activeId:String(pad?.id||''),
+      hasActuator:!!getActuator(pad)
+    };
   }
 
   return {
+    setActiveGamepad,
+    clearActiveGamepad,
+    getActiveGamepad,
+    emit,
+    diagnostics,
     update,
     menuMove,
     menuConfirm,
+    pickup:banana,
     banana,
+    rampLaunch:rampTakeoff,
     rampTakeoff,
     land,
     trickStart,
     trickSuccess,
     trickFail,
+    softHazard:oil,
     oil,
+    edgeScrape,
     crash
   };
 }
