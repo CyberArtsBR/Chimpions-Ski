@@ -8,6 +8,7 @@ import {createBoundaryMarkers} from './boundaryMarkers.js';
 import {createSnowParticles} from './snowParticles.js';
 import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 import {createAmbientFlybys} from './ambientFlybys.js';
+import {quality,qualityCount} from './renderQuality.js';
 import {
   COURSE_FLAG_X,
   MOUNTAIN_FIELD_LAYOUTS,
@@ -454,7 +455,7 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
   const points=new THREE.Points(geometry,material);
   points.frustumCulled=false;
   return {
-    count,positions,initialPositions:positions.slice(),fall,sway,
+    count,activeCount:count,positions,initialPositions:positions.slice(),fall,sway,
     geometry,points,xSpread,zMin,zMax,ground
   };
 }
@@ -597,6 +598,7 @@ export function decorateCourseObject(root,kind){
 }
 
 export function createSkiEnvironment({scene,world,renderer,camera}){
+  let qualitySettings=quality.getSettings();
   scene.background=new THREE.Color(0xd4edf8);
   scene.fog=new THREE.Fog(0xd8eef7,48,268);
   renderer.toneMappingExposure=1.11;
@@ -618,7 +620,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
   sun.position.set(-9,15,7);
   sun.castShadow=true;
-  sun.shadow.mapSize.set(4096,4096);
+  sun.shadow.mapSize.set(qualitySettings.shadowMapSize,qualitySettings.shadowMapSize);
   sun.shadow.bias=-.00032;
   sun.shadow.normalBias=.022;
   sun.shadow.radius=2.1;
@@ -663,6 +665,8 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   world.add(windMesh);
   const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
+  let activeBankCount=banks.entries.length;
+  let activeWindBankCount=windBanks.entries.length;
 
   // Decorative non-playable forest only: reduced by ~90% (152 -> 15).
   // Gameplay obstacle trees are generated elsewhere and are intentionally unchanged.
@@ -690,6 +694,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     world.add(mesh);
   }
   const trees=createMovingInstances(treeCount,trunkMesh,i=>{const e={};resetTree(e,i);return e;});
+  let activeTreeCount=trees.entries.length;
 
   function applyTreeInstanceColors(){
     for(let i=0;i<trees.entries.length;i++){
@@ -736,9 +741,9 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   });
 
   let visualTravel=0;
-  function refreshBanks(group){
+  function refreshBanks(group,activeCount=group.entries.length){
     const {mesh,entries}=group;
-    for(let i=0;i<entries.length;i++){
+    for(let i=0;i<activeCount;i++){
       const e=entries[i];
       const ground=terrainHeight(e.x,e.z-visualTravel);
       setInstance(mesh,i,e.x,ground+e.y,e.z,e.sx,e.sy,e.sz,e.ry);
@@ -747,7 +752,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   }
 
   function refreshTrees(time=0){
-    for(let i=0;i<trees.entries.length;i++){
+    for(let i=0;i<activeTreeCount;i++){
       const e=trees.entries[i],s=e.s;
       const sway=Math.sin(time*.72+e.phase)*.014;
       const height=e.heightScale;
@@ -783,12 +788,51 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     capMesh.instanceMatrix.needsUpdate=true;
   }
 
+  function applyQuality(settings=quality.getSettings()){
+    qualitySettings=settings;
+    const density=settings.environmentDecorationDensity;
+    activeBankCount=qualityCount(banks.entries.length,density,12);
+    activeWindBankCount=qualityCount(windBanks.entries.length,density,8);
+    activeTreeCount=qualityCount(trees.entries.length,density,5);
+    bankMesh.count=activeBankCount;
+    windMesh.count=activeWindBankCount;
+    for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfMid,snowShelfUpper,capMesh]){
+      mesh.count=activeTreeCount;
+      mesh.castShadow=!!settings.decorativeShadowCasting;
+    }
+    bankMesh.castShadow=!!settings.decorativeShadowCasting;
+    boundaryMarkers.setShadowEnabled?.(settings.decorativeShadowCasting);
+    for(const layer of snowLayers){
+      layer.activeCount=qualityCount(layer.count,settings.snowLayerDensity,32);
+      layer.geometry.setDrawRange(0,layer.activeCount);
+    }
+    snowParticles.setDensity(settings.snowParticleDensity);
+    surfaceDetail.setDensity(settings.snowSurfaceDetailDensity);
+    const shadowSize=settings.shadowMapSize;
+    if(sun.shadow.mapSize.x!==shadowSize||sun.shadow.mapSize.y!==shadowSize){
+      sun.shadow.mapSize.set(shadowSize,shadowSize);
+      if(sun.shadow.map){
+        sun.shadow.map.dispose();
+        sun.shadow.map=null;
+      }
+      sun.shadow.needsUpdate=true;
+    }
+    refreshBanks(banks,activeBankCount);
+    refreshBanks(windBanks,activeWindBankCount);
+    refreshTrees(time);
+  }
+
   refreshBanks(banks);refreshBanks(windBanks);refreshTrees();
 
   let time=0;
+  let sceneryAccumulator=0;
+  quality.subscribe(settings=>applyQuality(settings));
+  applyQuality(qualitySettings);
+
   function reset(){
     time=0;
     visualTravel=0;
+    sceneryAccumulator=0;
     sky.material.uniforms.time.value=0;
     banks.entries.forEach((entry,index)=>resetBank(entry,index,true));
     windBanks.entries.forEach((entry,index)=>resetBank(entry,index,false));
@@ -821,40 +865,53 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     _logSnowMaterial.color.copy(snowMaterials.bank.color);
     for(const layer of snowLayers)layer.points.material.color.copy(snowMaterials.terrain.color);
 
-    for(let i=0;i<banks.entries.length;i++){
-      const e=banks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
+    let sceneryStep=dt;
+    let refreshScenery=true;
+    if(qualitySettings.distantSceneryUpdateHz>0){
+      sceneryAccumulator+=dt;
+      const interval=1/qualitySettings.distantSceneryUpdateHz;
+      if(sceneryAccumulator<interval)refreshScenery=false;
+      else{
+        sceneryStep=sceneryAccumulator;
+        sceneryAccumulator=0;
+      }
     }
-    for(let i=0;i<windBanks.entries.length;i++){
-      const e=windBanks.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>20){resetBank(e,i,false);e.z=-216-wave(time*1.7+i)*54;}
-    }
-    refreshBanks(banks);refreshBanks(windBanks);
+    if(refreshScenery){
+      for(let i=0;i<activeBankCount;i++){
+        const e=banks.entries[i];e.z+=worldSpeed*sceneryStep;
+        if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
+      }
+      for(let i=0;i<activeWindBankCount;i++){
+        const e=windBanks.entries[i];e.z+=worldSpeed*sceneryStep;
+        if(e.z>20){resetBank(e,i,false);e.z=-216-wave(time*1.7+i)*54;}
+      }
+      refreshBanks(banks,activeBankCount);refreshBanks(windBanks,activeWindBankCount);
 
-    for(let i=0;i<trees.entries.length;i++){
-      const e=trees.entries[i];e.z+=worldSpeed*dt;
-      if(e.z>24){resetTree(e,i);e.z=-238-wave(time*.9+i)*68;}
+      for(let i=0;i<activeTreeCount;i++){
+        const e=trees.entries[i];e.z+=worldSpeed*sceneryStep;
+        if(e.z>24){resetTree(e,i);e.z=-238-wave(time*.9+i)*68;}
+      }
+      refreshTrees(time);
     }
-    refreshTrees(time);
 
     const speed01=getSpeedFeel(speed);
-    for(const layer of snowLayers){
+    if(refreshScenery)for(const layer of snowLayers){
       const p=layer.positions;
       layer.materialScale=speed01;
-      for(let i=0;i<layer.count;i++){
+      for(let i=0;i<layer.activeCount;i++){
         const k=i*3;
         if(layer.ground){
-          p[k+2]+=dt*(3.8+worldSpeed*(.52+speed01*.55));
-          p[k]+=Math.sin(time*.8+layer.sway[i])*dt*(.08+speed01*.08);
+          p[k+2]+=sceneryStep*(3.8+worldSpeed*(.52+speed01*.55));
+          p[k]+=Math.sin(time*.8+layer.sway[i])*sceneryStep*(.08+speed01*.08);
           if(p[k+2]>13){
             p[k+2]=layer.zMin+wave(i*3.2+time)*9;
             p[k]=(wave(i*4.9+time)-.5)*layer.xSpread*2;
             p[k+1]=groundY-.06+wave(i*2.8+time)*(.65+speed01*.65);
           }
         }else{
-          p[k+1]-=dt*(layer.fall[i]+speed*.018);
-          p[k+2]+=dt*(1.55+worldSpeed*.33+layer.fall[i]*.28);
-          p[k]+=Math.sin(time*(.55+layer.fall[i]*.12)+layer.sway[i])*dt*.11;
+          p[k+1]-=sceneryStep*(layer.fall[i]+speed*.018);
+          p[k+2]+=sceneryStep*(1.55+worldSpeed*.33+layer.fall[i]*.28);
+          p[k]+=Math.sin(time*(.55+layer.fall[i]*.12)+layer.sway[i])*sceneryStep*.11;
           if(p[k+1]<.15)p[k+1]=10+wave(i+time)*5.5;
           if(p[k+2]>15){
             p[k+2]=layer.zMin+wave(i*3.2+time)*(layer.zMax-layer.zMin)*.28;
@@ -881,9 +938,23 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     contactShadow.scale.set(1.42*contactScale,.5*contactScale,1);
   }
 
+  function getQualityDiagnostics(){
+    return {
+      environmentQualityProfile:qualitySettings.profile,
+      activeBanks:activeBankCount,
+      activeWindBanks:activeWindBankCount,
+      activeDecorativeTrees:activeTreeCount,
+      activeSnowLayerParticles:snowLayers.reduce((sum,layer)=>sum+layer.activeCount,0),
+      snowParticlePool:snowParticles.getDiagnostics(),
+      snowSurfaceDetail:surfaceDetail.getDiagnostics()
+    };
+  }
+
   return {
     update,
     reset,
+    applyQuality,
+    getQualityDiagnostics,
     ambientFlybys,
     terrainMaterial:snowMaterials.terrain,
     courseMaterials:{
