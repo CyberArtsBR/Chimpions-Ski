@@ -318,6 +318,12 @@ const ui=createGameUI({
     keys.clear();
     ui.showMenu();
     selector?.open();
+  },
+  onGiveUp:()=>{
+    keys.clear();
+    jumpKeyPressed=false;
+    audio.update({mode:'menu'});
+    window.location.assign(startScreen.gameSelectionUrl);
   }
 });
 const feedback=createGameFeedback({audio,ui});
@@ -675,6 +681,14 @@ function update(dt){
 
     if(!ridingRamp&&tryManualJump(state,groundY)){
       feedback.onManualTakeoff();
+      if(trickIntent==='BACKFLIP'){
+        // Ground backflips get a dedicated vertical launch. Keep the full arc
+        // even if the player releases Jump quickly so the rotation happens in air.
+        state.vy=Math.max(state.vy,SKI_TUNING.BACKFLIP_MANUAL_JUMP_VELOCITY);
+        state.jumpVelocity=state.vy;
+        state.jumpProfile='backflip';
+        state.jumpCutApplied=true;
+      }
       if(trickIntent&&tricks.start(trickIntent,{
         source:'manual',
         startTime:state.time,
