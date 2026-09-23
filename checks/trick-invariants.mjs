@@ -254,9 +254,17 @@ assert(backflipTiming.allowed,'early manual backflip must fit');
   assert.equal(state.failedTrick,false);
 }
 
-// Direction semantics remain explicit while airborne.
-assert.equal(readAirborneTrickIntent(new Set(['ArrowUp']),{axisY:0,dpad:{}}),TRICK_TYPE.BACKFLIP);
-assert.equal(readAirborneTrickIntent(new Set(['ArrowDown']),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+// Direction semantics: UP + Jump = 360; BACK/DOWN + Jump = backflip.
+assert.equal(readTrickIntent(new Set(['ArrowUp']),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(readTrickIntent(new Set(['KeyW']),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(readTrickIntent(new Set(['ArrowDown']),{axisY:0,dpad:{}}),TRICK_TYPE.BACKFLIP);
+assert.equal(readTrickIntent(new Set(['KeyS']),{axisY:0,dpad:{}}),TRICK_TYPE.BACKFLIP);
+assert.equal(readTrickIntent(new Set(),{axisY:-1,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(readTrickIntent(new Set(),{axisY:1,dpad:{}}),TRICK_TYPE.BACKFLIP);
+assert.equal(readAirborneTrickIntent(new Set(['ArrowUp']),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(readAirborneTrickIntent(new Set(['ArrowDown']),{axisY:0,dpad:{}}),TRICK_TYPE.BACKFLIP);
+assert.equal(readAirborneTrickIntent(new Set(),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(TRICK_TYPE.FRONTFLIP,undefined,'front flip must not be exposed through normal trick types');
 
 // Genuine interruption can still fail, but timing rejection does not.
 {
@@ -293,7 +301,7 @@ assert.equal(TRICK_TUNING.LANDING_SAFETY_MARGIN,.11);
 console.log(JSON.stringify({
   check:'trick-invariants',
   manualJumpAirtime:Number(manualAirtime.toFixed(4)),
-  controls:{normal:'SPACE/A',backflip:'UP + SPACE/A',spin:'DOWN + SPACE/A or second airborne SPACE/A'},
+  controls:{normal:'SPACE/A',spin:'UP + SPACE/A or second airborne SPACE/A',backflip:'BACK/DOWN + SPACE/A',frontflip:'not mapped'},
   angularSpeedDegPerSec:{spin360:TRICK_TUNING.SPIN_360_DEGREES_PER_SECOND,backflip:TRICK_TUNING.BACKFLIP_DEGREES_PER_SECOND},
   durationsSeconds:{spin360:Number(spinTiming.trickDuration.toFixed(4)),backflip:Number(backflipTiming.trickDuration.toFixed(4))},
   landingSafetyMargin:TRICK_TUNING.LANDING_SAFETY_MARGIN,

@@ -230,11 +230,12 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     headPivot.rotation.z=mix(headPivot.rotation.z,pose.carve*.018,.14);
     arms.forEach((arm,index)=>{
       const side=index===0?-1:1;
-      // Procedural fallback: keep the arm around a 32–35° A-pose and bias it
-      // slightly toward the chest/front plane instead of sweeping behind it.
-      const baseAngle=snowboardMode?.56:.61;
-      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.020)+pose.carve*.015,.16);
-      arm.rotation.x=mix(arm.rotation.x,.10+pose.speed*.015-ascent*.035*airScale+apex*.015+descent*.020*airScale,.16);
+      // Snowboard fallback uses a visibly open A-pose: arms sit below shoulder
+      // height, stay separated from the torso and avoid sweeping into the chest.
+      const baseAngle=snowboardMode?.72:.61;
+      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.018)+pose.carve*.012,.16);
+      const armForward=snowboardMode?.035:.10;
+      arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.010-ascent*.030*airScale+apex*.012+descent*.018*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
@@ -518,10 +519,10 @@ function makeRigController(model){
       rotate(side+'Shin',shin,0,0,.22);
       rotate(side+'Foot',foot,snowboardMode?sideSign*.06*snowboardSideSign:0,-carve*.035,.20);
 
-      // Relax clavicles instead of using them to lift the arms. Upper-arm and
-      // forearm direction are then solved in avatar/world space, independent of
-      // the imported bone axes. The targets keep hands low, forward-side and
-      // around waist/hip height rather than behind the torso.
+      // Keep clavicles relaxed; solve the arm segments in avatar/world space so
+      // every imported rig converges on the same readable pose. Snowboard arms
+      // are deliberately semi-open (A-pose / slightly-below-T), with elbows
+      // softly bent and hands kept beside the body instead of meeting in front.
       rotate(side+'Shoulder',0,0,carve*.006,.16);
 
       model.getWorldQuaternion(riderWorldQ);
@@ -531,20 +532,26 @@ function makeRigController(model){
 
       const frontArm=snowboardMode&&side==='left';
       const rearArm=snowboardMode&&side==='right';
-      const upperOut=snowboardMode?(frontArm?.50:.47):.54;
-      const upperDown=.82+speedCrouch*.035+landingBlend*.025;
-      const upperForward=snowboardMode?(frontArm?.24:(rearArm?.18:.21)):.12;
+      const upperOut=snowboardMode?(frontArm?.74:.70):.54;
+      const upperDown=snowboardMode
+        ?(.68+speedCrouch*.025+landingBlend*.020)
+        :(.82+speedCrouch*.035+landingBlend*.025);
+      const upperForward=snowboardMode?(frontArm?.08:(rearArm?.035:.06)):.12;
       upperArmTarget.copy(riderRight).multiplyScalar(sideSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
-        .addScaledVector(riderForward,upperForward+outside*.018)
+        .addScaledVector(riderForward,upperForward+outside*.012)
         .normalize();
 
-      const foreOut=snowboardMode?(frontArm?.12:.10):.14;
-      const foreDown=.70+speedCrouch*.030+landingBlend*.020;
-      const foreForward=snowboardMode?(frontArm?.72:.67):.68;
+      // The forearm remains outward but drops more steeply than the upper arm,
+      // creating a small elbow bend while keeping both hands naturally apart.
+      const foreOut=snowboardMode?(frontArm?.38:.34):.14;
+      const foreDown=snowboardMode
+        ?(.86+speedCrouch*.025+landingBlend*.018)
+        :(.70+speedCrouch*.030+landingBlend*.020);
+      const foreForward=snowboardMode?(frontArm?.21:(rearArm?.16:.18)):.68;
       forearmTarget.copy(riderRight).multiplyScalar(sideSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
-        .addScaledVector(riderForward,foreForward+inside*.020)
+        .addScaledVector(riderForward,foreForward+inside*.012)
         .normalize();
 
       // Fallback to the old rest-driven path only if a mapped segment is absent.
