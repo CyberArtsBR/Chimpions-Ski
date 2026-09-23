@@ -136,7 +136,9 @@ export function createHaptics({navigatorObject=globalThis.navigator}={}){
   function oil(){return play(HAPTIC_PATTERNS.oil);}
   function crash(kind='tree'){
     const base=HAPTIC_PATTERNS.crash;
-    const multiplier=kind==='rock'?1:kind==='wideLog'||kind==='log'?.94:.88;
+    let multiplier=.88;
+    if(kind==='rock')multiplier=1;
+    else if(kind==='wideLog'||kind==='log')multiplier=.94;
     return play({
       duration:base.duration,
       weakMagnitude:base.weakMagnitude*multiplier,
