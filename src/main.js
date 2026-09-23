@@ -432,7 +432,10 @@ async function setAvatar(entry,rideMode=selectedRideMode){
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    await startCrowd.setSpectators(catalog);
+    // Warm the 50 unique start spectators in the background. Character
+    // selection becomes usable immediately; beginRun() awaits this same
+    // in-flight promise if the crowd has not finished loading yet.
+    startCrowd.setSpectators(catalog).catch(error=>console.warn('Could not preload start crowd:',error));
     const initialAvatar=randomAvatar(catalog);
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
