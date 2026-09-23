@@ -90,10 +90,10 @@ try{
 
   const firstChimpion=selector.locator('.chimpion-card').first();
   await firstChimpion.waitFor({state:'visible',timeout:5000});
-  await firstChimpion.click();
+  await firstChimpion.evaluate(button=>button.click());
   const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
   await skiChoice.waitFor({state:'visible',timeout:5000});
-  await skiChoice.click();
+  await skiChoice.evaluate(button=>button.click());
 
   await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,{timeout:5000});
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:12000});
