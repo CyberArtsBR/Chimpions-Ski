@@ -441,7 +441,15 @@ async function setAvatar(entry,rideMode=selectedRideMode){
 (async()=>{
   try{
     catalog=await loadAvatarCatalog();
-    const initialAvatar=randomAvatar(catalog);
+    // START GAME always opens the selector, so do not gamble boot time on a
+    // random heavyweight GLB that the player has not chosen. Use a known light
+    // collection model only as the invisible boot/rig seed; the player's actual
+    // choice replaces it before the run begins.
+    const initialAvatar=
+      catalog.find(entry=>entry?.name==='The Drownsy')||
+      catalog.find(entry=>String(entry?.id)==='56')||
+      catalog[0]||
+      randomAvatar(catalog);
     await setAvatar(initialAvatar,RIDE_MODE.SKI);
     selector=createAvatarSelector({
       catalog,
