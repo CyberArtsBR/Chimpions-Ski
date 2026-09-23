@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+
+const benchmark=readFileSync(new URL('../scripts/benchmark-production-crowd.mjs',import.meta.url),'utf8');
+assert(!benchmark.includes('?test=1'),'production crowd benchmark must not use the reduced smoke-test crowd');
+assert(benchmark.includes('const PRODUCTION_COUNT=50'),'benchmark pins the real production crowd to 50 spectators');
+assert(benchmark.includes('Expected production crowd count'),'benchmark explicitly validates the production spectator count at runtime');
+assert(benchmark.includes('coldFullPreparation'),'benchmark exercises real cold full preparation of all 50 spectators');
+assert(benchmark.includes('window.chimpionsSkiCrowdBenchmark'),'benchmark uses the query-gated production crowd instrumentation hook');
+assert(benchmark.includes("searchParams.set('crowdBenchmark','1')"),'benchmark enables its destructive hooks explicitly without reducing production crowd count');
+assert(benchmark.includes('blockingMs'),'benchmark records cold/warm start blocking duration');
+assert(benchmark.includes('warmRestarts'),'benchmark exercises repeated warm restart behavior');
+assert(benchmark.includes('forceBenchmarkRelease'),'benchmark deterministically exercises scene destruction before warm restart');
+assert(benchmark.includes('transferBytes'),'benchmark records Resource Timing network bytes where the browser exposes them');
+assert(benchmark.includes('requestCount'),'benchmark records actual GLB request events for duplicate-load analysis');
+assert(benchmark.includes('failedCount'),'benchmark records failed/404 GLB requests');
+assert(benchmark.includes('heapBytes'),'benchmark samples JS heap where Chromium exposes performance.memory');
+assert(benchmark.includes('rendererGeometries'),'benchmark captures renderer memory diagnostics');
+assert(benchmark.includes('frameTiming'),'benchmark samples frame timing during the start sequence');
+assert(benchmark.includes("first().click()"),'benchmark resolves duplicate ride-mode controls deterministically');
+assert(benchmark.includes('CHIMPIONS_SKI_CROWD_STRICT_FULL'),'full-population completion can be made a strict release gate without making profiling mode lie about success');
+assert(benchmark.includes('startCrowdCacheStats'),'benchmark captures parsed-template cache/fetch/parse instrumentation');
+assert(benchmark.includes('progressivePaused'),'benchmark verifies progressive parsing stops when a run is committed');
+assert(benchmark.includes('hook?.restart'),'benchmark restarts through the dedicated semantic benchmark hook instead of racing pause/result UI');
+assert(benchmark.includes('limitations'),'benchmark reports metrics that browser APIs cannot guarantee');
+console.log(JSON.stringify({check:'production-crowd-benchmark-invariants',realProductionCrowd:true,coldFull:true,restarts:true,network:true,memory:true,frameTiming:true}));
+assert(benchmark.includes('STRICT_FULL&&report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT'),'profiling mode may report an incomplete time-boxed full load, while strict mode still requires all 50');
+assert(benchmark.includes("const restartFrom=state?.mode||'unknown'"),'benchmark records the runtime mode observed before semantic restart');

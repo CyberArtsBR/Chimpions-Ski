@@ -150,7 +150,9 @@ export function createAmbientFlybys({scene,camera}){
   root.name='AmbientSkyFlybys';
   scene.add(root);
 
+  const prototypes={plane:makePlane(),ufo:makeUfo()};
   let active=null;
+  let enabled=true;
   let nextEventIn=randomRange(INITIAL_DELAY_MIN,INITIAL_DELAY_MAX);
   let eventCount=0;
   let lastType='none';
@@ -158,6 +160,7 @@ export function createAmbientFlybys({scene,camera}){
   function disposeActive(){
     if(!active)return;
     root.remove(active.object);
+    active.object.visible=false;
     active=null;
   }
 
@@ -172,7 +175,8 @@ export function createAmbientFlybys({scene,camera}){
     if(active||root.children.length>=MAX_ACTIVE)return false;
 
     const type=Math.random()<UFO_CHANCE?'ufo':'plane';
-    const object=type==='ufo'?makeUfo():makePlane();
+    const object=prototypes[type];
+    object.visible=true;
     const direction=Math.random()<.5?1:-1;
     const depth=randomRange(55,92);
     const altitude=randomRange(15.5,24.5);
@@ -189,9 +193,8 @@ export function createAmbientFlybys({scene,camera}){
       centerZ-depth
     );
     object.scale.setScalar(type==='ufo'?randomRange(.58,.82):randomRange(.66,.92));
-    if(type==='plane')object.rotation.y=direction>0?0:Math.PI;
-    else object.rotation.y=randomRange(-Math.PI,Math.PI);
-    object.rotation.z=randomRange(-.035,.035);
+    if(type==='plane')object.rotation.set(0,direction>0?0:Math.PI,randomRange(-.035,.035));
+    else object.rotation.set(0,randomRange(-Math.PI,Math.PI),randomRange(-.035,.035));
     root.add(object);
 
     active={
@@ -216,8 +219,14 @@ export function createAmbientFlybys({scene,camera}){
     lastType='none';
   }
 
+  function setEnabled(value=true){
+    enabled=!!value;
+    if(!enabled)disposeActive();
+    return enabled;
+  }
+
   function update(dt,{running=true,skyColor=null}={}){
-    if(!Number.isFinite(dt)||dt<=0)return;
+    if(!Number.isFinite(dt)||dt<=0||!enabled)return;
 
     if(!running){
       if(active)tintObject(active.object,skyColor);
@@ -259,10 +268,12 @@ export function createAmbientFlybys({scene,camera}){
       activeType:active?.type||'none',
       nextEventIn,
       eventCount,
-      lastType
+      lastType,
+      sharedPrototypeCount:2,
+      enabled
     };
   }
 
   reset();
-  return {root,update,reset,getDiagnostics};
+  return {root,update,reset,getDiagnostics,setEnabled};
 }

@@ -4,6 +4,7 @@ import {disposeAvatarObject} from './avatar-system.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {RIDE_MODE,getRideSpeedFeel,normalizeRideMode} from './rideMode.js';
 import {createSnowboardEquipment} from './snowboardEquipment.js';
+import {AvatarCompatibilityError,assertAvatarPlayable,isCatalogAvatarUrl,resolveAvatarRig} from './avatarCompatibility.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -266,52 +267,6 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
   return root;
 }
 
-const SLOT_ALIASES={
-  hips:['hips','hip','pelvis'],
-  spine:['spine','spine0','spine1','spine01'],
-  chest:['chest','upperchest','spine2','spine02','spine3'],
-  neck:['neck','neck1','necktwist01'],
-  head:['head'],
-  Shoulder:['shoulder','clavicle','collar'],
-  UpperArm:['upperarm','arm','uparm'],
-  Forearm:['forearm','lowerarm','elbow'],
-  Hand:['hand','wrist'],
-  Thigh:['thigh','upleg','upperleg'],
-  Shin:['shin','calf','leg','lowerleg','knee'],
-  Foot:['foot','ankle']
-};
-
-function nameParts(name){
-  let s=name.replace(/([a-z0-9])([A-Z])/g,'$1 $2').toLowerCase()
-    .replace(/mixamorig\d*[:_ ]*/g,'').replace(/cc[_ ]*base[_ ]*/g,'').replace(/[^a-z0-9]+/g,' ').trim();
-  let words=s.split(/\s+/);
-  let side=words.includes('left')||words.includes('l')?'left':words.includes('right')||words.includes('r')?'right':'';
-  let core=words.filter(w=>!['left','right','l','r','bone','def','bip','bip001'].includes(w)).join('');
-  if(!side&&/^(left|right)/.test(core)){side=core.startsWith('left')?'left':'right';core=core.slice(side.length);}
-  return {side,core};
-}
-function isDescendant(child,ancestor){for(let p=child.parent;p;p=p.parent)if(p===ancestor)return true;return false;}
-
-function mapRig(model){
-  const bones=[];model.traverse(o=>{if(o.isBone)bones.push(o)});
-  const rig={},used=new Set();
-  const slots=['hips','spine','chest','neck','head','leftShoulder','leftUpperArm','leftForearm','leftHand','rightShoulder','rightUpperArm','rightForearm','rightHand','leftThigh','leftShin','leftFoot','rightThigh','rightShin','rightFoot'];
-  for(const key of slots){
-    const side=key.startsWith('left')?'left':key.startsWith('right')?'right':'';
-    const kind=side?key.slice(side.length):key;
-    let matches=bones.filter(b=>{
-      const p=nameParts(b.name);
-      return p.side===side && SLOT_ALIASES[kind]?.includes(p.core);
-    });
-    if(key==='hips'&&matches.length>1)matches=matches.filter(b=>matches.every(other=>other===b||isDescendant(other,b)));
-    if((key==='spine'||key==='chest')&&matches.length>1){
-      matches=matches.filter(b=>matches.every(other=>other===b||(key==='spine'?isDescendant(other,b):isDescendant(b,other))));
-    }
-    if(matches.length===1&&!used.has(matches[0])){rig[key]=matches[0];used.add(matches[0]);}
-  }
-  return {rig,bones};
-}
-
 function fitModel(root){
   root.updateWorldMatrix(true,true);
   const box=new THREE.Box3().setFromObject(root);
@@ -402,8 +357,8 @@ function addSkiEquipment(root,rig,placement=footBasedSkiPlacement(root,rig)){
   return skis;
 }
 
-function makeRigController(model){
-  const {rig,bones}=mapRig(model);
+function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(model,compatibility)){
+  const {rig,bones}=rigResolution;
   const required=['hips','leftThigh','rightThigh','leftShin','rightShin','leftFoot','rightFoot'];
   if(required.some(k=>!rig[k]))return null;
 
@@ -649,6 +604,7 @@ function makeRigController(model){
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.010+apex*.010*airScale;
   };
   update.rig=rig;
+  update.rigResolution=rigResolution;
   update.pose=pose;
   update.setRideMode=mode=>{
     currentRideMode=normalizeRideMode(mode);
@@ -661,12 +617,27 @@ function makeRigController(model){
 
 export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI}={}){
   let loadedModel=null,loadedRoot=null;
+  const compatibility=assertAvatarPlayable(url);
   try{
     const gltf=await new GLTFLoader().loadAsync(url);
     const model=gltf.scene;loadedModel=model;
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
     fitModel(model);
-    const updateRig=makeRigController(model);
+    const rigResolution=resolveAvatarRig(model,compatibility);
+    const updateRig=makeRigController(model,compatibility,rigResolution);
+    if(!updateRig&&isCatalogAvatarUrl(url)){
+      throw new AvatarCompatibilityError(`${compatibility.name||'Avatar'} cannot satisfy the gameplay rig contract.`,{
+        code:'AVATAR_RIG_UNSUPPORTED',
+        avatar:compatibility.name,
+        details:{
+          status:compatibility.status,
+          missing:rigResolution.missing,
+          missingRequired:rigResolution.missingRequired,
+          ambiguous:rigResolution.ambiguous,
+          source:rigResolution.source
+        }
+      });
+    }
     const root=new THREE.Group();loadedRoot=root;
 
     // Dedicated visual root: future tricks can rotate rider/equipment without
@@ -721,6 +692,8 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     root.userData.modelForwardAxis='-Z';
     root.userData.fallback=false;
     root.userData.rigReady=!!updateRig;
+    root.userData.avatarCompatibility=compatibility;
+    root.userData.rigResolution=updateRig?.rigResolution||rigResolution;
     root.userData.riderVisual=riderVisual;
     root.userData.skis=skis;
     root.userData.skiTrackSpacing=placement.spacing;
@@ -779,6 +752,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     return root;
   }catch(error){
     disposeAvatarObject(loadedRoot?.children.length?loadedRoot:loadedModel);
+    if(error instanceof AvatarCompatibilityError||isCatalogAvatarUrl(url))throw error;
     console.info('Using procedural skier until a Chimpion GLB is installed:',error.message);
     return createFallbackSkier({rideMode});
   }

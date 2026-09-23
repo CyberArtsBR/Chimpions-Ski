@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import {SKI_TUNING as T} from './gameplayTuning.js';
 import {getRideProfile} from './rideMode.js';
+import {resolveCourseEdgeContact} from './edgeContact.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
@@ -32,9 +33,9 @@ export function progressSpeed(state,dt){
   return clamp((state.speed-profile.baseSpeed)/(profile.maxSpeed-profile.baseSpeed),0,1);
 }
 
-function stepAirControl(state,steer,neutralizing,speed01,dt){
+function stepAirControl(state,steer,neutralizing,speed01,dt,rideProfile){
   const edgeAmount=Math.abs(state.edge);
-  const maxTurnRate=T.TURN_RATE_BASE+speed01*T.TURN_RATE_SPEED_BONUS;
+  const maxTurnRate=(T.TURN_RATE_BASE+speed01*T.TURN_RATE_SPEED_BONUS)*rideProfile.turnRateScale;
   const edgeTurn=Math.sign(state.edge)*Math.pow(edgeAmount,.94)*maxTurnRate;
 
   let desiredTurnRate=edgeTurn+steer*T.TURN_INPUT_ASSIST;
@@ -77,15 +78,12 @@ function stepAirControl(state,steer,neutralizing,speed01,dt){
   state.vx=THREE.MathUtils.damp(state.vx,targetVx,response,dt);
   state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
 
-  if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH&&state.x*state.vx>0){
-    state.vx=0;
-    if(state.x*state.heading>0)state.heading=0;
-    if(state.x*state.turnRate>0)state.turnRate=0;
-  }
+  const edgeScrape=resolveCourseEdgeContact(state,dt,{profile:rideProfile});
 
   state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,0,8,dt);
   state.grip=0;
   state.airControl=true;
+  return edgeScrape;
 }
 
 export function stepCarving(state,input,dt){
@@ -101,13 +99,14 @@ export function stepCarving(state,input,dt){
   const neutralizing=reversing&&Math.abs(state.edge)>.018;
   const targetEdge=steer;
   const edgeResponse=neutralizing?T.EDGE_REVERSAL:steer===0?T.EDGE_RELEASE:T.EDGE_RESPONSE;
-  const effectiveEdgeResponse=edgeResponse*(1-oilSlip*(1-T.OIL_CONTROL_SCALE));
+  const responseScale=neutralizing?rideProfile.reversalResponseScale:rideProfile.edgeResponseScale;
+  const effectiveEdgeResponse=edgeResponse*responseScale*(1-oilSlip*(1-T.OIL_CONTROL_SCALE));
   state.edge=THREE.MathUtils.damp(state.edge,targetEdge,effectiveEdgeResponse,dt);
 
   if(state.air){
-    stepAirControl(state,steer,neutralizing,speed01,dt);
+    const edgeScrape=stepAirControl(state,steer,neutralizing,speed01,dt,rideProfile);
     state.counterSteer=neutralizing;
-    return;
+    return edgeScrape?{edgeScrape}:null;
   }
 
   state.airControl=false;
@@ -115,7 +114,7 @@ export function stepCarving(state,input,dt){
   const loadTarget=Math.pow(edgeAmount,1.02)*(.84+speed01*.16);
   state.carveLoad=THREE.MathUtils.damp(state.carveLoad||0,loadTarget,T.CARVE_LOAD_RESPONSE,dt);
 
-  const maxTurnRate=T.TURN_RATE_BASE+speed01*T.TURN_RATE_SPEED_BONUS;
+  const maxTurnRate=(T.TURN_RATE_BASE+speed01*T.TURN_RATE_SPEED_BONUS)*rideProfile.turnRateScale;
   const edgeTurn=Math.sign(state.edge)*Math.pow(edgeAmount,.94)*maxTurnRate;
   let desiredTurnRate=edgeTurn;
   if(steer===0){
@@ -152,16 +151,16 @@ export function stepCarving(state,input,dt){
   const reengageBlend=1-reengageRemaining;
   state.grip=THREE.MathUtils.lerp(.42,targetGrip,reengageBlend);
 
-  const lateralScale=THREE.MathUtils.lerp(T.LATERAL_SCALE_LOW,T.LATERAL_SCALE_HIGH,speed01);
+  const lateralScale=THREE.MathUtils.lerp(T.LATERAL_SCALE_LOW,T.LATERAL_SCALE_HIGH,speed01)*rideProfile.lateralScale;
   let carveVelocity=Math.sin(state.heading)*state.speed*lateralScale;
   const normalGripResponse=(T.LATERAL_RESPONSE+state.grip*1.9+(state.carveLoad||0)*1.4)*(1-oilSlip*.48);
-  let gripResponse=THREE.MathUtils.lerp(T.AIR_LATERAL_RESPONSE*.46,normalGripResponse,reengageBlend);
+  let gripResponse=THREE.MathUtils.lerp(T.AIR_LATERAL_RESPONSE*.46,normalGripResponse,reengageBlend)*rideProfile.lateralResponseScale;
 
   if(neutralizing){
     carveVelocity*=.08;
     const reversalResponse=THREE.MathUtils.lerp(
       T.AIR_LATERAL_REVERSAL_RESPONSE*.55,
-      T.LATERAL_REVERSAL_RESPONSE,
+      T.LATERAL_REVERSAL_RESPONSE*rideProfile.reversalResponseScale,
       reengageBlend
     );
     gripResponse=reversalResponse;
@@ -176,13 +175,10 @@ export function stepCarving(state,input,dt){
   }
 
   state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
-  if(Math.abs(state.x)>=T.PLAYER_HALF_WIDTH&&state.x*state.vx>0){
-    state.vx=0;
-    if(state.x*state.heading>0)state.heading=0;
-    if(state.x*state.turnRate>0)state.turnRate=0;
-  }
+  const edgeScrape=resolveCourseEdgeContact(state,dt,{profile:rideProfile});
 
   state.counterSteer=neutralizing;
+  return edgeScrape?{edgeScrape}:null;
 }
 
 function applyMiniJumpCut(state){
@@ -292,7 +288,7 @@ export function stepAir(state,dt,groundY){
   state.jumpCutApplied=false;
   state.landingQuality=quality;
   state.landingPulse=Math.min(1,impact/(rampLanding?18:9));
-  state.landingReengageTime=miniLanding?T.MINI_JUMP_LANDING_REENGAGE_TIME:T.LANDING_REENGAGE_TIME;
+  state.landingReengageTime=(miniLanding?T.MINI_JUMP_LANDING_REENGAGE_TIME:T.LANDING_REENGAGE_TIME)*getRideProfile(state.rideMode).landingReengageScale;
   const rideProfile=getRideProfile(state.rideMode);
 
   // Preserve most airborne lateral momentum. Ground grip fades back in via stepCarving().

@@ -1,5 +1,5 @@
 import {writeFile} from 'node:fs/promises';
-import {CONFIG,attachFrameProbe,createNetworkTracker,frameMark,frameSummarySince,importPlaywright,pending,runtimeSnapshot,waitUntilReady} from './benchmark/core.mjs';
+import {CONFIG,attachFrameProbe,benchmarkTargetUrl,createNetworkTracker,frameMark,frameSummarySince,importPlaywright,pending,runtimeSnapshot,waitUntilReady} from './benchmark/core.mjs';
 import {benchmarkRepeatedSelector,benchmarkSearch,closeSelector,openSelector,selectorDomMetrics} from './benchmark/selector.mjs';
 import {benchmarkGameplay,benchmarkRestarts,benchmarkRideMode,benchmarkTricks,heapDelta,modeComparison} from './benchmark/gameplay.mjs';
 
@@ -10,7 +10,7 @@ async function main(){
   const results={
     schemaVersion:1,
     generatedAt:new Date().toISOString(),
-    target:{baseUrl:CONFIG.baseUrl,mode:CONFIG.targetMode},
+    target:{baseUrl:CONFIG.baseUrl,benchmarkUrl:benchmarkTargetUrl(),mode:CONFIG.targetMode,qualityProfile:CONFIG.qualityProfile||'runtime-default'},
     config:CONFIG,
     phases:{},
     memory:{snapshots:{}},
@@ -31,7 +31,7 @@ async function main(){
     tracker=await createNetworkTracker(context,page);
 
     const navigationWall=Date.now();
-    await page.goto(CONFIG.baseUrl,{waitUntil:'domcontentloaded',timeout:CONFIG.readyTimeoutMs});
+    await page.goto(benchmarkTargetUrl(),{waitUntil:'domcontentloaded',timeout:CONFIG.readyTimeoutMs});
     await waitUntilReady(page);
     const initialFrames=await frameSummarySince(page,0);
     const nav=await page.evaluate(()=>{
