@@ -457,57 +457,84 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     const pressure=clamp(postMaxPressure,0,1);
     if(pressure<=0)return 0;
 
-    const chance=clamp(.34+pressure*.58,0,.94);
+    const chance=clamp(.38+pressure*.62,0,1);
     if(random()>chance)return 0;
 
     const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
     const maxExtra=Math.max(1,Math.floor(T.POST_MAX_HAZARD_MAX_EXTRA_PER_SECTION||3));
-    const target=Math.min(maxExtra,1+Math.floor(pressure*2+random()*.55));
-    const slotFractions=[.24,.43,.62,.80];
+    const target=Math.min(
+      maxExtra,
+      pressure<.34?1:pressure<.68?2:3
+    );
+    const topZ=startZ-10;
+    const bottomZ=startZ-length+10;
+    const occupied=placements
+      .filter(p=>PHYSICAL_HAZARDS.has(p.kind)&&p.z<=topZ&&p.z>=bottomZ)
+      .map(p=>p.z)
+      .sort((a,b)=>b-a);
+    occupied.unshift(topZ);
+    occupied.push(bottomZ);
+
     let added=0;
+    while(added<target){
+      let bestIndex=-1;
+      let bestGap=0;
+      for(let i=0;i<occupied.length-1;i++){
+        const gap=occupied[i]-occupied[i+1];
+        if(gap>bestGap){
+          bestGap=gap;
+          bestIndex=i;
+        }
+      }
+      if(bestIndex<0||bestGap<9.2)break;
 
-    for(let slot=0;slot<slotFractions.length&&added<target;slot++){
-      if(slot>0&&random()>clamp(.28+pressure*.62,0,.88))continue;
-      const z=startZ-length*slotFractions[slot]+rand(-3.2,3.2);
-
-      // Only fill a genuinely empty longitudinal patch. This prevents the
-      // density booster from turning an existing formation into a wall.
-      if(placements.some(p=>PHYSICAL_HAZARDS.has(p.kind)&&Math.abs(p.z-z)<7.2))continue;
+      const upper=occupied[bestIndex];
+      const lower=occupied[bestIndex+1];
+      const z=(upper+lower)*.5+rand(-Math.min(1.4,bestGap*.10),Math.min(1.4,bestGap*.10));
 
       const roll=random();
-      const wideCut=.34+pressure*.18;
-      const oilCut=wideCut+.20;
-      const logCut=oilCut+.24;
-      const kind=roll<wideCut?'wideLog':roll<oilCut?'oil':roll<logCut?'log':'rock';
-      const limit=placementCenterLimit(kind);
-      const routeGap=collisionHalfWidth(kind)+(kind==='wideLog'?1.18:.86);
-      const preferredSide=(slot+sectionIndex)%2===0?-1:1;
+      const wideCut=.38+pressure*.18;
+      const oilCut=wideCut+.18;
+      const logCut=oilCut+.22;
+      const preferredKind=roll<wideCut?'wideLog':roll<oilCut?'oil':roll<logCut?'log':'rock';
+      const kindOrder=[preferredKind,'wideLog','log','oil','rock'].filter((kind,index,list)=>list.indexOf(kind)===index);
+      const preferredSide=(added+sectionIndex)%2===0?-1:1;
       let placed=false;
 
-      for(const side of [preferredSide,-preferredSide]){
-        const candidate=clamp(
-          safe+side*(routeGap+rand(.55,2.45)),
-          -limit,
-          limit
-        );
-        const x=candidate;
-        if(Math.abs(x-safe)<=routeGap)continue;
-        if(placements.some(p=>
-          PHYSICAL_HAZARDS.has(p.kind)&&
-          Math.abs(p.z-z)<8.0&&
-          Math.abs(p.x-x)<collisionHalfWidth(p.kind)+collisionHalfWidth(kind)+.65
-        ))continue;
+      for(const kind of kindOrder){
+        const limit=placementCenterLimit(kind);
+        const routeGap=collisionHalfWidth(kind)+(kind==='wideLog'?1.18:.86);
+        for(const side of [preferredSide,-preferredSide]){
+          const x=clamp(
+            safe+side*(routeGap+rand(.55,2.45)),
+            -limit,
+            limit
+          );
+          if(Math.abs(x-safe)<=routeGap)continue;
+          if(placements.some(p=>
+            PHYSICAL_HAZARDS.has(p.kind)&&
+            Math.abs(p.z-z)<6.2&&
+            Math.abs(p.x-x)<collisionHalfWidth(p.kind)+collisionHalfWidth(kind)+.55
+          ))continue;
 
-        placements.push(place(kind,x,z,safe,{
-          formation:'ISOLATED',
-          postMaxPressure:true,
-          densityBoost:pressure
-        }));
-        added++;
-        placed=true;
-        break;
+          placements.push(place(kind,x,z,safe,{
+            formation:'ISOLATED',
+            postMaxPressure:true,
+            densityBoost:pressure
+          }));
+          occupied.splice(bestIndex+1,0,z);
+          added++;
+          placed=true;
+          break;
+        }
+        if(placed)break;
       }
-      if(!placed)continue;
+
+      if(!placed){
+        // Mark this gap as unavailable so another iteration tries a different
+        // empty patch instead of repeatedly probing the same geometry.
+        occupied.splice(bestIndex+1,0,(upper+lower)*.5);
+      }
     }
 
     return added;
