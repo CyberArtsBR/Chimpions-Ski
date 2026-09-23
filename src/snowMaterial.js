@@ -18,7 +18,7 @@ function configureTexture(texture,renderer,repeatX,repeatY,color=false){
 }
 
 function makeSnowTextures(renderer){
-  const size=128;
+  const size=256;
   const albedoData=new Uint8Array(size*size*4);
   const microData=new Uint8Array(size*size*4);
   const normalData=new Uint8Array(size*size*4);
@@ -121,38 +121,38 @@ export function createSnowMaterials(renderer){
   const terrain=new THREE.MeshPhysicalMaterial({
     color:0xf3f9fd,
     map:textures.albedo,
-    roughness:.79,
+    roughness:.75,
     roughnessMap:textures.roughness,
     metalness:0,
     normalMap:textures.normal,
-    normalScale:new THREE.Vector2(.36,.58),
+    normalScale:new THREE.Vector2(.42,.66),
     bumpMap:textures.micro,
-    bumpScale:.022,
-    clearcoat:.10,
-    clearcoatRoughness:.64,
-    sheen:.11,
-    sheenColor:new THREE.Color(0xc6e9f8),
-    sheenRoughness:.82
+    bumpScale:.027,
+    clearcoat:.14,
+    clearcoatRoughness:.58,
+    sheen:.18,
+    sheenColor:new THREE.Color(0xcfefff),
+    sheenRoughness:.74
   });
 
   const bank=new THREE.MeshPhysicalMaterial({
     color:0xf9fdff,
-    roughness:.90,
+    roughness:.86,
     metalness:0,
     normalMap:textures.normal,
-    normalScale:new THREE.Vector2(.18,.28),
+    normalScale:new THREE.Vector2(.22,.34),
     bumpMap:textures.micro,
-    bumpScale:.012,
-    clearcoat:.035,
-    clearcoatRoughness:.78
+    bumpScale:.015,
+    clearcoat:.055,
+    clearcoatRoughness:.72
   });
 
   const shadowBank=new THREE.MeshStandardMaterial({
     color:0xd6e8f2,
-    roughness:.98,
+    roughness:.96,
     metalness:0,
     bumpMap:textures.micro,
-    bumpScale:.012
+    bumpScale:.015
   });
 
   return {

@@ -152,7 +152,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
     setMode('countdown');
     updateHud({distance:0,bananas:0,speed,best:bestDistance});
   }
-  function startCountdown({entry,onGo,durationMs=3200}={}){
+  function startCountdown({entry,onGo,durationMs=2700}={}){
     const token=++countdownToken;
     const image=byId('countdown-avatar-image');
     const name=byId('countdown-avatar-name');
@@ -164,15 +164,15 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
       }else image.textContent='🐵';
     }
     const number=byId('countdown-number');
-    const step=durationMs/4;
+    const step=durationMs/3;
     const frames=[
       ['3',0,'countTick'],
       ['2',step,'countTick'],
       ['1',step*2,'countTickStrong'],
-      ['0',step*3,'countTickStrong'],
       ['GO!',durationMs,'go']
     ];
     countdown.hidden=false;
+    countdown.classList.remove('is-launching');
     countdown.classList.add('is-active');
     for(const [label,delay,sound] of frames){
       setTimeout(()=>{
@@ -186,7 +186,7 @@ export function createGameUI({audio,onStart,onPause,onResume,onRestart,onChoose}
         if(isGo){
           const playedGoCue=audio.playGoCue?.();
           if(playedGoCue===undefined)audio.play(sound,.68);
-        }else audio.play(sound,label==='1'?.34:label==='0'?.38:.27);
+        }else audio.play(sound,label==='1'?.36:.27);
         if(isGo){
           countdown.classList.add('is-launching');
           setMode('playing');

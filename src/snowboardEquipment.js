@@ -1,18 +1,23 @@
 import * as THREE from 'three';
 
-function makeBoardGeometry(width=0.48,length=2.08,thickness=.045,upturn=.085){
+function makeBoardGeometry(width=0.58,length=2.14,thickness=.050,upturn=.135){
   const halfW=width*.5;
   const halfL=length*.5;
+  const tipW=halfW*.72;
+  const shoulderW=halfW*.99;
+  const waistW=halfW*.86;
   const shape=new THREE.Shape();
-  shape.moveTo(-halfW*.72,halfL);
-  shape.quadraticCurveTo(0,halfL*1.035,halfW*.72,halfL);
-  shape.quadraticCurveTo(halfW,halfL*.92,halfW,halfL*.72);
-  shape.lineTo(halfW,-halfL*.72);
-  shape.quadraticCurveTo(halfW,-halfL*.92,halfW*.72,-halfL);
-  shape.quadraticCurveTo(0,-halfL*1.035,-halfW*.72,-halfL);
-  shape.quadraticCurveTo(-halfW,-halfL*.92,-halfW,-halfL*.72);
-  shape.lineTo(-halfW,halfL*.72);
-  shape.quadraticCurveTo(-halfW,halfL*.92,-halfW*.72,halfL);
+  shape.moveTo(-tipW,halfL*.985);
+  shape.quadraticCurveTo(0,halfL*1.045,tipW,halfL*.985);
+  shape.quadraticCurveTo(shoulderW,halfL*.94,shoulderW,halfL*.74);
+  shape.quadraticCurveTo(halfW*.91,halfL*.34,waistW,0);
+  shape.quadraticCurveTo(halfW*.91,-halfL*.34,shoulderW,-halfL*.74);
+  shape.quadraticCurveTo(shoulderW,-halfL*.94,tipW,-halfL*.985);
+  shape.quadraticCurveTo(0,-halfL*1.045,-tipW,-halfL*.985);
+  shape.quadraticCurveTo(-shoulderW,-halfL*.94,-shoulderW,-halfL*.74);
+  shape.quadraticCurveTo(-halfW*.91,-halfL*.34,-waistW,0);
+  shape.quadraticCurveTo(-halfW*.91,halfL*.34,-shoulderW,halfL*.74);
+  shape.quadraticCurveTo(-shoulderW,halfL*.94,-tipW,halfL*.985);
   shape.closePath();
 
   const geometry=new THREE.ExtrudeGeometry(shape,{
@@ -22,20 +27,21 @@ function makeBoardGeometry(width=0.48,length=2.08,thickness=.045,upturn=.085){
     bevelSegments:2,
     bevelSize:.008,
     bevelThickness:.006,
-    curveSegments:10
+    curveSegments:12
   });
   geometry.rotateX(Math.PI/2);
   geometry.translate(0,thickness*.5,0);
 
   const position=geometry.attributes.position;
-  const bendStart=length*.35;
-  const bendRange=length*.14;
+  const bendStart=length*.30;
+  const bendRange=length*.22;
   for(let i=0;i<position.count;i++){
     const z=position.getZ(i);
     const amount=Math.abs(z)-bendStart;
     if(amount>0){
-      const t=THREE.MathUtils.clamp(amount/bendRange,0,1);
-      position.setY(i,position.getY(i)+upturn*t*t);
+      let t=THREE.MathUtils.clamp(amount/bendRange,0,1);
+      t=t*t*(3-2*t);
+      position.setY(i,position.getY(i)+upturn*t);
     }
   }
   position.needsUpdate=true;
@@ -45,8 +51,8 @@ function makeBoardGeometry(width=0.48,length=2.08,thickness=.045,upturn=.085){
   return geometry;
 }
 
-export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stanceHalfLength=.28}={}){
-  const bindingOffset=THREE.MathUtils.clamp(Number(stanceHalfLength)||.28,.20,.36);
+export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8b3fd1,stanceHalfLength=.28}={}){
+  const bindingOffset=THREE.MathUtils.clamp(Number(stanceHalfLength)||.28,.19,.40);
   const root=new THREE.Group();
   root.name='snowboard-equipment';
 
@@ -60,22 +66,29 @@ export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stance
   const bindingMaterial=new THREE.MeshStandardMaterial({color:0x17222b,roughness:.38,metalness:.22});
   const strapMaterial=new THREE.MeshStandardMaterial({color:0xe8f6fb,roughness:.30,metalness:.12});
 
-  const edge=new THREE.Mesh(makeBoardGeometry(.50,2.10,.052,.082),edgeMaterial);
+  const edge=new THREE.Mesh(makeBoardGeometry(.60,2.16,.052,.135),edgeMaterial);
   edge.castShadow=edge.receiveShadow=true;
   root.add(edge);
 
-  const deck=new THREE.Mesh(makeBoardGeometry(.47,2.06,.036,.090),deckMaterial);
-  deck.position.y=.025;
+  const deck=new THREE.Mesh(makeBoardGeometry(.56,2.11,.036,.145),deckMaterial);
+  deck.position.y=.026;
   deck.castShadow=deck.receiveShadow=true;
   root.add(deck);
 
-  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.045,.009,1.18),graphicMaterial);
-  stripe.position.set(0,.060,.02);
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(.055,.009,1.22),graphicMaterial);
+  stripe.position.set(0,.061,.02);
   root.add(stripe);
 
+  for(const endSign of [-1,1]){
+    const endGraphic=new THREE.Mesh(new THREE.BoxGeometry(.22,.010,.055),graphicMaterial);
+    endGraphic.position.set(0,.063,endSign*.80);
+    endGraphic.rotation.y=endSign*.18;
+    root.add(endGraphic);
+  }
+
   const bindingSpecs=[
-    {foot:'left',role:'front',zOffset:-bindingOffset,angle:-.16},
-    {foot:'right',role:'rear',zOffset:bindingOffset,angle:.08}
+    {foot:'left',role:'front',zOffset:-bindingOffset,angle:-.18},
+    {foot:'right',role:'rear',zOffset:bindingOffset,angle:.12}
   ];
   for(const [index,spec] of bindingSpecs.entries()){
     const sign=index===0?-1:1;
@@ -83,38 +96,41 @@ export function createSnowboardEquipment({centerX=0,z=0,topColor=0x8b3fd1,stance
     binding.name=`snowboard-${spec.foot}-${spec.role}-binding`;
     binding.userData.foot=spec.foot;
     binding.userData.stanceRole=spec.role;
-    binding.position.set(0,.086,spec.zOffset);
+    binding.position.set(0,.084,spec.zOffset);
     binding.rotation.y=spec.angle;
 
-    const plate=new THREE.Mesh(new THREE.BoxGeometry(.34,.045,.17),bindingMaterial);
+    const plate=new THREE.Mesh(new THREE.BoxGeometry(.40,.045,.18),bindingMaterial);
     plate.castShadow=true;
     binding.add(plate);
 
-    const strap=new THREE.Mesh(new THREE.BoxGeometry(.36,.035,.045),strapMaterial);
-    strap.position.set(0,.055,-.005);
-    strap.rotation.z=sign*.03;
+    const strap=new THREE.Mesh(new THREE.BoxGeometry(.42,.035,.050),strapMaterial);
+    strap.position.set(0,.055,-.004);
+    strap.rotation.z=sign*.025;
     strap.castShadow=true;
     binding.add(strap);
 
-    const heel=new THREE.Mesh(new THREE.BoxGeometry(.28,.13,.045),bindingMaterial);
-    heel.position.set(0,.095,.075*sign);
-    heel.rotation.x=sign*.16;
+    const heel=new THREE.Mesh(new THREE.BoxGeometry(.32,.14,.050),bindingMaterial);
+    heel.position.set(0,.098,.078*sign);
+    heel.rotation.x=sign*.15;
     heel.castShadow=true;
     binding.add(heel);
 
     root.add(binding);
   }
 
-  root.position.set(centerX,.058,z);
+  root.position.set(centerX,boardY,z);
   root.userData.restPosition=root.position.clone();
   root.userData.stance='regular';
   root.userData.frontFoot='left';
   root.userData.rearFoot='right';
   root.userData.stanceHalfLength=bindingOffset;
+  root.userData.boardWidth=.60;
+  root.userData.boardLength=2.16;
+  root.userData.deckTopOffset=.044;
 
   const trailContacts=[-1,1].map(side=>{
     const contact=new THREE.Object3D();
-    contact.position.set(side*.15,.005,.48);
+    contact.position.set(side*.24,.006,.46);
     contact.name=side<0?'snowboard-left-edge-contact':'snowboard-right-edge-contact';
     root.add(contact);
     return contact;
