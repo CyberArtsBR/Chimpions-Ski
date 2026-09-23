@@ -20,32 +20,35 @@ import {
 
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
-const _snowCapGeometry=new THREE.ConeGeometry(.62,.9,10);
-const _branchTierGeometry=new THREE.ConeGeometry(1.02,.52,10);
-const _branchSnowGeometry=new THREE.ConeGeometry(.98,.16,10);
+const _snowCapGeometry=new THREE.ConeGeometry(.64,.92,12);
+const _branchTierGeometry=new THREE.ConeGeometry(1.06,.58,12);
+const _branchInnerGeometry=new THREE.ConeGeometry(.82,.72,12);
+const _branchSnowGeometry=new THREE.ConeGeometry(1.00,.17,12);
+const _trunkCollarGeometry=new THREE.CylinderGeometry(.34,.39,.18,12);
 const _rockAccentGeometry=new THREE.DodecahedronGeometry(.43,0);
 const _stripeGeometry=new THREE.BoxGeometry(.68,.045,.13);
 const _lipGeometry=new THREE.BoxGeometry(2.34,.07,.14);
 const _entryGeometry=new THREE.BoxGeometry(2.32,.055,.12);
 const _rampRailGeometry=new THREE.BoxGeometry(.085,.10,2.98);
-const _logSnowGeometry=new THREE.BoxGeometry(1.82,.085,.34);
-const _logBandGeometry=new THREE.TorusGeometry(.255,.018,5,12);
+const _logSnowGeometry=new THREE.CylinderGeometry(.075,.11,1,12,1,false);
+const _logBandGeometry=new THREE.TorusGeometry(.265,.020,6,16);
+const _logKnotGeometry=new THREE.CylinderGeometry(.070,.090,.028,12);
 const _rampBankGeometry=new THREE.SphereGeometry(1,12,7);
-const _snowDetailMaterial=new THREE.MeshPhysicalMaterial({color:0xfbfeff,roughness:.82,metalness:0,clearcoat:.075,clearcoatRoughness:.68,sheen:.12,sheenColor:new THREE.Color(0xdaf3ff),sheenRoughness:.78});
+const _snowDetailMaterial=new THREE.MeshPhysicalMaterial({color:0xfbfeff,roughness:.74,metalness:0,clearcoat:.14,clearcoatRoughness:.56,sheen:.28,sheenColor:new THREE.Color(0xd7f2ff),sheenRoughness:.68});
 const _jumpMaterial=new THREE.MeshStandardMaterial({color:0x42bddf,roughness:.39,metalness:.02,emissive:0x063947,emissiveIntensity:.21});
 const _jumpStripeMaterial=new THREE.MeshStandardMaterial({color:0xffd943,roughness:.32,emissive:0x754000,emissiveIntensity:.48});
 const _jumpEntryMaterial=new THREE.MeshStandardMaterial({color:0xe9fbff,roughness:.42,emissive:0x164e5c,emissiveIntensity:.14});
 const _jumpSideMaterial=new THREE.MeshStandardMaterial({color:0x17647e,roughness:.58,metalness:.02});
-const _logSnowMaterial=new THREE.MeshPhysicalMaterial({color:0xf9fdff,roughness:.86,metalness:0,clearcoat:.06,clearcoatRoughness:.72});
-const _barkMaterial=new THREE.MeshStandardMaterial({color:0x6b4328,roughness:.86,metalness:0});
-const _barkDarkMaterial=new THREE.MeshStandardMaterial({color:0x3f281b,roughness:.92,metalness:0});
-const _pineMaterial=new THREE.MeshStandardMaterial({color:0x105e51,roughness:.80,metalness:0});
-const _pineMaterial2=new THREE.MeshStandardMaterial({color:0x1c7564,roughness:.82,metalness:0});
+const _logSnowMaterial=new THREE.MeshPhysicalMaterial({color:0xf9fdff,roughness:.74,metalness:0,clearcoat:.12,clearcoatRoughness:.58,sheen:.18,sheenColor:new THREE.Color(0xdff6ff)});
+const _barkMaterial=new THREE.MeshStandardMaterial({color:0x70442c,roughness:.76,metalness:0,flatShading:true});
+const _barkDarkMaterial=new THREE.MeshStandardMaterial({color:0x382319,roughness:.90,metalness:0,flatShading:true});
+const _pineMaterial=new THREE.MeshStandardMaterial({color:0x0d594b,roughness:.72,metalness:0,flatShading:true});
+const _pineMaterial2=new THREE.MeshStandardMaterial({color:0x16705f,roughness:.74,metalness:0,flatShading:true});
 const _rockMaterial=new THREE.MeshStandardMaterial({color:0x455f6c,roughness:.90});
 const _rockAccentMaterial=new THREE.MeshStandardMaterial({color:0x344c58,roughness:.95});
 const _bananaMaterial=new THREE.MeshStandardMaterial({color:0xffd32f,roughness:.36,emissive:0x784500,emissiveIntensity:.19});
-const _logMaterial=new THREE.MeshStandardMaterial({color:0x744427,roughness:.84,metalness:0});
-const _logEndMaterial=new THREE.MeshStandardMaterial({color:0xbd8958,roughness:.86,metalness:0});
+const _logMaterial=new THREE.MeshStandardMaterial({color:0x77482c,roughness:.76,metalness:0,flatShading:true});
+const _logEndMaterial=new THREE.MeshStandardMaterial({color:0xc08b58,roughness:.80,metalness:0,flatShading:true});
 
 function wave(seed){
   const x=Math.sin(seed*12.9898+78.233)*43758.5453;
@@ -473,25 +476,40 @@ export function decorateCourseObject(root,kind){
   root.userData.environmentDecorated=true;
 
   if(kind==='tree'){
-    for(const [y,s,ry] of [[1.22,1.12,.10],[1.88,.96,-.12],[2.55,.78,.16]]){
+    const collar=new THREE.Mesh(_trunkCollarGeometry,_barkDarkMaterial);
+    collar.position.y=.16;
+    collar.scale.set(1,.78,1);
+    collar.castShadow=true;
+    root.add(collar);
+
+    for(const [y,s,ry,rz] of [[1.10,1.18,.10,.035],[1.62,1.08,-.14,-.028],[2.12,.94,.17,.022],[2.68,.74,-.11,-.018]]){
       const tier=new THREE.Mesh(_branchTierGeometry,ry>0?_pineMaterial2:_pineMaterial);
-      tier.position.set(ry*.18,y,ry*.08);
-      tier.rotation.y=ry;
-      tier.scale.set(s,1,s*.94);
+      tier.position.set(ry*.22,y,ry*.10);
+      tier.rotation.set(0,ry,rz);
+      tier.scale.set(s,1,s*.92);
       tier.castShadow=true;
       root.add(tier);
     }
-    for(const [y,s,ry] of [[1.58,1.02,.08],[2.28,.82,-.10],[2.92,.62,.13]]){
+    for(const [y,s,ry] of [[1.38,.86,-.19],[2.35,.67,.22]]){
+      const inner=new THREE.Mesh(_branchInnerGeometry,_pineMaterial);
+      inner.position.set(-ry*.24,y,ry*.16);
+      inner.rotation.y=ry;
+      inner.scale.set(s,1,s*.88);
+      inner.castShadow=true;
+      root.add(inner);
+    }
+    for(const [y,s,ry] of [[1.45,1.08,.08],[2.05,.92,-.10],[2.67,.70,.13]]){
       const shelf=new THREE.Mesh(_branchSnowGeometry,_snowDetailMaterial);
-      shelf.position.set(ry*.10,y,ry*.05);
+      shelf.position.set(ry*.12,y,ry*.07);
       shelf.rotation.y=ry;
-      shelf.scale.set(s,.90,s*.94);
+      shelf.scale.set(s,.92,s*.92);
       shelf.castShadow=true;
       root.add(shelf);
     }
     const cap=new THREE.Mesh(_snowCapGeometry,_snowDetailMaterial);
-    cap.position.y=3.30;
-    cap.scale.set(.58,.58,.58);
+    cap.position.set(.025,3.28,-.015);
+    cap.rotation.z=.018;
+    cap.scale.set(.60,.62,.58);
     cap.castShadow=true;
     root.add(cap);
   }else if(kind==='rock'){
@@ -540,18 +558,36 @@ export function decorateCourseObject(root,kind){
       bank.castShadow=true;
       root.add(bank);
     }
-  }else if(kind==='log'){
-    const snow=new THREE.Mesh(_logSnowGeometry,_logSnowMaterial);
-    snow.position.set(0,.54,-.015);
-    snow.rotation.z=.012;
-    snow.castShadow=true;
-    root.add(snow);
+  }else if(kind==='log'||kind==='wideLog'){
+    const wide=kind==='wideLog';
+    if(!wide){
+      const snow=new THREE.Mesh(_logSnowGeometry,_logSnowMaterial);
+      snow.position.set(0,.545,-.015);
+      snow.rotation.z=Math.PI/2;
+      snow.scale.set(1.05,2.58,2.30);
+      snow.castShadow=true;
+      root.add(snow);
+    }
 
-    for(const x of [-.72,.72]){
+    const bandXs=wide?[-2.18,0,2.18]:[-.92,.92];
+    for(const x of bandXs){
       const band=new THREE.Mesh(_logBandGeometry,_barkDarkMaterial);
       band.rotation.y=Math.PI/2;
-      band.position.set(x,.28,0);
+      band.position.set(x,wide?.35:.28,0);
+      band.scale.setScalar(wide?1.30:1);
+      band.castShadow=true;
       root.add(band);
+    }
+
+    const knotSpecs=wide?[[-1.25,.41,.30],[1.34,.40,.30]]:[[-.42,.33,.235],[.58,.31,.24]];
+    for(const [x,y,z] of knotSpecs){
+      const knot=new THREE.Mesh(_logKnotGeometry,_logEndMaterial);
+      knot.position.set(x,y,z);
+      knot.rotation.x=Math.PI/2;
+      knot.rotation.z=(wave(root.id+x*2.7)-.5)*.45;
+      knot.scale.set(1.05,1,wide?1.20:1);
+      knot.castShadow=true;
+      root.add(knot);
     }
   }
   return root;
@@ -670,19 +706,23 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
 
   const treeCount=152;
-  const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.15,.30,2.05,8),_barkMaterial,treeCount);
-  const branchGeo=new THREE.ConeGeometry(1.04,1.05,9);
-  const crownGeo=new THREE.ConeGeometry(.70,1.40,9);
-  const snowGeo=new THREE.ConeGeometry(.98,.18,9);
+  const trunkMesh=new THREE.InstancedMesh(new THREE.CylinderGeometry(.16,.31,2.08,12),_barkMaterial,treeCount);
+  const branchGeo=new THREE.ConeGeometry(1.06,1.08,12);
+  const crownGeo=new THREE.ConeGeometry(.72,1.46,12);
+  const snowGeo=new THREE.ConeGeometry(1.00,.17,12);
+  branchGeo.rotateY(Math.PI/12);
+  crownGeo.rotateY(Math.PI/12);
+  snowGeo.rotateY(Math.PI/12);
   const foliageLower=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
   const foliageLowMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
   const foliageMid=new THREE.InstancedMesh(branchGeo,_pineMaterial,treeCount);
   const foliageHighMid=new THREE.InstancedMesh(branchGeo,_pineMaterial2,treeCount);
   const foliageUpper=new THREE.InstancedMesh(crownGeo,_pineMaterial,treeCount);
   const snowShelfLower=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
+  const snowShelfMid=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
   const snowShelfUpper=new THREE.InstancedMesh(snowGeo,_snowDetailMaterial,treeCount);
-  const capMesh=new THREE.InstancedMesh(new THREE.ConeGeometry(.60,.82,9),_snowDetailMaterial,treeCount);
-  for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfUpper,capMesh]){
+  const capMesh=new THREE.InstancedMesh(new THREE.ConeGeometry(.62,.86,12),_snowDetailMaterial,treeCount);
+  for(const mesh of [trunkMesh,foliageLower,foliageLowMid,foliageMid,foliageHighMid,foliageUpper,snowShelfLower,snowShelfMid,snowShelfUpper,capMesh]){
     mesh.castShadow=true;
     mesh.receiveShadow=true;
     mesh.frustumCulled=false;
@@ -759,15 +799,16 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
 
       setInstance(trunkMesh,i,e.x,ground+.90*trunkScale,e.z,.92*s,1.05*trunkScale,.92*s,e.ry,0,lean);
 
-      setInstance(foliageLower,i,e.x+asym,ground+1.40*s*height,e.z-asym*.18,1.18*s*width,1.00*s,1.12*s*width,e.ry+.04,0,sway*.20+lean);
-      setInstance(foliageLowMid,i,e.x-asym*.55,ground+1.93*s*height,e.z+asym*.15,1.04*s*width,.96*s,1.00*s*width,e.ry-.10,0,sway*.35+lean);
-      setInstance(foliageMid,i,e.x+asym*.32,ground+2.44*s*height,e.z-asym*.10,.87*s*width,.90*s,.84*s*width,e.ry+.15,0,sway*.52+lean);
-      setInstance(foliageHighMid,i,e.x-asym*.24,ground+2.90*s*height,e.z+asym*.08,.69*s*width,.80*s,.67*s*width,e.ry-.17,0,sway*.70+lean);
-      setInstance(foliageUpper,i,e.x+asym*.15,ground+3.34*s*height,e.z,.53*s*width,.78*s,.51*s*width,e.ry+.22,0,sway+lean);
+      setInstance(foliageLower,i,e.x+asym,ground+1.38*s*height,e.z-asym*.18,1.24*s*width,1.02*s,1.16*s*width,e.ry+.04,0,sway*.20+lean);
+      setInstance(foliageLowMid,i,e.x-asym*.55,ground+1.91*s*height,e.z+asym*.15,1.09*s*width,.98*s,1.03*s*width,e.ry-.10,0,sway*.35+lean);
+      setInstance(foliageMid,i,e.x+asym*.32,ground+2.43*s*height,e.z-asym*.10,.92*s*width,.92*s,.87*s*width,e.ry+.15,0,sway*.52+lean);
+      setInstance(foliageHighMid,i,e.x-asym*.24,ground+2.91*s*height,e.z+asym*.08,.74*s*width,.83*s,.70*s*width,e.ry-.17,0,sway*.70+lean);
+      setInstance(foliageUpper,i,e.x+asym*.15,ground+3.37*s*height,e.z,.56*s*width,.80*s,.53*s*width,e.ry+.22,0,sway+lean);
 
-      setInstance(snowShelfLower,i,e.x+asym*.40,ground+1.68*s*height,e.z,1.08*s*width*snow,.82*s,1.02*s*width*snow,e.ry+.02,0,sway*.25+lean);
-      setInstance(snowShelfUpper,i,e.x-asym*.18,ground+2.63*s*height,e.z,.79*s*width*snow,.78*s,.75*s*width*snow,e.ry-.12,0,sway*.58+lean);
-      setInstance(capMesh,i,e.x+asym*.10,ground+3.60*s*height,e.z,.48*s*width*snow,.60*s,.46*s*width*snow,e.ry+.20,0,sway*.90+lean);
+      setInstance(snowShelfLower,i,e.x+asym*.40,ground+1.66*s*height,e.z,1.12*s*width*snow,.82*s,1.05*s*width*snow,e.ry+.02,0,sway*.25+lean);
+      setInstance(snowShelfMid,i,e.x-asym*.10,ground+2.18*s*height,e.z+asym*.05,.94*s*width*snow,.80*s,.89*s*width*snow,e.ry+.09,0,sway*.43+lean);
+      setInstance(snowShelfUpper,i,e.x-asym*.18,ground+2.66*s*height,e.z,.82*s*width*snow,.78*s,.77*s*width*snow,e.ry-.12,0,sway*.58+lean);
+      setInstance(capMesh,i,e.x+asym*.10,ground+3.64*s*height,e.z,.49*s*width*snow,.61*s,.47*s*width*snow,e.ry+.20,0,sway*.90+lean);
     }
     trunkMesh.instanceMatrix.needsUpdate=true;
     foliageLower.instanceMatrix.needsUpdate=true;
@@ -776,6 +817,7 @@ export function createSkiEnvironment({scene,world,renderer,camera}){
     foliageHighMid.instanceMatrix.needsUpdate=true;
     foliageUpper.instanceMatrix.needsUpdate=true;
     snowShelfLower.instanceMatrix.needsUpdate=true;
+    snowShelfMid.instanceMatrix.needsUpdate=true;
     snowShelfUpper.instanceMatrix.needsUpdate=true;
     capMesh.instanceMatrix.needsUpdate=true;
   }

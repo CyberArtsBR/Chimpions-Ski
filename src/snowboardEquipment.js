@@ -56,15 +56,22 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
   const root=new THREE.Group();
   root.name='snowboard-equipment';
 
-  const edgeMaterial=new THREE.MeshStandardMaterial({color:0x111923,roughness:.28,metalness:.48});
+  const edgeMaterial=new THREE.MeshStandardMaterial({color:0x101820,roughness:.22,metalness:.62});
   const deckMaterial=new THREE.MeshPhysicalMaterial({
-    color:topColor,roughness:.30,metalness:.05,clearcoat:.52,clearcoatRoughness:.34
+    color:topColor,roughness:.24,metalness:.06,clearcoat:.74,clearcoatRoughness:.24,
+    sheen:.14,sheenColor:new THREE.Color(0xd9f2ff),sheenRoughness:.46
   });
   const graphicMaterial=new THREE.MeshStandardMaterial({
-    color:0xffd95e,roughness:.34,metalness:.04,emissive:0x3b2200,emissiveIntensity:.08
+    color:0xffd95e,roughness:.28,metalness:.08,emissive:0x3b2200,emissiveIntensity:.10
   });
-  const bindingMaterial=new THREE.MeshStandardMaterial({color:0x17222b,roughness:.38,metalness:.22});
-  const strapMaterial=new THREE.MeshStandardMaterial({color:0xe8f6fb,roughness:.30,metalness:.12});
+  const accentMaterial=new THREE.MeshPhysicalMaterial({
+    color:0x73e4ff,roughness:.22,metalness:.22,clearcoat:.58,clearcoatRoughness:.24,
+    emissive:0x073b4a,emissiveIntensity:.14
+  });
+  const bindingMaterial=new THREE.MeshStandardMaterial({color:0x15212b,roughness:.32,metalness:.30});
+  const bindingPadMaterial=new THREE.MeshStandardMaterial({color:0x263744,roughness:.44,metalness:.12});
+  const strapMaterial=new THREE.MeshStandardMaterial({color:0xeaf8fb,roughness:.24,metalness:.18});
+  const buckleMaterial=new THREE.MeshStandardMaterial({color:0x8fa8b5,roughness:.24,metalness:.72});
 
   const edge=new THREE.Mesh(makeBoardGeometry(.60,2.16,.052,.135),edgeMaterial);
   edge.castShadow=edge.receiveShadow=true;
@@ -79,11 +86,24 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
   stripe.position.set(0,.061,.02);
   root.add(stripe);
 
+  for(const side of [-1,1]){
+    const edgeAccent=new THREE.Mesh(new THREE.BoxGeometry(.024,.008,1.46),accentMaterial);
+    edgeAccent.position.set(side*.205,.063,.015);
+    edgeAccent.rotation.y=side*.012;
+    root.add(edgeAccent);
+  }
+
   for(const endSign of [-1,1]){
     const endGraphic=new THREE.Mesh(new THREE.BoxGeometry(.22,.010,.055),graphicMaterial);
-    endGraphic.position.set(0,.063,endSign*.80);
+    endGraphic.position.set(0,.064,endSign*.80);
     endGraphic.rotation.y=endSign*.18;
     root.add(endGraphic);
+
+    const tipBadge=new THREE.Mesh(new THREE.RingGeometry(.055,.105,18),endSign>0?accentMaterial:graphicMaterial);
+    tipBadge.rotation.x=-Math.PI/2;
+    tipBadge.position.set(0,.069,endSign*.86);
+    tipBadge.scale.y=.76;
+    root.add(tipBadge);
   }
 
   const bindingSpecs=[
@@ -103,14 +123,33 @@ export function createSnowboardEquipment({centerX=0,z=0,boardY=.040,topColor=0x8
     plate.castShadow=true;
     binding.add(plate);
 
+    const pad=new THREE.Mesh(new THREE.BoxGeometry(.33,.018,.145),bindingPadMaterial);
+    pad.position.y=.033;
+    pad.castShadow=true;
+    binding.add(pad);
+
     const strap=new THREE.Mesh(new THREE.BoxGeometry(.42,.035,.050),strapMaterial);
-    strap.position.set(0,.055,-.004);
+    strap.position.set(0,.067,-.004);
     strap.rotation.z=sign*.025;
     strap.castShadow=true;
     binding.add(strap);
 
+    for(const buckleX of [-.145,.145]){
+      const buckle=new THREE.Mesh(new THREE.BoxGeometry(.055,.040,.060),buckleMaterial);
+      buckle.position.set(buckleX,.082,-.004);
+      buckle.rotation.z=sign*.035;
+      buckle.castShadow=true;
+      binding.add(buckle);
+    }
+
+    const toeRamp=new THREE.Mesh(new THREE.BoxGeometry(.34,.028,.095),bindingMaterial);
+    toeRamp.position.set(0,.060,-.095*sign);
+    toeRamp.rotation.x=-sign*.10;
+    toeRamp.castShadow=true;
+    binding.add(toeRamp);
+
     const heel=new THREE.Mesh(new THREE.BoxGeometry(.32,.14,.050),bindingMaterial);
-    heel.position.set(0,.098,.078*sign);
+    heel.position.set(0,.105,.078*sign);
     heel.rotation.x=sign*.15;
     heel.castShadow=true;
     binding.add(heel);

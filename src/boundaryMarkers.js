@@ -2,11 +2,13 @@ import * as THREE from 'three';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const _dummy=new THREE.Object3D();
-const _postGeometry=new THREE.CylinderGeometry(.10,.145,1.72,10);
-const _postCapGeometry=new THREE.CylinderGeometry(.15,.145,.10,10);
-const _railGeometry=new THREE.BoxGeometry(.18,.16,1);
-const _railSnowGeometry=new THREE.BoxGeometry(.19,.035,1);
-const _postSnowGeometry=new THREE.SphereGeometry(.17,10,6);
+const _postGeometry=new THREE.CylinderGeometry(.115,.175,1.82,12);
+const _postCapGeometry=new THREE.CylinderGeometry(.165,.155,.12,12);
+const _postFootGeometry=new THREE.CylinderGeometry(.22,.19,.16,12);
+const _railGeometry=new THREE.BoxGeometry(.22,.18,1);
+const _railSnowGeometry=new THREE.BoxGeometry(.205,.045,1);
+const _postSnowGeometry=new THREE.SphereGeometry(.18,12,7);
+const _boltGeometry=new THREE.SphereGeometry(.046,8,6);
 
 function setInstance(mesh,index,x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){
   _dummy.position.set(x,y,z);
@@ -26,26 +28,31 @@ export function createBoundaryMarkers({
   const postCount=countPerSide*2;
   const railCount=postCount*2;
   const postMaterial=new THREE.MeshStandardMaterial({
-    color:0x704729,roughness:.86,metalness:0
+    color:0x71472d,roughness:.76,metalness:0,flatShading:true
   });
   const railMaterial=new THREE.MeshStandardMaterial({
-    color:0x986038,roughness:.83,metalness:0
+    color:0x9a633c,roughness:.74,metalness:0,flatShading:true
   });
   const capMaterial=new THREE.MeshStandardMaterial({
-    color:0x4d301d,roughness:.92,metalness:0
+    color:0x432b1d,roughness:.88,metalness:0,flatShading:true
   });
   const snowMaterial=new THREE.MeshPhysicalMaterial({
-    color:0xf8fcff,roughness:.86,metalness:0,
-    clearcoat:.055,clearcoatRoughness:.74
+    color:0xf8fcff,roughness:.76,metalness:0,
+    clearcoat:.12,clearcoatRoughness:.62,sheen:.16,sheenColor:new THREE.Color(0xdff5ff)
+  });
+  const boltMaterial=new THREE.MeshStandardMaterial({
+    color:0x7f929d,roughness:.36,metalness:.68
   });
 
   const posts=new THREE.InstancedMesh(_postGeometry,postMaterial,postCount);
   const caps=new THREE.InstancedMesh(_postCapGeometry,capMaterial,postCount);
+  const feet=new THREE.InstancedMesh(_postFootGeometry,capMaterial,postCount);
   const rails=new THREE.InstancedMesh(_railGeometry,railMaterial,railCount);
   const postSnow=new THREE.InstancedMesh(_postSnowGeometry,snowMaterial,postCount);
   const railSnow=new THREE.InstancedMesh(_railSnowGeometry,snowMaterial,railCount);
+  const bolts=new THREE.InstancedMesh(_boltGeometry,boltMaterial,postCount*2);
 
-  for(const mesh of [posts,caps,rails,postSnow,railSnow]){
+  for(const mesh of [posts,caps,feet,rails,postSnow,railSnow,bolts]){
     mesh.castShadow=true;
     mesh.receiveShadow=true;
     mesh.frustumCulled=false;
@@ -86,23 +93,31 @@ export function createBoundaryMarkers({
         const railGround=terrainHeight(x,railZ-travel);
         const postIndex=sideIndex*countPerSide+i;
 
-        setInstance(posts,postIndex,x,postGround+.86,z);
-        setInstance(caps,postIndex,x,postGround+1.75,z);
-        setInstance(postSnow,postIndex,x,postGround+1.82,z,0,0,0,1,.42,1);
+        setInstance(posts,postIndex,x,postGround+.91,z);
+        setInstance(caps,postIndex,x,postGround+1.88,z);
+        setInstance(feet,postIndex,x,postGround+.08,z);
+        setInstance(postSnow,postIndex,x,postGround+1.96,z,0,0,0,1,.38,1);
 
         const railBase=(sideIndex*countPerSide+i)*2;
-        setInstance(rails,railBase,x,railGround+.73,railZ,0,0,0,1,1,railLength);
-        setInstance(rails,railBase+1,x,railGround+1.24,railZ,0,0,0,1,1,railLength);
-        setInstance(railSnow,railBase,x,railGround+.825,railZ,0,0,0,1,1,railLength);
-        setInstance(railSnow,railBase+1,x,railGround+1.335,railZ,0,0,0,1,1,railLength);
+        setInstance(rails,railBase,x,railGround+.75,railZ,0,0,0,1,1,railLength);
+        setInstance(rails,railBase+1,x,railGround+1.30,railZ,0,0,0,1,1,railLength);
+        setInstance(railSnow,railBase,x,railGround+.86,railZ,0,0,0,1,1,railLength);
+        setInstance(railSnow,railBase+1,x,railGround+1.41,railZ,0,0,0,1,1,railLength);
+
+        const inwardX=x-side*.135;
+        const boltBase=postIndex*2;
+        setInstance(bolts,boltBase,inwardX,postGround+.75,z,0,0,0,1,.92,.92);
+        setInstance(bolts,boltBase+1,inwardX,postGround+1.30,z,0,0,0,1,.92,.92);
       }
     }
 
     posts.instanceMatrix.needsUpdate=true;
     caps.instanceMatrix.needsUpdate=true;
+    feet.instanceMatrix.needsUpdate=true;
     rails.instanceMatrix.needsUpdate=true;
     postSnow.instanceMatrix.needsUpdate=true;
     railSnow.instanceMatrix.needsUpdate=true;
+    bolts.instanceMatrix.needsUpdate=true;
   }
 
   reset();

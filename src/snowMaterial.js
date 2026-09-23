@@ -36,23 +36,27 @@ function makeSnowTextures(renderer){
         Math.sin(x*.18+y*.036+Math.sin(y*.04)*1.3)*.72+
         Math.sin(x*.36+y*.058+2.4)*.28;
       const drift=Math.sin(y*.041+Math.sin(x*.024)*1.7);
+      const ripples=Math.sin(x*.52+y*.082+Math.sin(y*.021)*2.2)*.20;
+      const crust=Math.sin(x*.016-y*.021+1.1)*.28+Math.sin((x-y)*.031)*.18;
       const grain=(hash2(x,y)-.5);
-      const sparkle=hash2(x*2.37+17,y*2.11+31)>.992?1:0;
+      const sparkle=hash2(x*2.37+17,y*2.11+31)>.990?1:0;
+      const icy=hash2(x*1.73+7,y*1.91+13)>.985?1:0;
 
       const tone=THREE.MathUtils.clamp(
-        243+broad*4.0+wind*2.0+drift*1.2+grain*1.3+sparkle*5.0,
-        228,
+        242+broad*4.4+wind*2.2+drift*1.4+ripples*1.3+crust*1.1+grain*1.4+sparkle*5.4+icy*2.2,
+        226,
         255
       );
-      albedoData[i]=THREE.MathUtils.clamp(tone-6,0,255);
-      albedoData[i+1]=THREE.MathUtils.clamp(tone-1,0,255);
-      albedoData[i+2]=THREE.MathUtils.clamp(tone+4,0,255);
+      const cool=THREE.MathUtils.clamp((wind+drift)*1.5+crust*.9,-3.2,3.6);
+      albedoData[i]=THREE.MathUtils.clamp(tone-7-cool*.25,0,255);
+      albedoData[i+1]=THREE.MathUtils.clamp(tone-1+cool*.20,0,255);
+      albedoData[i+2]=THREE.MathUtils.clamp(tone+5+cool*.72,0,255);
       albedoData[i+3]=255;
 
       const micro=THREE.MathUtils.clamp(
-        128+broad*18+wind*15+drift*9+grain*6+sparkle*13,
-        76,
-        184
+        128+broad*18+wind*16+drift*9+ripples*12+crust*7+grain*7+sparkle*14+icy*8,
+        72,
+        190
       );
       microData[i]=micro;
       microData[i+1]=micro;
@@ -61,9 +65,9 @@ function makeSnowTextures(renderer){
       heightField[y*size+x]=micro/255;
 
       const rough=THREE.MathUtils.clamp(
-        222-broad*9-wind*5-grain*5-sparkle*12,
-        184,
-        242
+        219-broad*10-wind*6-ripples*5-grain*5-sparkle*14-icy*9,
+        176,
+        241
       );
       roughnessData[i]=rough;
       roughnessData[i+1]=rough;
@@ -119,32 +123,34 @@ function makeSnowTextures(renderer){
 export function createSnowMaterials(renderer){
   const textures=makeSnowTextures(renderer);
   const terrain=new THREE.MeshPhysicalMaterial({
-    color:0xf3f9fd,
+    color:0xf2f9fd,
     map:textures.albedo,
-    roughness:.75,
+    roughness:.70,
     roughnessMap:textures.roughness,
     metalness:0,
     normalMap:textures.normal,
-    normalScale:new THREE.Vector2(.42,.66),
+    normalScale:new THREE.Vector2(.50,.76),
     bumpMap:textures.micro,
-    bumpScale:.027,
-    clearcoat:.14,
-    clearcoatRoughness:.58,
-    sheen:.18,
-    sheenColor:new THREE.Color(0xcfefff),
-    sheenRoughness:.74
+    bumpScale:.033,
+    clearcoat:.18,
+    clearcoatRoughness:.52,
+    sheen:.30,
+    sheenColor:new THREE.Color(0xc9ecff),
+    sheenRoughness:.66
   });
 
   const bank=new THREE.MeshPhysicalMaterial({
-    color:0xf9fdff,
-    roughness:.86,
+    color:0xf8fdff,
+    roughness:.82,
     metalness:0,
     normalMap:textures.normal,
-    normalScale:new THREE.Vector2(.22,.34),
+    normalScale:new THREE.Vector2(.28,.42),
     bumpMap:textures.micro,
-    bumpScale:.015,
-    clearcoat:.055,
-    clearcoatRoughness:.72
+    bumpScale:.019,
+    clearcoat:.09,
+    clearcoatRoughness:.66,
+    sheen:.14,
+    sheenColor:new THREE.Color(0xd9f3ff)
   });
 
   const shadowBank=new THREE.MeshStandardMaterial({
