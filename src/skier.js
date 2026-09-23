@@ -190,8 +190,12 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     root.userData.equipmentType=snowboardMode?'snowboard':'skis';
     root.userData.poseMode=snowboardMode?'snowboard-side-stance':'ski-a-pose';
     root.userData.trailContacts=snowboardMode?snowboard.trailContacts:skis;
-    body.rotation.y=snowboardMode?1.40:0;
-    headPivot.rotation.y=snowboardMode?-1.30:0;
+    // Procedural fallback has no imported-model 180° carrier. Use the
+    // opposite side rotation so its left leg is still the downhill/front foot.
+    body.rotation.y=snowboardMode?-1.50:0;
+    // Keep the head between the sideways stance and downhill instead of
+    // cancelling the body yaw and making it look fully ski-facing.
+    headPivot.rotation.y=snowboardMode?.72:0;
   }
 
   root.userData.fallback=true;
@@ -333,6 +337,41 @@ function footBasedSkiPlacement(root,rig){
   };
 }
 
+const SNOWBOARD_SIDE_YAW=1.50;
+
+function footBasedSnowboardPlacement(root,rig){
+  const fallback={centerX:0,stanceHalfLength:.24,z:.02,leftFront:true};
+  if(!rig?.leftFoot||!rig?.rightFoot)return fallback;
+  root.updateWorldMatrix(true,true);
+  const left=root.worldToLocal(rig.leftFoot.getWorldPosition(new THREE.Vector3()));
+  const right=root.worldToLocal(rig.rightFoot.getWorldPosition(new THREE.Vector3()));
+  const halfLength=Math.abs(right.z-left.z)*.5;
+  return {
+    // Center the board under the feet AFTER the avatar has been turned sideways.
+    // This avoids carrying the ski-mode X/Z center into snowboard mode.
+    centerX:(left.x+right.x)*.5,
+    stanceHalfLength:THREE.MathUtils.clamp(halfLength,.20,.38),
+    z:(left.z+right.z)*.5,
+    leftFront:left.z<=right.z
+  };
+}
+
+function resolveRegularSnowboardStance(root,modelCarrier,rig){
+  const savedYaw=modelCarrier.rotation.y;
+  let chosen=null;
+  for(const sideSign of [1,-1]){
+    const carrierYaw=Math.PI+sideSign*SNOWBOARD_SIDE_YAW;
+    modelCarrier.rotation.y=carrierYaw;
+    const placement=footBasedSnowboardPlacement(root,rig);
+    const candidate={carrierYaw,sideSign,placement};
+    if(!chosen)chosen=candidate;
+    if(placement.leftFront){chosen=candidate;break;}
+  }
+  modelCarrier.rotation.y=savedYaw;
+  root.updateWorldMatrix(true,true);
+  return chosen;
+}
+
 function addSkiEquipment(root,rig,placement=footBasedSkiPlacement(root,rig)){
   const skis=[];
   const assets=createSkiAssets(0x176f9d);
@@ -359,6 +398,7 @@ function makeRigController(model){
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const pose={carve:0,speed:0,air:0,landing:0};
   let currentRideMode=RIDE_MODE.SKI;
+  let snowboardSideSign=1;
 
   let poseDt=1/60;
   const modelBaseY=model.position.y;
@@ -398,14 +438,16 @@ function makeRigController(model){
     const hipFlex=.08+speedCrouch*.045+landingBlend*.11-ascent*.045*airScale+descent*.075*airScale;
     const hipLean=-carve*.10*stance;
     if(snowboardMode){
-      // The imported-model carrier supplies the ~80° side-on stance. Bone yaw
-      // stays modest so rigs with different spine chains do not over-twist.
+      // The carrier puts hips/feet almost square across the board. Open the
+      // upper body only slightly downhill so the stance stays side-on.
+      const downhillTurn=-snowboardSideSign;
       rotate('hips',hipFlex,carve*.020,hipLean,.22);
-      rotate('spine',-.065-speedCrouch*.03,.018+carve*.010,carve*.045*stance,.18);
-      rotate('chest',-.035-speedCrouch*.018,.012+carve*.010,carve*.030*stance,.18);
-      // Counter-yaw the articulated head chain back toward downhill (-Z).
-      rotate('neck',.025+speedCrouch*.01,-.30,-carve*.010,.17);
-      rotate('head',.012,-1.08,-carve*.012,.15);
+      rotate('spine',-.065-speedCrouch*.03,downhillTurn*.07+carve*.010,carve*.045*stance,.18);
+      rotate('chest',-.035-speedCrouch*.018,downhillTurn*.10+carve*.010,carve*.030*stance,.18);
+      // Neck + head counter-rotate only part-way toward downhill. Combined with
+      // the torso opening this leaves the gaze diagonal, not fully front-facing.
+      rotate('neck',.025+speedCrouch*.01,downhillTurn*.18,-carve*.010,.17);
+      rotate('head',.012,downhillTurn*.34,-carve*.012,.15);
     }else{
       rotate('hips',hipFlex,0,hipLean,.22);
       rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
@@ -422,9 +464,9 @@ function makeRigController(model){
       const shin=(snowboardMode?.62:.54)+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
       const foot=-.20+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
 
-      rotate(side+'Thigh',thigh,snowboardMode?sideSign*.14:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
+      rotate(side+'Thigh',thigh,snowboardMode?sideSign*.11*snowboardSideSign:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
       rotate(side+'Shin',shin,0,0,.22);
-      rotate(side+'Foot',foot,snowboardMode?sideSign*.08:0,-carve*.035,.20);
+      rotate(side+'Foot',foot,snowboardMode?sideSign*.06*snowboardSideSign:0,-carve*.035,.20);
 
       // Rest rigs are commonly T-posed. ~0.8 rad Z rotation lowers upper arms
       // into a stable A-pose with hands around waist/upper-hip height.
@@ -441,6 +483,7 @@ function makeRigController(model){
   update.rig=rig;
   update.pose=pose;
   update.setRideMode=mode=>{currentRideMode=normalizeRideMode(mode);};
+  update.setSnowboardSideSign=sign=>{snowboardSideSign=Number(sign)<0?-1:1;};
   update.getRideMode=()=>currentRideMode;
   return update;
 }
@@ -468,12 +511,19 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     riderVisual.add(modelCarrier);
 
     const placement=footBasedSkiPlacement(riderVisual,updateRig?.rig);
+    const snowboardStance=resolveRegularSnowboardStance(riderVisual,modelCarrier,updateRig?.rig);
     const skiEquipmentRoot=new THREE.Group();
     skiEquipmentRoot.name='ski-equipment';
     riderVisual.add(skiEquipmentRoot);
     const skis=addSkiEquipment(skiEquipmentRoot,updateRig?.rig,placement);
-    const snowboard=createSnowboardEquipment({centerX:placement.centerX,z:placement.z,topColor:0x7b3fc7,stanceHalfLength:placement.spacing});
+    const snowboard=createSnowboardEquipment({
+      centerX:snowboardStance.placement.centerX,
+      z:snowboardStance.placement.z,
+      topColor:0x7b3fc7,
+      stanceHalfLength:snowboardStance.placement.stanceHalfLength
+    });
     riderVisual.add(snowboard.root);
+    updateRig?.setSnowboardSideSign?.(snowboardStance.sideSign);
 
     let currentRideMode=normalizeRideMode(rideMode);
     function setRideMode(mode){
@@ -481,9 +531,9 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
       skiEquipmentRoot.visible=!snowboardMode;
       snowboard.root.visible=snowboardMode;
-      // Rotate only the imported avatar visual. Gameplay root, controls, collision,
-      // camera and board longitudinal axis remain aligned with downhill travel.
-      modelCarrier.rotation.y=Math.PI+(snowboardMode?1.40:0);
+      // Rotate only the imported avatar visual. The selected side guarantees a
+      // regular stance (left foot downhill/front) without touching gameplay axes.
+      modelCarrier.rotation.y=snowboardMode?snowboardStance.carrierYaw:Math.PI;
       updateRig?.setRideMode?.(currentRideMode);
       root.userData.rideMode=currentRideMode;
       root.userData.equipmentType=snowboardMode?'snowboard':'skis';
