@@ -105,7 +105,21 @@ try{
   assert(playing.courseLookaheadTarget>280,'Course streaming must remain beyond camera far plane');
   assert(playing.courseAhead>280,'Generated course must remain ahead of the visible camera range');
 
-  console.log('PASS desktop browser integrated start screen / gameplay');
+  await page.keyboard.press('Escape');
+  const pauseOverlay=page.locator('#pause-overlay');
+  await pauseOverlay.waitFor({state:'visible',timeout:5000});
+  const giveUp=page.getByRole('button',{name:'GIVE UP AND LEAVE TO GAME SELECTION'});
+  await giveUp.first().click();
+  const leaveConfirm=page.locator('#leave-confirm-overlay');
+  await leaveConfirm.waitFor({state:'visible',timeout:5000});
+  assert.equal(await page.getByText('Do you really want to leave the game?').isVisible(),true,'Leave confirmation copy missing');
+  await page.getByRole('button',{name:'NO',exact:true}).click();
+  await leaveConfirm.waitFor({state:'hidden',timeout:5000});
+  assert.equal(await pauseOverlay.isVisible(),true,'NO did not return to pause menu');
+  await page.getByRole('button',{name:'RESUME',exact:true}).click();
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',{timeout:5000});
+
+  console.log('PASS desktop browser integrated start screen / gameplay / leave confirmation');
 }finally{
   await browser.close();
 }
