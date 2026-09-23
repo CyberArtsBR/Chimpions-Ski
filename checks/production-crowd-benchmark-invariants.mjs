@@ -21,8 +21,10 @@ assert(benchmark.includes("first().click()"),'benchmark resolves duplicate ride-
 assert(benchmark.includes('CHIMPIONS_SKI_CROWD_STRICT_FULL'),'full-population completion can be made a strict release gate without making profiling mode lie about success');
 assert(benchmark.includes('startCrowdCacheStats'),'benchmark captures parsed-template cache/fetch/parse instrumentation');
 assert(benchmark.includes('progressivePaused'),'benchmark verifies progressive parsing stops when a run is committed');
-assert(benchmark.includes('hook?.restart'),'benchmark restarts through the dedicated semantic benchmark hook instead of racing pause/result UI');
+assert(benchmark.includes('hook?.rebuildCrowd'),'benchmark warm cycles use the dedicated crowd-only rebuild hook instead of racing gameplay/UI guards');
 assert(benchmark.includes('limitations'),'benchmark reports metrics that browser APIs cannot guarantee');
 console.log(JSON.stringify({check:'production-crowd-benchmark-invariants',realProductionCrowd:true,coldFull:true,restarts:true,network:true,memory:true,frameTiming:true}));
 assert(benchmark.includes('STRICT_FULL&&report.coldFullPreparation.loadedCount!==PRODUCTION_COUNT'),'profiling mode may report an incomplete time-boxed full load, while strict mode still requires all 50');
-assert(benchmark.includes("const restartFrom=state?.mode||'unknown'"),'benchmark records the runtime mode observed before semantic restart');
+assert(benchmark.includes("const restartFrom=state?.mode||'unknown'"),'benchmark records the runtime mode observed before crowd rebuild');
+assert(benchmark.includes('rebuildCrowdAfterTeardown'),'warm lifecycle benchmark isolates repeated crowd teardown/rebuild cycles');
+assert(!benchmark.includes('restartAfterTeardown(page)'),'warm benchmark no longer depends on full-run restart guards');

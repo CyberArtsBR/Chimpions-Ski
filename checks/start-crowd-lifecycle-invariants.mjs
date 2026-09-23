@@ -22,3 +22,6 @@ assert(main.includes('startCrowdProgressivePaused:startCrowd.progressivePaused')
 assert(main.includes("has('crowdBenchmark')"),'destructive crowd benchmark hooks are query-gated');
 assert(main.includes('prepareFull:()=>startCrowd.prepareFull(catalog)'),'main exposes explicit full-production crowd preparation only inside the benchmark hook');
 assert(main.includes('release:()=>startCrowd.release()'),'benchmark hook can deterministically exercise crowd teardown');
+assert(main.includes('rebuildCrowd:async()=>'),'benchmark hook can deterministically exercise crowd-only warm rebuilds');
+assert(main.includes('const loadedCount=await startCrowd.ensureLoaded(catalog)'),'benchmark rebuild uses the production crowd readiness path');
+assert(main.includes('startCrowd.reset();'),'benchmark rebuild restores crowd presentation after teardown');

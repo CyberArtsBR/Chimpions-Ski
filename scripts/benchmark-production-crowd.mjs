@@ -174,24 +174,31 @@ async function forceBenchmarkRelease(page){
   return true;
 }
 
-async function restartAfterTeardown(page){
+async function rebuildCrowdAfterTeardown(page){
   await forceBenchmarkRelease(page);
   const state=await diagnostics(page);
   const restartFrom=state?.mode||'unknown';
-  const [restartResult,frameTiming]=await Promise.all([
+  const [rebuildResult,frameTiming]=await Promise.all([
     page.evaluate(async()=>{
       const hook=window.chimpionsSkiCrowdBenchmark;
-      if(!hook?.restart)return {restarted:false,blockingMs:0};
+      if(!hook?.rebuildCrowd)return {ok:false,blockingMs:0,loadedCount:0};
       const started=performance.now();
-      const restarted=await hook.restart();
-      return {restarted,blockingMs:performance.now()-started};
+      const result=await hook.rebuildCrowd();
+      return {...result,blockingMs:performance.now()-started};
     }),
     sampleFrames(page,1400)
   ]);
-  if(!restartResult.restarted)throw new Error('Crowd benchmark restart hook could not start a run');
-  const countdown=await waitDiag(page,d=>(d.mode==='countdown'||d.mode==='playing')&&d.startCrowdReleased===false,10000);
-  if(!countdown||countdown.startCrowdReleased!==false)throw new Error('Crowd benchmark restart did not rebuild the crowd');
-  return {blockingMs:restartResult.blockingMs,countdown,frameTiming,releasedBeforeRestart:true,restartFrom};
+  if(!rebuildResult.ok)throw new Error('Crowd benchmark rebuild hook could not rebuild the crowd');
+  const snapshot=await waitDiag(page,d=>d.startCrowdReleased===false,3000);
+  if(!snapshot||snapshot.startCrowdReleased!==false)throw new Error('Crowd benchmark rebuild did not restore the crowd');
+  return {
+    blockingMs:rebuildResult.blockingMs,
+    loadedCount:rebuildResult.loadedCount,
+    snapshot,
+    frameTiming,
+    releasedBeforeRestart:true,
+    restartFrom
+  };
 }
 
 async function coldFullPreparation(browser){
@@ -256,30 +263,26 @@ async function coldStartAndWarmRestarts(browser){
       const beforeResources=await glbResourceSummary(page);
       const beforeNetwork=network.snapshot();
       const beforeHeap=await heapBytes(page);
-      const restarted=await restartAfterTeardown(page);
+      const rebuilt=await rebuildCrowdAfterTeardown(page);
       const afterResources=await glbResourceSummary(page);
       const afterNetwork=network.snapshot();
-      const lifecycle=await observeRunOutcome(page);
       warmRestarts.push({
         iteration:index+1,
-        blockingMs:restarted.blockingMs,
-        loadedAtCountdown:Number(restarted.countdown?.startCrowdLoadedCount)||0,
-        modelSourcesAtCountdown:Number(restarted.countdown?.startCrowdModelSources)||0,
-        frameTiming:restarted.frameTiming,
-        maxLoadedBeforeOutcome:lifecycle.maxLoaded,
-        maxSourcesBeforeOutcome:lifecycle.maxSources,
-        naturalRelease:lifecycle.naturalRelease,
+        blockingMs:rebuilt.blockingMs,
+        loadedAfterRebuild:Number(rebuilt.snapshot?.startCrowdLoadedCount)||0,
+        modelSourcesAfterRebuild:Number(rebuilt.snapshot?.startCrowdModelSources)||0,
+        frameTiming:rebuilt.frameTiming,
         heapBefore:beforeHeap,
-        heapAfterCountdown:await heapBytes(page),
+        heapAfterRebuild:await heapBytes(page),
         newGlbResourceEntries:afterResources.entries-beforeResources.entries,
         newGlbRequests:afterNetwork.requestCount-beforeNetwork.requestCount,
         newFailedGlbRequests:afterNetwork.failedCount-beforeNetwork.failedCount,
-        rendererGeometries:Number(restarted.countdown?.rendererGeometries)||null,
-        rendererTextures:Number(restarted.countdown?.rendererTextures)||null,
-        progressivePaused:restarted.countdown?.startCrowdProgressivePaused===true,
-        cacheStats:restarted.countdown?.startCrowdCacheStats||null,
-        releasedBeforeRestart:restarted.releasedBeforeRestart,
-        restartFrom:restarted.restartFrom
+        rendererGeometries:Number(rebuilt.snapshot?.rendererGeometries)||null,
+        rendererTextures:Number(rebuilt.snapshot?.rendererTextures)||null,
+        progressivePaused:rebuilt.snapshot?.startCrowdProgressivePaused===true,
+        cacheStats:rebuilt.snapshot?.startCrowdCacheStats||null,
+        releasedBeforeRestart:rebuilt.releasedBeforeRestart,
+        restartFrom:rebuilt.restartFrom
       });
     }
 

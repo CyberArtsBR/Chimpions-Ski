@@ -86,4 +86,6 @@ The warm-restart probe re-reads gameplay mode after deterministic crowd teardown
 
 ## Deterministic restart probe
 
-The production crowd benchmark uses the query-gated `window.chimpionsSkiCrowdBenchmark.restart()` hook to invoke the same `beginRun()` semantic action used by pause/result restart buttons. This avoids coupling crowd lifecycle measurements to transient pause/result overlay visibility when the no-input benchmark rider crashes between samples. The hook exists only when `?crowdBenchmark=1` is present and does not alter normal gameplay input or UI behavior.
+The production crowd benchmark uses the query-gated `window.chimpionsSkiCrowdBenchmark.rebuildCrowd()` hook for repeated warm lifecycle measurements. The hook exercises the same `startCrowd.ensureLoaded(catalog)` plus `startCrowd.reset()` path used by a run restart, but deliberately does not depend on selector visibility, pause/result overlays, rider collisions, or the broader `beginRun()` guards. If the benchmark rider is still playing, the hook pauses the run first so world travel cannot immediately release the rebuilt crowd.
+
+This makes warm-cache/download/disposal measurements about the crowd pipeline itself. The first cold-start scenario still enters gameplay through the normal selector/ride flow. The hook exists only when `?crowdBenchmark=1` is present and does not alter normal gameplay input or UI behavior.

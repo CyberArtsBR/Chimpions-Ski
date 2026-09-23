@@ -1098,6 +1098,13 @@ if(new URLSearchParams(window.location.search).has('crowdBenchmark')){
     prepareFull:()=>startCrowd.prepareFull(catalog),
     prepareStart:()=>startCrowd.setSpectators(catalog),
     release:()=>startCrowd.release(),
-    restart:()=>beginRun()
+    rebuildCrowd:async()=>{
+      // Benchmark only: isolate the crowd restart path from transient gameplay
+      // guards/UI state while exercising the exact ensureLoaded()+reset lifecycle.
+      if(state.mode==='playing')pauseGame();
+      const loadedCount=await startCrowd.ensureLoaded(catalog);
+      startCrowd.reset();
+      return {ok:true,loadedCount,mode:state.mode};
+    }
   };
 }
