@@ -1,14 +1,14 @@
 name: Chimpions Ski desktop build and checks
 on:
   push:
-    branches: [main]
+    branches: [main, feature/ski-production-crowd-pipeline]
   pull_request:
 permissions:
   contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -19,7 +19,7 @@ jobs:
       - run: npm run build
       - run: node checks/assets.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Run desktop browser audit
+      - name: Run desktop browser audit and production crowd benchmark
         run: |
           npm run preview -- --host 127.0.0.1 > /tmp/chimpions-ski-vite.log 2>&1 &
           PREVIEW_PID=$!
@@ -29,3 +29,4 @@ jobs:
             sleep 1
           done
           node checks/desktop-browser.mjs
+          CHIMPIONS_SKI_CROWD_RESTARTS=2 npm run benchmark:crowd
