@@ -20,7 +20,7 @@ for(const manifestName of ['avatars.json','characters.json']){
 const main=await readFile(new URL('../src/main.js',import.meta.url),'utf8');
 const avatar=await readFile(new URL('../src/avatar-system.js',import.meta.url),'utf8');
 const crowd=await readFile(new URL('../src/startCrowd.js',import.meta.url),'utf8');
-assert(main.includes('createFallbackSkier({rideMode:RIDE_MODE.SKI})'),'boot must use procedural rider without a GLB request');
+assert(main.includes('createFallbackSkier({rideMode:selectedRideMode})'),'boot must use the procedural rider with the persisted ride mode and without a GLB request');
 assert(!main.includes('await setAvatar(initialAvatar'),'boot must not eagerly fetch an initial GLB');
 assert(!main.includes('setSpectators(catalog)'),'player selection must not warm spectator GLBs');
 assert(!main.includes('ensureLoaded(catalog)'),'run start must not load spectator GLBs');
