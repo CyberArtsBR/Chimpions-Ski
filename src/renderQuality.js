@@ -48,8 +48,11 @@ export const QUALITY_PROFILE_NAMES=MODE_NAMES;
 
 export function resolveQualityProfile(value,fallback='auto'){
   const normalized=String(value??'').trim().toLowerCase();
+  if(normalized==='reduced')return 'medium';
   if(MODE_NAMES.includes(normalized))return normalized;
-  return MODE_NAMES.includes(fallback)?fallback:'auto';
+  const normalizedFallback=String(fallback??'').trim().toLowerCase();
+  if(normalizedFallback==='reduced')return 'medium';
+  return MODE_NAMES.includes(normalizedFallback)?normalizedFallback:'auto';
 }
 
 function readInitialProfile(){
