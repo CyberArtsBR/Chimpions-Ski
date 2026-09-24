@@ -95,7 +95,11 @@ applyCameraMotionPreference();
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const performanceTelemetry=createPerformanceTelemetry();
-renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
+function applyRendererResolution(){
+  const next=quality.getPixelRatio(devicePixelRatio);
+  if(Math.abs(renderer.getPixelRatio()-next)>.005)renderer.setPixelRatio(next);
+}
+applyRendererResolution();
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=false;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
@@ -105,7 +109,8 @@ app.prepend(renderer.domElement);
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
-quality.subscribe(settings=>renderer.setPixelRatio(Math.min(devicePixelRatio,settings.dprCap)));
+const unsubscribeRendererQuality=quality.subscribe(applyRendererResolution);
+const unsubscribeRendererResolution=quality.subscribeResolution(applyRendererResolution);
 const snowMat=environment.terrainMaterial;
 const {
   trunk:trunkMat,
@@ -532,7 +537,7 @@ ui.configureSettings?.({
 function applyRuntimeQuality(settings=quality.getSettings()){
   environment.applyQuality?.(settings);
 }
-quality.subscribe(applyRuntimeQuality,{immediate:true});
+const unsubscribeRuntimeQuality=quality.subscribe(applyRuntimeQuality,{immediate:true});
 
 const feedback=createGameFeedback({audio,ui});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
@@ -683,6 +688,7 @@ function resolveTrickAudio(event){
 }
 
 let avatarRequest=0;
+let avatarLoadController=null;
 async function setAvatar(entry,rideMode=selectedRideMode){
   if(!entry)return;
   const nextRideMode=normalizeRideMode(rideMode);
@@ -700,13 +706,21 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   }
 
   const request=++avatarRequest;
+  avatarLoadController?.abort();
+  const loadController=new AbortController();
+  avatarLoadController=loadController;
   ready=false;
   startScreen.setReady(false);
   ui.setAvatarLoading(true);
   try{
     const sourceUrl=entry.localOnly?entry.localObjectUrl:'/'+entry.url;
     const avatarLoadStarted=performance.now();
-    const nextSkier=await loadRiderAsset(sourceUrl,{rideMode:nextRideMode,requireGameplayRig:!!entry.localOnly,compatibilityInput:entry.name});
+    const nextSkier=await loadRiderAsset(sourceUrl,{
+      rideMode:nextRideMode,
+      requireGameplayRig:!!entry.localOnly,
+      compatibilityInput:entry.name,
+      signal:loadController.signal
+    });
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     const previousSkier=skier;
@@ -727,7 +741,10 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     ui.setAvatar(entry);
     syncRideModePresentation();
     selector?.setSelected(entry,selectedRideMode);
+  }catch(error){
+    if(error?.name!=='AbortError')throw error;
   }finally{
+    if(avatarLoadController===loadController)avatarLoadController=null;
     if(request===avatarRequest){
       ready=!!skier&&selectorReady;
       startScreen.setReady(ready);
@@ -1328,6 +1345,7 @@ function update(dt,frameMs=dt*1000){
   performanceTelemetry.endFrame();
 }
 
+let renderFrameHandle=0;
 function render(now){
   const frameMs=Math.max(0,now-last)||16;
   const dt=Math.min(.05,frameMs/1000||.016);last=now;
@@ -1342,13 +1360,14 @@ function render(now){
     }else if(!startCountdownStarted)startRaceCountdown();
   }else if(state.mode!=='paused')skiCamera.update(state,dt);
   renderer.render(scene,camera);
-  requestAnimationFrame(render);
+  renderFrameHandle=requestAnimationFrame(render);
 }
-requestAnimationFrame(render);
+renderFrameHandle=requestAnimationFrame(render);
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
+  renderer.setSize(innerWidth,innerHeight);
+  applyRendererResolution();
 }
 addEventListener('resize',resize);
 
@@ -1471,3 +1490,18 @@ window.chimpionsSki=()=>{
   };
 };
 
+
+if(import.meta.hot){
+  import.meta.hot.dispose(()=>{
+    if(renderFrameHandle)cancelAnimationFrame(renderFrameHandle);
+    avatarRequest++;
+    avatarLoadController?.abort();
+    avatarLoadController=null;
+    removeEventListener('resize',resize);
+    unsubscribeRendererQuality();
+    unsubscribeRendererResolution();
+    unsubscribeRuntimeQuality();
+    selector?.dispose?.();
+    delete window.chimpionsSki;
+  });
+}
