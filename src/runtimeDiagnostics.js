@@ -28,8 +28,8 @@ export function createRuntimeDiagnostics({
       ...collisionRuntime?.getDiagnostics?.(),
       ...gameFlow?.snapshot?.(),
       ...bananaPower?.snapshot?.(),
-      runSession:runSession?.snapshot?.()||null,
-      riderAttached:!!riderController?.rider
+      ...riderController?.snapshot?.(),
+      runSession:runSession?.snapshot?.()||null
     });
   };
 }
