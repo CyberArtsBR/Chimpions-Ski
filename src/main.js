@@ -189,8 +189,10 @@ const courseRenderBatches=createCourseRenderBatches({
     oil:makeOil()
   },
   capacity:512,
-  renderMinZ:-315,
-  renderMaxZ:28
+  // Camera far plane is 280 m; keep a small margin without submitting hazards
+  // tens of metres beyond anything the player can see.
+  renderMinZ:-285,
+  renderMaxZ:24
 });
 const courseBatchComponentCounts=courseRenderBatches.getComponentCounts();
 
