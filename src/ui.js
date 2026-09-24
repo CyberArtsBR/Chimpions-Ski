@@ -78,15 +78,30 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   pause.id='pause-overlay';
   pause.className='presentation-overlay';
   pause.hidden=true;
-  pause.innerHTML=`<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>${CONTROL_COPY.carve}</b> Carve</span><span><b>${CONTROL_COPY.jump}</b> Jump</span><span><b>${CONTROL_COPY.pause}</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game" data-menu-default="true">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="quality-profile" hidden>QUALITY · HIGH</button><button class="leave-game-button" id="give-up-pause">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
+  pause.innerHTML=`<section class="presentation-card pause-card" role="dialog" aria-modal="true" aria-labelledby="pause-title"><small class="eyebrow">MOUNTAIN PAUSED</small><h2 id="pause-title">PAUSE</h2><div class="control-legend"><span><b>${CONTROL_COPY.carve}</b> Carve</span><span><b>${CONTROL_COPY.jump}</b> Jump</span><span><b>${CONTROL_COPY.pause}</b> Pause</span></div><div class="presentation-actions vertical"><button class="primary" id="resume-game" data-menu-default="true">RESUME</button><button class="secondary" id="restart-pause">RESTART RUN</button><button class="secondary" id="settings-pause">SETTINGS</button><button class="leave-game-button" id="give-up-pause">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(pause);
 
   const results=document.createElement('div');
   results.id='result-overlay';
   results.className='presentation-overlay';
   results.hidden=true;
-  results.innerHTML=`<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>SCORE</small><strong id="result-score">0</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>BEST</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result" data-menu-default="true">SKI AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
+  results.innerHTML=`<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>SCORE</small><strong id="result-score">0</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>TIME</small><strong id="result-time">0:00</strong></div><div><small>MAX SPEED</small><strong id="result-max-speed">0 km/h</strong></div><div><small>BEST COMBO</small><strong id="result-combo">0</strong></div><div><small>RIDE</small><strong id="result-ride">SKI</strong></div><div><small>BEST DIST.</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result" data-menu-default="true">RIDE AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(results);
+
+  const settings=document.createElement('div');
+  settings.id='settings-overlay';
+  settings.className='presentation-overlay settings-overlay';
+  settings.hidden=true;
+  settings.innerHTML=`<section class="presentation-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><small class="eyebrow">PREFERENCES</small><h2 id="settings-title">SETTINGS</h2><div class="presentation-actions vertical settings-actions"><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="music-volume">MUSIC VOLUME · 70%</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="sfx-volume">SFX VOLUME · 80%</button><button class="toggle-button" id="quality-profile">QUALITY · AUTO</button><button class="toggle-button" id="camera-motion">CAMERA MOTION · AUTO</button><button class="toggle-button" id="toggle-haptics" aria-pressed="true">HAPTICS · ON</button><button class="primary" id="settings-close" data-menu-default="true">DONE</button></div><p class="controller-hint">Settings are saved on this device · ${CONTROL_COPY.cancel} · Back</p></section>`;
+  document.body.append(settings);
+
+  const settingsMenuButton=document.createElement('button');
+  settingsMenuButton.type='button';
+  settingsMenuButton.id='settings-menu';
+  settingsMenuButton.className='secondary';
+  settingsMenuButton.textContent='SETTINGS';
+  settingsMenuButton.setAttribute('aria-label','Open settings');
+  overlay?.querySelector('.menu-actions')?.prepend(settingsMenuButton);
 
   const leaveConfirm=document.createElement('div');
   leaveConfirm.id='leave-confirm-overlay';
@@ -99,9 +114,15 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   const restartPause=byId('restart-pause');
   const restartResult=byId('restart-result');
   const chooseResult=byId('choose-result');
+  const settingsPauseButton=byId('settings-pause');
+  const settingsCloseButton=byId('settings-close');
   const sfxButton=byId('toggle-sfx');
   const musicButton=byId('toggle-music');
+  const sfxVolumeButton=byId('sfx-volume');
+  const musicVolumeButton=byId('music-volume');
   const qualityButton=byId('quality-profile');
+  const cameraMotionButton=byId('camera-motion');
+  const hapticsButton=byId('toggle-haptics');
   const giveUpPause=byId('give-up-pause');
   const giveUpResult=byId('give-up-result');
   const leaveNo=byId('leave-confirm-no');
@@ -115,9 +136,13 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   let bestDistance=0;
   let bestCelebrated=false;
   let activeControllerSelector=null;
-  let qualityMode='high';
+  let qualityMode='auto';
   let qualityOptions=[];
   let qualityCallback=null;
+  let cameraMotionMode='auto';
+  let cameraMotionCallback=null;
+  let hapticsCallback=null;
+  let settingsOrigin=null;
 
   const menuFocus=createMenuFocusController({
     getRoot:()=>activeRoot(),
@@ -172,15 +197,52 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(startButton)startButton.textContent=loading?'LOADING CHIMPION…':(mode==='menu'?'START SKIING':'SKI AGAIN');
   }
   function syncAudioButtons(){
-    const settings=audio.getSettings();
+    const audioSettings=audio.getSettings();
     if(sfxButton){
-      sfxButton.textContent='SFX · '+(settings.sfxEnabled?'ON':'OFF');
-      sfxButton.setAttribute('aria-pressed',String(settings.sfxEnabled));
+      sfxButton.textContent='SFX · '+(audioSettings.sfxEnabled?'ON':'OFF');
+      sfxButton.setAttribute('aria-pressed',String(audioSettings.sfxEnabled));
     }
     if(musicButton){
-      musicButton.textContent='MUSIC · '+(settings.musicEnabled?'ON':'OFF');
-      musicButton.setAttribute('aria-pressed',String(settings.musicEnabled));
+      musicButton.textContent='MUSIC · '+(audioSettings.musicEnabled?'ON':'OFF');
+      musicButton.setAttribute('aria-pressed',String(audioSettings.musicEnabled));
     }
+    if(sfxVolumeButton)sfxVolumeButton.textContent='SFX VOLUME · '+Math.round((audioSettings.sfx??1)*100)+'%';
+    if(musicVolumeButton)musicVolumeButton.textContent='MUSIC VOLUME · '+Math.round((audioSettings.music??1)*100)+'%';
+  }
+  function cycleVolume(kind){
+    const audioSettings=audio.getSettings();
+    const current=kind==='music'?audioSettings.music:audioSettings.sfx;
+    const next=Math.round((((Number(current)||0)+.25)%1.25)*100)/100;
+    if(kind==='music')audio.setMusicVolume(next);
+    else audio.setSfxVolume(next);
+    syncAudioButtons();
+  }
+  function syncSettingsButtons(){
+    syncAudioButtons();
+    if(cameraMotionButton){
+      cameraMotionButton.textContent='CAMERA MOTION · '+cameraMotionMode.toUpperCase();
+      cameraMotionButton.setAttribute('aria-label','Camera motion '+cameraMotionMode);
+    }
+    if(hapticsButton){
+      const enabled=haptics?.isEnabled?.()!==false;
+      hapticsButton.textContent='HAPTICS · '+(enabled?'ON':'OFF');
+      hapticsButton.setAttribute('aria-pressed',String(enabled));
+    }
+  }
+  function showSettings(origin=null){
+    if(!settings.hidden)return true;
+    settingsOrigin=origin||document.activeElement;
+    settings.hidden=false;
+    syncSettingsButtons();
+    menuFocus.open({root:settings,defaultElement:settingsCloseButton,restoreFrom:settingsOrigin});
+    return true;
+  }
+  function hideSettings(){
+    if(settings.hidden)return false;
+    settings.hidden=true;
+    menuFocus.close({root:settings,restore:true});
+    settingsOrigin=null;
+    return true;
   }
   function pulse(element,className){
     if(!element)return;
@@ -204,6 +266,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     bestFlag.hidden=true;
     runLoading.hidden=true;
     leaveConfirm.hidden=true;
+    settings.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     menuFocus.reset();
@@ -288,13 +351,18 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     pause.hidden=true;
     setMode('playing');
   }
-  function showResults({distance=0,score=0,bananas=0,best=0,newBest=false,crashType=''}={},delay=620){
+  function showResults({distance=0,score=0,bananas=0,best=0,newBest=false,crashType='',time=0,maxSpeedKmh=0,bestCombo=0,rideMode='ski'}={},delay=620){
     clearTimeout(resultTimer);
     resultTimer=setTimeout(()=>{
       leaveConfirm.hidden=true;
       byId('result-distance').textContent=Math.floor(distance)+' m';
       byId('result-score').textContent=Math.max(0,Math.floor(Number(score)||0)).toLocaleString();
       byId('result-bananas').textContent=String(bananas);
+      const totalSeconds=Math.max(0,Math.floor(Number(time)||0));
+      byId('result-time').textContent=Math.floor(totalSeconds/60)+':'+String(totalSeconds%60).padStart(2,'0');
+      byId('result-max-speed').textContent=Math.max(0,Math.round(Number(maxSpeedKmh)||0))+' km/h';
+      byId('result-combo').textContent=String(Math.max(0,Math.floor(Number(bestCombo)||0)));
+      byId('result-ride').textContent=String(rideMode||'ski').toUpperCase();
       byId('result-best').textContent=Math.floor(best)+' m';
       const banner=byId('new-best-banner');
       banner.hidden=!newBest;
@@ -384,7 +452,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     trickHintTimer=setTimeout(()=>{trickHint.hidden=true;},4200);
     return true;
   }
-  function configureQuality({mode='high',options=['high','reduced'],onChange=null}={}){
+  function configureQuality({mode='auto',options=['auto','high','medium','low'],onChange=null}={}){
     qualityOptions=Array.from(new Set((options||[]).map(value=>String(value).toLowerCase()).filter(Boolean)));
     qualityMode=String(mode||qualityOptions[0]||'high').toLowerCase();
     if(qualityOptions.length&&!qualityOptions.includes(qualityMode))qualityOptions.unshift(qualityMode);
@@ -404,8 +472,24 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     qualityCallback(qualityMode);
     return true;
   }
+  function configureSettings({cameraMotion='auto',onCameraMotionChange=null,onHapticsChange=null}={}){
+    cameraMotionMode=['auto','full','reduced'].includes(String(cameraMotion).toLowerCase())
+      ?String(cameraMotion).toLowerCase()
+      :'auto';
+    cameraMotionCallback=typeof onCameraMotionChange==='function'?onCameraMotionChange:null;
+    hapticsCallback=typeof onHapticsChange==='function'?onHapticsChange:null;
+    syncSettingsButtons();
+  }
+  function cycleCameraMotion(){
+    const options=['auto','full','reduced'];
+    cameraMotionMode=options[(Math.max(0,options.indexOf(cameraMotionMode))+1)%options.length];
+    syncSettingsButtons();
+    cameraMotionCallback?.(cameraMotionMode);
+    return true;
+  }
 
   function activeRoot(){
+    if(!settings.hidden)return settings;
     if(!leaveConfirm.hidden)return leaveConfirm;
     if(!pause.hidden)return pause;
     if(!results.hidden)return results;
@@ -413,6 +497,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     return null;
   }
   function cancelActiveMenu(){
+    if(!settings.hidden){hideSettings();return true;}
     if(!leaveConfirm.hidden){hideLeaveConfirm();return true;}
     if(!results.hidden){showLeaveConfirm(giveUpResult);return true;}
     if(mode==='paused'){onResume?.();return true;}
@@ -430,7 +515,10 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(!action||document.body.classList.contains('start-screen-active'))return false;
     if(selector?.dialog?.open)return !!selector.handleMenuAction?.(action);
     if(mode==='countdown')return false;
-    if(action===MENU_ACTION.MENU)return toggleMenuFromAction();
+    if(action===MENU_ACTION.MENU){
+      if(!settings.hidden)return hideSettings();
+      return toggleMenuFromAction();
+    }
     return menuFocus.handle(action);
   }
   // Controller owns device selection + repeat timing; UI owns semantic focus/navigation.
@@ -462,7 +550,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     return events.length>0;
   }
 
-  for(const root of [overlay,pause,results,leaveConfirm].filter(Boolean)){
+  for(const root of [overlay,pause,results,settings,leaveConfirm].filter(Boolean)){
     root.addEventListener('focusin',event=>{
       const button=event.target.closest?.('button:not([disabled])');
       if(button&&root.contains(button))menuFocus.syncFromFocus(button);
@@ -475,6 +563,9 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   restartPause?.addEventListener('click',()=>onRestart?.());
   restartResult?.addEventListener('click',()=>onRestart?.());
   chooseResult?.addEventListener('click',()=>onChoose?.());
+  settingsMenuButton?.addEventListener('click',()=>showSettings(settingsMenuButton));
+  settingsPauseButton?.addEventListener('click',()=>showSettings(settingsPauseButton));
+  settingsCloseButton?.addEventListener('click',hideSettings);
   giveUpPause?.addEventListener('click',()=>showLeaveConfirm(giveUpPause));
   giveUpResult?.addEventListener('click',()=>showLeaveConfirm(giveUpResult));
   leaveNo?.addEventListener('click',hideLeaveConfirm);
@@ -487,7 +578,16 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     const next=!audio.getSettings().musicEnabled;
     audio.setMusicEnabled(next);syncAudioButtons();
   });
+  sfxVolumeButton?.addEventListener('click',()=>cycleVolume('sfx'));
+  musicVolumeButton?.addEventListener('click',()=>cycleVolume('music'));
   qualityButton?.addEventListener('click',cycleQuality);
+  cameraMotionButton?.addEventListener('click',cycleCameraMotion);
+  hapticsButton?.addEventListener('click',()=>{
+    const next=!(haptics?.isEnabled?.()!==false);
+    haptics?.setEnabled?.(next);
+    syncSettingsButtons();
+    hapticsCallback?.(next);
+  });
   document.addEventListener('click',event=>{
     if(document.body.classList.contains('start-screen-active'))return;
     if(event.target.closest('button'))audio.play('button',.24);
@@ -508,5 +608,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,updateHud,handleMenuAction,updateController,configureQuality,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp};
 }
