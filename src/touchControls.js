@@ -54,7 +54,7 @@ export function createTouchControls({
   steerZone.addEventListener('pointerdown',event=>{
     if(steerPointer!==null)return;
     steerPointer=event.pointerId;
-    steerZone.setPointerCapture?.(event.pointerId);
+    if(event.isTrusted)steerZone.setPointerCapture?.(event.pointerId);
     updateSteer(event);
     event.preventDefault();
   });
@@ -67,7 +67,7 @@ export function createTouchControls({
   function bindHold(button,onChange){
     button.addEventListener('pointerdown',event=>{
       heldPointers.set(event.pointerId,{button,onChange});
-      button.setPointerCapture?.(event.pointerId);
+      if(event.isTrusted)button.setPointerCapture?.(event.pointerId);
       button.classList.add('is-held');
       onChange(true);
       event.preventDefault();
