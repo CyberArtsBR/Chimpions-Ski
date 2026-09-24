@@ -118,9 +118,18 @@ for(const seed of seeds){
       group.points.push(placement);
     }
     const orderedGroups=[...formationGroups.values()].sort((a,b)=>b.z-a.z);
+    const authoredFixedRhythm=section.type==='ROCK SLALOM';
+    if(authoredFixedRhythm){
+      // ROCK SLALOM intentionally authors eight OFFSET_GATE rows per section.
+      // Do not treat that section-family identity as stochastic repetition.
+      previousFormation=null;
+      formationStreak=0;
+      denseDecisionStreak=0;
+    }
     for(const group of orderedGroups){
       totalDecisions++;
       assert(FORMATION_TYPES.includes(group.formation),'unknown late-game formation');
+      if(authoredFixedRhythm)continue;
       if(group.formation===previousFormation)formationStreak++;
       else{
         previousFormation=group.formation;
@@ -170,8 +179,8 @@ assert(totalMeters/seeds.length>18000,'late-game procedural stress run covered t
 // burst while still varying positions, safe routes and hazard composition. Keep a
 // bounded anti-repetition contract without forcing the generator back toward the
 // older, sparser cadence.
-assert(maxFormationStreak<=16,`same formation repeated too many consecutive route decisions (${maxFormationStreak})`);
-assert(maxDenseDecisionStreak<=12,`too many very-dense route decisions appeared consecutively (${maxDenseDecisionStreak})`);
+assert(maxFormationStreak<=4,`same formation repeated too many consecutive stochastic route decisions (${maxFormationStreak})`);
+assert(maxDenseDecisionStreak<=4,`too many very-dense stochastic route decisions appeared consecutively (${maxDenseDecisionStreak})`);
 assert(maxLeftDrySections<=6,'far-left edge stayed safe too long in sustained late game');
 assert(maxRightDrySections<=6,'far-right edge stayed safe too long in sustained late game');
 assert(minLeftEdgeThreats>=300,'far-left late-game pressure became too sparse');
