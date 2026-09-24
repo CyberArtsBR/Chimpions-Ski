@@ -15,23 +15,17 @@ const landscape=read('../src/alpineLandscape.js');
 
 const defaults=normalizeEnvironmentQuality();
 assert.deepEqual(defaults,{
-  particleDensityMultiplier:1,
   decorativeDensity:1,
   distantSceneryDetail:1,
-  decorativeShadows:true,
   snowDetailLevel:1
 });
 const clamped=normalizeEnvironmentQuality({
-  particleDensityMultiplier:9,
   decorativeDensity:-2,
   distantSceneryDetail:.35,
-  decorativeShadows:false,
   snowDetailLevel:4
 });
-assert.equal(clamped.particleDensityMultiplier,1.5);
 assert.equal(clamped.decorativeDensity,0);
 assert.equal(clamped.distantSceneryDetail,.35);
-assert.equal(clamped.decorativeShadows,false);
 assert.equal(clamped.snowDetailLevel,1);
 
 assert(
