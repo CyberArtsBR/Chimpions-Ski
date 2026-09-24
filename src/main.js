@@ -542,6 +542,7 @@ const TUTORIAL_PART_COUNT=8;
 let sessionTutorialVisible=false;
 let sessionTutorialResolve=null;
 let tutorialPreviousButtons=[];
+let tutorialAwaitNeutral=true;
 let tutorialArtObjectUrl='';
 
 const sessionTutorialRoot=document.createElement('section');
@@ -615,12 +616,18 @@ function showSessionTutorialOnce(){
   sessionTutorialRoot.hidden=false;
   document.body.classList.add('session-tutorial-active');
   tutorialPreviousButtons=[];
+  tutorialAwaitNeutral=true;
   void loadSessionTutorialArt();
   return new Promise(resolve=>{sessionTutorialResolve=resolve;});
 }
 function updateSessionTutorialController(pad={}){
   if(!sessionTutorialVisible)return false;
   const buttons=Array.from(pad.buttons||[],Boolean);
+  if(tutorialAwaitNeutral){
+    tutorialPreviousButtons=buttons.slice();
+    if(!buttons.some(Boolean))tutorialAwaitNeutral=false;
+    return true;
+  }
   const pressed=buttons.some((value,index)=>value&&!tutorialPreviousButtons[index]);
   tutorialPreviousButtons=buttons.slice();
   if(pressed)dismissSessionTutorial();
