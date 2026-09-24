@@ -144,7 +144,10 @@ try{
   await page.keyboard.press('Enter');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('ride-mode-card'));
-  await skiChoice.click();
+  // This flow is specifically validating keyboard/controller-compatible menu
+  // semantics. Confirm the focused ride choice with the same semantic Enter
+  // action rather than a pointer click that can race the modal transition.
+  await page.keyboard.press('Enter');
 
   await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:60000});
