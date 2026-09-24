@@ -53,9 +53,9 @@ export const FORMATION_TYPES=[
 export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
   const speedPart=clamp((speed-T.BASE_SPEED)/(T.MAX_SPEED-T.BASE_SPEED),0,1);
   const distancePart=clamp(distance/2200,0,1);
-  // Difficulty now follows the accelerated speed curve more closely so the
-  // run becomes demanding before the player has already reached top speed.
-  return clamp(speedPart*.64+distancePart*.36,0,1);
+  // Keep the recent expert-style route pressure, but soften the global
+  // difficulty curve slightly so the denser course is a little more forgiving.
+  return clamp((speedPart*.64+distancePart*.36)*.95,0,1);
 }
 
 export function createCourseDirector({routeCenter,random=Math.random}){
