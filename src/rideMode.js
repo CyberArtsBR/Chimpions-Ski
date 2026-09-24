@@ -5,7 +5,6 @@ export const RIDE_MODE=Object.freeze({
   SNOWBOARD:'snowboard'
 });
 
-const KMH_TO_MPS=1/3.6;
 const PROFILES=Object.freeze({
   [RIDE_MODE.SKI]:Object.freeze({
     mode:RIDE_MODE.SKI,
