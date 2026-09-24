@@ -32,7 +32,9 @@ function resourceBaseUrl(url=''){
 }
 async function loadRiderGltf(url,{signal=null}={}){
   throwIfAborted(signal);
-  const response=await fetch(url,{signal,cache:'force-cache'});
+  const requestOptions={signal};
+  if(!/^blob:|^data:/i.test(String(url)))requestOptions.cache='force-cache';
+  const response=await fetch(url,requestOptions);
   if(!response.ok)throw new Error(`Could not load rider asset (${response.status})`);
   const buffer=await response.arrayBuffer();
   throwIfAborted(signal);
