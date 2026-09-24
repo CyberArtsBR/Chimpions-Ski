@@ -4,6 +4,12 @@ export const HAPTIC_PATTERNS=Object.freeze({
   menuMove:Object.freeze({duration:28,weakMagnitude:.075,strongMagnitude:.035}),
   menuConfirm:Object.freeze({duration:46,weakMagnitude:.13,strongMagnitude:.11}),
   banana:Object.freeze({duration:42,weakMagnitude:.22,strongMagnitude:.10}),
+  bananaReady:Object.freeze({duration:82,weakMagnitude:.30,strongMagnitude:.34}),
+  bananaPower:Object.freeze({duration:118,weakMagnitude:.38,strongMagnitude:.48}),
+  bananaPowerEnd:Object.freeze({duration:52,weakMagnitude:.12,strongMagnitude:.16}),
+  nearMiss:Object.freeze({duration:54,weakMagnitude:.24,strongMagnitude:.15}),
+  speedTier:Object.freeze({duration:58,weakMagnitude:.14,strongMagnitude:.20}),
+  newBest:Object.freeze({duration:120,weakMagnitude:.28,strongMagnitude:.42}),
   rampTakeoff:Object.freeze({duration:58,weakMagnitude:.18,strongMagnitude:.28}),
   landSoft:Object.freeze({duration:44,weakMagnitude:.12,strongMagnitude:.20}),
   landClean:Object.freeze({duration:66,weakMagnitude:.20,strongMagnitude:.32}),
@@ -166,6 +172,12 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
   function menuMove(intensity=1){return play(HAPTIC_PATTERNS.menuMove,{lock:false,intensity});}
   function menuConfirm(intensity=1){return play(HAPTIC_PATTERNS.menuConfirm,{intensity});}
   function banana(intensity=1){return play(HAPTIC_PATTERNS.banana,{intensity});}
+  function bananaReady(intensity=1){return play(HAPTIC_PATTERNS.bananaReady,{intensity});}
+  function bananaPowerActivate(intensity=1){return play(HAPTIC_PATTERNS.bananaPower,{intensity});}
+  function bananaPowerEnd(intensity=1){return play(HAPTIC_PATTERNS.bananaPowerEnd,{intensity});}
+  function nearMiss(intensity=.65){return play(HAPTIC_PATTERNS.nearMiss,{lock:false,intensity});}
+  function speedTier(intensity=1){return play(HAPTIC_PATTERNS.speedTier,{intensity});}
+  function newBest(intensity=1){return play(HAPTIC_PATTERNS.newBest,{intensity});}
   function rampTakeoff(intensity=1){return play(HAPTIC_PATTERNS.rampTakeoff,{intensity});}
   function land(impact=0,quality='normal'){
     const amount=clamp(Number(impact)||0);
@@ -202,6 +214,12 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
     switch(event){
       case 'pickup':
       case 'banana':return banana(intensity);
+      case 'bananaReady':return bananaReady(intensity);
+      case 'bananaPower':return bananaPowerActivate(intensity);
+      case 'bananaPowerEnd':return bananaPowerEnd(intensity);
+      case 'nearMiss':return nearMiss(intensity);
+      case 'speedTier':return speedTier(intensity);
+      case 'newBest':return newBest(intensity);
       case 'rampLaunch':
       case 'rampTakeoff':return rampTakeoff(intensity);
       case 'landing':return land(data.impact??intensity,data.quality||'normal');
@@ -215,12 +233,15 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
       default:return false;
     }
   }
+  function reset(){
+    eventLock=0;
+    continuousClock=0;
+    const actuator=getActuator(resolveActiveGamepad());
+    if(actuator)invoke(actuator,'reset',[]);
+  }
   function setEnabled(value){
     hapticsEnabled=!!value;
-    if(!hapticsEnabled){
-      eventLock=0;
-      continuousClock=0;
-    }
+    if(!hapticsEnabled)reset();
     return hapticsEnabled;
   }
   function isEnabled(){return hapticsEnabled;}
@@ -242,11 +263,18 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
     getActiveGamepad,
     emit,
     diagnostics,
+    reset,
     update,
     menuMove,
     menuConfirm,
     pickup:banana,
     banana,
+    bananaReady,
+    bananaPowerActivate,
+    bananaPowerEnd,
+    nearMiss,
+    speedTier,
+    newBest,
     rampLaunch:rampTakeoff,
     rampTakeoff,
     land,
