@@ -432,7 +432,8 @@ const ui=createGameUI({
     touchControls?.reset?.();
     audio.update({mode:'menu'});
     window.location.assign(startScreen.gameSelectionUrl);
-  }
+  },
+  onShowTutorial:()=>{void showSessionTutorial({force:true});}
 });
 
 const CAMERA_VIEW_ORDER=[CAMERA_VIEW.CHASE,CAMERA_VIEW.FIXED,CAMERA_VIEW.HIGH_FAR,CAMERA_VIEW.FIRST_PERSON];
@@ -559,8 +560,8 @@ sessionTutorialRoot.innerHTML=`
     <div class="session-tutorial-grid">
       <section><h3><b>1</b> MOVEMENT</h3><div class="tutorial-controls"><kbd>A</kbd><kbd>D</kbd><span>or</span><i>LEFT STICK / D-PAD</i></div><p>Carve left and right to avoid obstacles.</p></section>
       <section><h3><b>2</b> JUMP + TRICKS</h3><div class="tutorial-controls"><kbd>SPACE</kbd><span>or</span><i class="pad-a">A</i></div><p>Jump ramps and clear hazards.</p><strong class="tutorial-highlight">↑ + JUMP · 360° SPIN &nbsp; ↓ + JUMP · BACKFLIP</strong></section>
-      <section><h3><b>3</b> 🍌 BANANA POWER</h3><p>Collect 10 bananas to charge 1 Special.</p><div class="tutorial-controls"><kbd>Q</kbd><span>or</span><i class="pad-x">X</i><strong>= BULLET TIME</strong></div><p>Bullet Time lasts 3 seconds.</p></section>
-      <section><h3><b>4</b> CAMERA</h3><div class="tutorial-controls"><kbd>E</kbd><span>or</span><i class="pad-y">Y</i><strong>CHANGE VIEW</strong></div><p>Chase · Fixed · High + Far · First Person</p><div class="tutorial-controls tutorial-motion-row"><kbd>R</kbd><span>or</span><i class="pad-b">B</i><strong>CAMERA MOTION</strong></div><p>Full · Fixed · Reduced</p></section>
+      <section><h3><b>3</b> 🍌 BANANA POWER</h3><p>Collect 10 bananas to charge 1 Banana Power.</p><div class="tutorial-controls"><kbd>Q</kbd><span>or</span><i class="pad-x">X</i><strong>= BULLET TIME</strong></div><p>Bullet Time lasts 3 seconds.</p></section>
+      <section><h3><b>4</b> CAMERA</h3><div class="tutorial-controls"><kbd>E</kbd><span>or</span><i class="pad-y">Y</i><strong>CHANGE VIEW</strong></div><p>Chase · Fixed View · High + Far · First Person</p><div class="tutorial-controls tutorial-motion-row"><kbd>R</kbd><span>or</span><i class="pad-b">B</i><strong>CAMERA MOTION</strong></div><p>Full · Fixed · Reduced</p></section>
       <section><h3><b>5</b> GOAL</h3><p>🏔️ Ski as far as possible.</p><p>🌲 Avoid trees, rocks, logs and oil.</p><p>🍌 Grab bananas and survive the increasing speed.</p></section>
       <section><h3><b>6</b> PAUSE</h3><div class="tutorial-controls"><kbd>ESC</kbd><span>or</span><i>START</i></div><p>Pause or resume the run.</p></section>
     </div>
@@ -589,8 +590,11 @@ function dismissSessionTutorial(){
   resolve?.(true);
   return true;
 }
-function showSessionTutorialOnce(){
-  if(hasSeenSessionTutorial())return Promise.resolve(false);
+function showSessionTutorial({force=false}={}){
+  if(sessionTutorialVisible)return Promise.resolve(false);
+  if(!force&&hasSeenSessionTutorial())return Promise.resolve(false);
+  gameplayInput?.resetTransient?.();
+  touchControls?.reset?.();
   sessionTutorialVisible=true;
   sessionTutorialRoot.hidden=false;
   document.body.classList.add('session-tutorial-active');
@@ -866,7 +870,7 @@ async function beginRun(){
   runPreparing=true;
   try{
     if(!ready||selector?.dialog?.open||document.hidden)return false;
-    await showSessionTutorialOnce();
+    await showSessionTutorial({force:false});
     if(!ready||selector?.dialog?.open||document.hidden)return false;
     ui.showRunLoading?.();
     audio.unlock();
@@ -950,11 +954,13 @@ function update(dt,frameMs=dt*1000){
   }
   performanceTelemetry.beginFrame(frameMs);
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
-  ui.updateController(pad,selector);
-  if(actions.pausePressed&&state.mode==='playing')pauseGame();
-  if(actions.cameraPressed&&state.mode==='playing')cycleCameraView();
-  if(actions.cameraMotionPressed&&state.mode==='playing')cycleCameraMotion();
-  if(actions.specialPressed&&state.mode==='playing')activateBananaPower();
+  const uiControllerHandled=ui.updateController(pad,selector);
+  if(!uiControllerHandled){
+    if(actions.pausePressed&&state.mode==='playing')pauseGame();
+    if(actions.cameraPressed&&state.mode==='playing')cycleCameraView();
+    if(actions.cameraMotionPressed&&state.mode==='playing')cycleCameraMotion();
+    if(actions.specialPressed&&state.mode==='playing')activateBananaPower();
+  }
   const steer=actions.steer;
   const jumpPressed=wasPlaying&&state.mode==='playing'&&actions.jumpPressed;
   const jumpHeld=actions.jumpHeld;

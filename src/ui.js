@@ -10,7 +10,7 @@ function buttonList(root){
   return Array.from(root.querySelectorAll('button:not([disabled]),[role="button"][tabindex]:not([aria-disabled="true"])')).filter(isVisible);
 }
 
-export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,onChoose,onGiveUp}){
+export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,onChoose,onGiveUp,onShowTutorial}){
   const overlay=byId('overlay');
   const startButton=byId('start');
   const chooseButton=byId('choose');
@@ -42,7 +42,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     <div class="banana-power-head"><span>🍌 BANANA POWER</span><strong id="banana-power-count">0 / 10</strong></div>
     <div class="banana-power-track" aria-hidden="true"><span id="banana-power-fill"></span></div>
     <div class="banana-power-ready" id="banana-power-ready" hidden>
-      <strong>SPECIAL READY</strong>
+      <strong>BANANA POWER READY</strong>
       <span>PRESS <kbd class="keycap-q">Q</kbd> OR <b class="gamepad-x-icon" aria-label="controller X button">X</b></span>
     </div>
     <div class="banana-power-active" id="banana-power-active" hidden>BULLET TIME</div>
@@ -116,7 +116,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   settings.id='settings-overlay';
   settings.className='presentation-overlay settings-overlay';
   settings.hidden=true;
-  settings.innerHTML=`<section class="presentation-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><small class="eyebrow">PREFERENCES</small><h2 id="settings-title">SETTINGS</h2><div class="presentation-actions vertical settings-actions"><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="music-volume">MUSIC VOLUME · 70%</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="sfx-volume">SFX VOLUME · 80%</button><button class="toggle-button" id="quality-profile">QUALITY · AUTO</button><button class="toggle-button" id="camera-view">CAMERA VIEW · CHASE</button><button class="toggle-button" id="camera-motion">CAMERA MOTION · FULL</button><button class="toggle-button" id="toggle-haptics" aria-pressed="true">HAPTICS · ON</button><button class="primary" id="settings-close" data-menu-default="true">DONE</button></div><p class="controller-hint">Settings are saved on this device · ${CONTROL_COPY.cancel} · Back</p></section>`;
+  settings.innerHTML=`<section class="presentation-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><small class="eyebrow">PREFERENCES</small><h2 id="settings-title">SETTINGS</h2><div class="presentation-actions vertical settings-actions"><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="music-volume">MUSIC VOLUME · 70%</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="sfx-volume">SFX VOLUME · 80%</button><button class="toggle-button" id="quality-profile">QUALITY · AUTO</button><button class="toggle-button" id="camera-view">CAMERA VIEW · CHASE</button><button class="toggle-button" id="camera-motion">CAMERA MOTION · FULL</button><button class="toggle-button" id="toggle-haptics" aria-pressed="true">HAPTICS · ON</button><button class="secondary" id="how-to-play">HOW TO PLAY</button><button class="primary" id="settings-close" data-menu-default="true">DONE</button></div><p class="controller-hint">Settings are saved on this device · ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(settings);
 
   const settingsMenuButton=document.createElement('button');
@@ -148,6 +148,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   const cameraViewButton=byId('camera-view');
   const cameraMotionButton=byId('camera-motion');
   const hapticsButton=byId('toggle-haptics');
+  const howToPlayButton=byId('how-to-play');
   const giveUpPause=byId('give-up-pause');
   const giveUpResult=byId('give-up-result');
   const leaveNo=byId('leave-confirm-no');
@@ -247,7 +248,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   function syncSettingsButtons(){
     syncAudioButtons();
     if(cameraViewButton){
-      const labels={chase:'CHASE',fixed:'FIXED', 'high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
+      const labels={chase:'CHASE',fixed:'FIXED VIEW', 'high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
       cameraViewButton.textContent='CAMERA VIEW · '+(labels[cameraViewMode]||cameraViewMode.toUpperCase());
       cameraViewButton.setAttribute('aria-label','Camera view '+(labels[cameraViewMode]||cameraViewMode));
     }
@@ -481,9 +482,9 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     speedUpTimer=setTimeout(()=>{speedUpCallout.hidden=true;speedUpCallout.classList.remove('pulse');},900);
   }
   function showCameraMode(cameraMode='chase'){
-    const labels={chase:'CHASE',fixed:'FIXED','high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
+    const labels={chase:'CHASE',fixed:'FIXED VIEW','high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
     clearTimeout(cameraCalloutTimer);
-    cameraCallout.textContent='CAMERA · '+(labels[cameraMode]||String(cameraMode).toUpperCase())+' · E / Y';
+    cameraCallout.textContent=(labels[cameraMode]||String(cameraMode).toUpperCase())+' · E / Y';
     cameraCallout.hidden=false;
     cameraCallout.classList.remove('pulse');
     void cameraCallout.offsetWidth;
@@ -576,7 +577,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   function showCameraMotion(mode='full'){
     const labels={full:'FULL',fixed:'FIXED',reduced:'REDUCED'};
     clearTimeout(cameraCalloutTimer);
-    cameraCallout.textContent='CAMERA MOTION · '+(labels[mode]||String(mode).toUpperCase())+' · R / B';
+    cameraCallout.textContent='CAMERA MOTION: '+(labels[mode]||String(mode).toUpperCase())+' · R / B';
     cameraCallout.hidden=false;
     cameraCallout.classList.remove('pulse');
     void cameraCallout.offsetWidth;
@@ -684,6 +685,10 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     haptics?.setEnabled?.(next);
     syncSettingsButtons();
     hapticsCallback?.(next);
+  });
+  howToPlayButton?.addEventListener('click',()=>{
+    hideSettings();
+    onShowTutorial?.();
   });
   document.addEventListener('click',event=>{
     if(document.body.classList.contains('start-screen-active'))return;
