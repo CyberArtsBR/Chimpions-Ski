@@ -22,6 +22,7 @@ import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {OBSTACLE_TUNING} from './obstacleTuning.js';
+import {createOilVisual,createRampVisual} from './courseSurfaceVisuals.js';
 import {getCourseLookahead} from './courseStreaming.js';
 import {breakSkillCombo,resetAirborneScoring,resetHazardScoring,scoreRiskBanana,tryScoreNearMiss,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 import {createStartScreen} from './startScreen.js';
@@ -145,9 +146,6 @@ const {
   logEnd:logEndMat
 }=environment.courseMaterials;
 
-const oilMat=new THREE.MeshStandardMaterial({color:0x0b1118,roughness:.10,metalness:.34,transparent:true,opacity:.96,emissive:0x07101b,emissiveIntensity:.18});
-const oilSheenMat=new THREE.MeshBasicMaterial({color:0x6689b7,transparent:true,opacity:.38,depthWrite:false,blending:THREE.AdditiveBlending});
-const oilEdgeMat=new THREE.MeshBasicMaterial({color:0x263948,transparent:true,opacity:.72,depthWrite:false,side:THREE.DoubleSide});
 
 const tiles=[];
 for(let i=0;i<9;i++){
@@ -188,11 +186,10 @@ function makeBanana(){
   decorateCourseObject(g,'banana');
   return g;
 }
-const rampCourseGeometry=new THREE.BoxGeometry(2.4,.22,3.2);
 function makeRamp(){
-  const g=new THREE.Group();
-  const m=new THREE.Mesh(rampCourseGeometry,rampMat);m.rotation.x=.18;m.position.y=.34;m.castShadow=m.receiveShadow=true;g.add(m);
-  g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.58;decorateCourseObject(g,'ramp');return g;
+  const g=createRampVisual();
+  g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.58;
+  return g;
 }
 function makeLog(){
   const tuning=OBSTACLE_TUNING.log;
@@ -220,13 +217,7 @@ function makeWideLog(){
 }
 function makeOil(){
   const tuning=OBSTACLE_TUNING.oil;
-  const g=new THREE.Group();
-  const puddle=new THREE.Mesh(new THREE.CircleGeometry(1,28),oilMat);
-  puddle.rotation.x=-Math.PI/2;puddle.scale.set(tuning.visualScaleX,tuning.visualScaleZ,1);puddle.position.y=.024;g.add(puddle);
-  const sheen=new THREE.Mesh(new THREE.RingGeometry(.46,.82,28),oilSheenMat);
-  sheen.rotation.x=-Math.PI/2;sheen.scale.set(tuning.sheenScaleX,tuning.sheenScaleZ,1);sheen.position.y=.031;sheen.rotation.z=.38;g.add(sheen);
-  const edge=new THREE.Mesh(new THREE.RingGeometry(.91,1.02,32),oilEdgeMat);
-  edge.rotation.x=-Math.PI/2;edge.scale.set(tuning.visualScaleX,tuning.visualScaleZ,1);edge.position.y=.035;g.add(edge);
+  const g=createOilVisual();
   g.userData.kind='oil';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;g.userData.yOffset=.012;
   return g;
 }

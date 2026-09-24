@@ -100,7 +100,7 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   const bands=[-1,-.68,-.34,0,.34,.68,1];
   const opening=[
     'OPEN CARVE','BANANA LINE','GATE','FOREST',
-    'RAMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
+    'LOG JUMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
   ];
 
   const rand=(min,max)=>min+(max-min)*random();
@@ -260,12 +260,12 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   function progressiveHazardKinds(kinds,progress=0,bias=1){
     const p=clamp(progress,0,1);
     if(p<=0)return kinds;
-    const treeSwap=lerp(.025,.24,p)*bias;
-    const rockSwap=lerp(.01,.075,p)*bias;
+    const treeSwap=lerp(.08,.30,p)*bias;
+    const rockSwap=lerp(.035,.11,p)*bias;
     return kinds.map(kind=>{
       const chance=kind==='tree'?treeSwap:kind==='rock'?rockSwap:0;
       if(chance<=0||random()>=chance)return kind;
-      const oilBias=lerp(.46,.55,p);
+      const oilBias=lerp(.27,.36,p);
       return random()<oilBias?'oil':'log';
     });
   }
@@ -450,8 +450,8 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     const roll=random();
     // Wide horizontal logs are a stronger part of the mix at every speed,
     // then gain a little more weight during the post-300 pressure ramp.
-    const oilCut=lerp(.40,.46,p);
-    const wideCut=Math.min(.94,oilCut+lerp(.40,.44,clamp(p*.55+post*.45,0,1)));
+    const oilCut=lerp(.24,.32,p);
+    const wideCut=Math.min(.94,oilCut+lerp(.32,.38,clamp(p*.55+post*.45,0,1)));
     const kind=roll<oilCut?'oil':roll<wideCut?'wideLog':'log';
     const extra=kind==='wideLog'?2.0:kind==='oil'?.85:.25;
     const minGap=3.0+extra;
@@ -765,7 +765,7 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     };
     const options=[...(transitions[lastType]||['OPEN CARVE'])];
 
-    if(difficulty>.42&&lastType==='OPEN CARVE'&&random()<.30)options.push('LOG JUMP');
+    if(difficulty>.20&&lastType==='OPEN CARVE'&&random()<.58)options.push('LOG JUMP');
     if(lastType!=='RECOVERY'&&random()<(.14+difficulty*.10))options.push('RAMP');
 
     if(runPlan?.preferredSections?.length){
