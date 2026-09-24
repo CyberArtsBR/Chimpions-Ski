@@ -27,7 +27,7 @@ function rng(seed){
 
 assert.equal(COURSE_FLAG_X,T.PLAYER_HALF_WIDTH,'flag boundary drifted from player corridor');
 assert(COURSE_FLAG_X>=13.5,'wider gameplay corridor regressed');
-assert(Math.abs(T.BASE_SPEED*3.6-160)<.001,'160 km/h opening speed regressed');
+assert(Math.abs(T.BASE_SPEED*3.6-150)<.001,'150 km/h opening speed regressed');
 assert(T.COURSE_LOOKAHEAD_MIN>=560,'560m+ course streaming regressed');
 assert(!FORMATION_TYPES.includes('ROW'),'ROW formations returned');
 
