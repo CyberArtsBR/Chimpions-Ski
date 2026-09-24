@@ -559,7 +559,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
           bestIndex=i;
         }
       }
-      if(bestIndex<0||bestGap<9.2)break;
+      // At full post-max pressure, allow a smaller longitudinal pocket
+      // only when the later lateral-overlap and reachable-corridor guards also
+      // accept it. This makes the +300 km/h escalation dependable without
+      // forming horizontal walls or weakening the protected route.
+      const minimumGap=lerp(9.2,7.4,pressure);
+      if(bestIndex<0||bestGap<minimumGap)break;
 
       const upper=occupied[bestIndex];
       const lower=occupied[bestIndex+1];
