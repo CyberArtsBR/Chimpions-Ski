@@ -177,8 +177,18 @@ function makeLog(wide){
   }
   const group=new THREE.Group();
   const mesh=new THREE.Mesh(merge(parts),wood);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
-  const snowStrip=new THREE.Mesh(new THREE.BoxGeometry(tuning.length*.82,.042,radius*.82),snowCover);
-  snowStrip.position.set(0,radius*1.94,-radius*.06);snowStrip.rotation.z=(wide?.012:-.016);snowStrip.castShadow=false;snowStrip.receiveShadow=true;group.add(snowStrip);
+  const snowPositions=[],snowIndices=[],steps=24,across=6;
+  for(let i=0;i<=steps;i++)for(let j=0;j<=across;j++){
+    const u=i/steps,v=j/across*2-1,x=(u-.5)*tuning.length*.90;
+    const width=radius*(.44+.10*Math.sin(u*17)+.07*Math.sin(u*31))*Math.pow(Math.sin(u*Math.PI),.35);
+    const z=v*width;
+    snowPositions.push(x,radius+Math.sqrt(Math.max(0,radius*radius-z*z))+.012,z);
+    if(i<steps&&j<across){const a=i*(across+1)+j,b=a+across+1;snowIndices.push(a,a+1,b,a+1,b+1,b);}
+  }
+  const snowGeometry=new THREE.BufferGeometry();
+  snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(snowPositions,3));snowGeometry.setIndex(snowIndices);snowGeometry.computeVertexNormals();
+  const snowStrip=new THREE.Mesh(snowGeometry,snowCover);
+  snowStrip.receiveShadow=true;group.add(snowStrip);
   const caps=[];
   for(const sign of [-1,1]){
     const g=new THREE.CircleGeometry(radius*(sign<0?.825:.995),32);

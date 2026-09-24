@@ -18,14 +18,7 @@ import {COURSE_FLAG_X,SCENERY_SIDE_MIN_CENTER_X,sideForIndex} from './environmen
 
 const _dummy=new THREE.Object3D();
 const _instanceColor=new THREE.Color();
-const _stripeGeometry=new THREE.BoxGeometry(.68,.045,.13);
-const _lipGeometry=new THREE.BoxGeometry(2.34,.07,.14);
-const _entryGeometry=new THREE.BoxGeometry(2.32,.055,.12);
-const _rampRailGeometry=new THREE.BoxGeometry(.085,.10,2.98);
 const _jumpMaterial=new THREE.MeshStandardMaterial({color:0x42bddf,roughness:.39,metalness:.02,emissive:0x063947,emissiveIntensity:.21});
-const _jumpStripeMaterial=new THREE.MeshStandardMaterial({color:0xffd943,roughness:.32,emissive:0x754000,emissiveIntensity:.48});
-const _jumpEntryMaterial=new THREE.MeshStandardMaterial({color:0xe9fbff,roughness:.42,emissive:0x164e5c,emissiveIntensity:.14});
-const _jumpSideMaterial=new THREE.MeshStandardMaterial({color:0x17647e,roughness:.58,metalness:.02});
 const _barkTexture=makeBarkTexture();
 const _barkMaterial=new THREE.MeshStandardMaterial({color:0x87583b,map:_barkTexture,roughness:.78,metalness:0,flatShading:true});
 const _pineMaterial=new THREE.MeshStandardMaterial({color:0x0d594b,roughness:.72,metalness:0,flatShading:true});
@@ -172,41 +165,6 @@ export function decorateCourseObject(root,kind){
   if(applyPremiumObstacle(root,kind)){
     addObstacleGrounding(root,kind);
     return root;
-  }
-  if(kind==='ramp'){
-    const deck=root.children[0];
-    if(deck?.isMesh){
-      deck.material=_jumpMaterial;
-      deck.receiveShadow=true;
-      for(const [index,z] of [.80,.16,-.48].entries()){
-        const stripe=new THREE.Mesh(_stripeGeometry,_jumpStripeMaterial);
-        stripe.position.set(0,.148,z);
-        stripe.rotation.y=index%2===0?.055:-.055;
-        stripe.scale.set(2.06,1,1);
-        stripe.castShadow=false;
-        deck.add(stripe);
-      }
-
-      const entry=new THREE.Mesh(_entryGeometry,_jumpEntryMaterial);
-      entry.position.set(0,.145,1.43);
-      entry.castShadow=false;
-      deck.add(entry);
-
-      const lip=new THREE.Mesh(_lipGeometry,_jumpStripeMaterial);
-      lip.position.set(0,.165,-1.47);
-      lip.castShadow=false;
-      deck.add(lip);
-
-      for(const side of [-1,1]){
-        const rail=new THREE.Mesh(_rampRailGeometry,_jumpSideMaterial);
-        rail.position.set(side*1.15,.05,0);
-        rail.castShadow=false;
-        rail.receiveShadow=true;
-        deck.add(rail);
-      }
-    }
-
-    root.userData.visualPrototype='readable-ramp-v2';
   }
   addObstacleGrounding(root,kind);
   return root;
