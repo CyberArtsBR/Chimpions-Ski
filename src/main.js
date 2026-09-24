@@ -24,6 +24,7 @@ import {breakSkillCombo,resetAirborneScoring,resetHazardScoring,scoreRiskBanana,
 import {createStartScreen} from './startScreen.js';
 import {createScorePresentation} from './scorePresentation.js';
 import {createCourseRenderBatches} from './courseRenderBatches.js';
+import {createCollisionBroadphase} from './collisionBroadphase.js';
 import {readAirborneTrickIntent,readTrickIntent} from './trickInput.js';
 import {createTrickSystem} from './trickSystem.js';
 import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFailure} from './trickScoring.js';
@@ -188,12 +189,17 @@ const courseRenderBatches=createCourseRenderBatches({
     oil:makeOil()
   },
   capacity:512,
-  renderMinZ:-315,
-  renderMaxZ:28
+  // Camera far plane is 280 m; keep a small margin without submitting hazards
+  // tens of metres beyond anything the player can see.
+  renderMinZ:-285,
+  renderMaxZ:24
 });
 const courseBatchComponentCounts=courseRenderBatches.getComponentCounts();
 
 const course=[];
+const collisionBroadphase=createCollisionBroadphase({bucketSize:8});
+const collisionQueryScratch=[];
+const COLLISION_QUERY_HALF_Z=3.5;
 let courseDirector=null;
 let courseFrame=0;
 let activeRamp=null;
@@ -235,6 +241,7 @@ function acquireCourseItem(kind){
 function releaseCourseItem(item){
   if(item===activeRamp)clearActiveRamp();
   else item.userData.activated=false;
+  collisionBroadphase.remove(item);
   item.userData.consumed=false;
   item.visible=false;
   courseRenderBatches.deactivate(item);
@@ -245,6 +252,10 @@ function removeCourseAt(index){
   const last=course.pop();
   if(index<course.length)course[index]=last;
   releaseCourseItem(item);
+}
+function removeCourseItem(item){
+  const index=course.indexOf(item);
+  if(index>=0)removeCourseAt(index);
 }
 function addCoursePlacement(placement){
   const item=acquireCourseItem(placement.kind);
@@ -262,9 +273,12 @@ function addCoursePlacement(placement){
   item.userData.activated=false;
   item.userData.landingZone=!!placement.landingZone;
   item.userData.jumpTarget=!!placement.jumpTarget;
+  item.userData.courseLocalZ=placement.z;
   course.push(item);
+  collisionBroadphase.add(item,placement.z);
 }
 function fillCourse(difficulty=0){
+  const generationStarted=performance.now();
   const lookahead=getCourseLookahead(state?.speed??SKI_TUNING.BASE_SPEED);
   const targetWorldZ=player.position.z-lookahead;
   let guard=0;
@@ -279,13 +293,50 @@ function fillCourse(difficulty=0){
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
   }
+  performanceTelemetry.record('courseGeneration',performance.now()-generationStarted);
 }
 function resetCourse(difficulty=0){
   clearActiveRamp();
   while(course.length)releaseCourseItem(course.pop());
+  collisionBroadphase.clear();
   courseDirector.reset();
   courseEndZ=-12;courseTravel=0;
   fillCourse(difficulty);
+}
+
+function syncCourseVisuals(){
+  const traversalStarted=performance.now();
+  let nearestSectionItem=null;
+  for(let i=course.length-1;i>=0;i--){
+    const item=course[i];
+    const localZ=Number.isFinite(item.userData.courseLocalZ)
+      ?item.userData.courseLocalZ
+      :item.position.z-courseTravel;
+    item.userData.courseLocalZ=localZ;
+    item.position.z=localZ+courseTravel;
+    const itemGround=terrainHeight(item.position.x,localZ);
+    item.position.y=itemGround+(item.userData.yOffset||0);
+
+    if(item.userData.kind==='banana'){
+      const phase=state.time*3.4+item.position.z*.085;
+      item.rotation.y=Math.sin(phase)*.26;
+      item.rotation.z=Math.sin(phase*.73)*.055;
+    }
+
+    if(item.position.z>17){
+      removeCourseAt(i);
+      continue;
+    }
+    if(item.position.z<=player.position.z&&(!nearestSectionItem||item.position.z>nearestSectionItem.position.z)){
+      nearestSectionItem=item;
+    }
+  }
+
+  if(nearestSectionItem){
+    state.courseSection=nearestSectionItem.userData.section||state.courseSection;
+    state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
+  }
+  performanceTelemetry.record('courseTraversal',performance.now()-traversalStarted);
 }
 
 // Continuous twin grooves use one bounded dynamic mesh instead of disconnected decals.
@@ -424,7 +475,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   ui.setAvatarLoading(true);
   try{
     const sourceUrl=entry.localOnly?entry.localObjectUrl:'/'+entry.url;
+    const avatarLoadStarted=performance.now();
     const nextSkier=await loadRiderAsset(sourceUrl,{rideMode:nextRideMode,requireGameplayRig:!!entry.localOnly,compatibilityInput:entry.name});
+    performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     const previousSkier=skier;
     skier=nextSkier;
@@ -646,7 +699,7 @@ function suspendInput(){
 addEventListener('blur',suspendInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInput();});
 
-function update(dt){
+function update(dt,frameMs=dt*1000){
   physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
   haptics.setActiveGamepad?.(pad.activeGamepad);
@@ -655,7 +708,7 @@ function update(dt){
     lastPadJump=!!pad.jump;
     return;
   }
-  performanceTelemetry.beginFrame();
+  performanceTelemetry.beginFrame(frameMs);
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
@@ -668,6 +721,7 @@ function update(dt){
   let worldDistance=0;
   if(state.mode==='playing'){
     // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
+    const physicsStarted=performance.now();
     const steps=Math.ceil(dt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS);
     const stepDt=dt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
@@ -697,6 +751,10 @@ function update(dt){
 
     const pressedThisStep=step===0&&jumpPressed;
     updateJumpAssist(state,pressedThisStep,dt,jumpHeld);
+    if(activeRamp?.visible&&Number.isFinite(activeRamp.userData.courseLocalZ)){
+      activeRamp.position.z=activeRamp.userData.courseLocalZ+courseTravel;
+      activeRamp.position.y=terrainHeight(activeRamp.position.x,activeRamp.userData.courseLocalZ)+(activeRamp.userData.yOffset||0);
+    }
     const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&!activeRamp)tricks.clearRampArm();
     tricks.updateTiming(state,{landingHeight:groundY,gravity:SKI_TUNING.GRAVITY});
@@ -796,31 +854,29 @@ function update(dt){
       skiTrails.breakTrail();
     }
 
-    const courseTraversalStarted=performance.now();
-    let nearestSectionItem=null;
-    for(let i=course.length-1;i>=0;i--){
-      const item=course[i];
-      const previousItemZ=item.position.z;
-      item.position.z+=travelStep;
-      const itemGround=terrainHeight(item.position.x,item.position.z-state.travel);
+    const broadphaseStarted=performance.now();
+    const collisionCandidates=collisionBroadphase.query(
+      player.position.z-courseTravel,
+      COLLISION_QUERY_HALF_Z,
+      collisionQueryScratch
+    );
+    performanceTelemetry.record('collisionBroadphase',performance.now()-broadphaseStarted);
+    performanceTelemetry.increment('collisionCandidates',collisionCandidates.length);
+
+    for(let i=collisionCandidates.length-1;i>=0;i--){
+      const item=collisionCandidates[i];
+      if(state.mode!=='playing'||!item?.visible||item.userData.spawnFrame===courseFrame)continue;
+
+      const localZ=Number.isFinite(item.userData.courseLocalZ)
+        ?item.userData.courseLocalZ
+        :item.position.z-courseTravel;
+      const itemWorldZ=localZ+courseTravel;
+      const previousItemZ=itemWorldZ-travelStep;
+      item.position.z=itemWorldZ;
+      const itemGround=terrainHeight(item.position.x,localZ);
       item.position.y=itemGround+(item.userData.yOffset||0);
-      if(item.userData.kind==='banana'){
-        const phase=state.time*3.4+item.position.z*.085;
-        item.rotation.y=Math.sin(phase)*.26;
-        item.rotation.z=Math.sin(phase*.73)*.055;
-      }
 
-      if(item.position.z>17){
-        removeCourseAt(i);
-        continue;
-      }
-
-      if(item.position.z<=player.position.z&&(!nearestSectionItem||item.position.z>nearestSectionItem.position.z)){
-        nearestSectionItem=item;
-      }
-      if(state.mode!=='playing'||!item.visible||item.userData.spawnFrame===courseFrame)continue;
-
-      const dz=Math.abs(item.position.z-player.position.z);
+      const dz=Math.abs(itemWorldZ-player.position.z);
       const dx=Math.abs(item.position.x-state.x);
       const radiusX=item.userData.radiusX??item.userData.radius??.6;
       const radiusZ=item.userData.radiusZ??.7;
@@ -840,12 +896,13 @@ function update(dt){
         paddingX:SKI_TUNING.COURSE_COLLISION_PADDING_X
       });
 
+      performanceTelemetry.increment('collisionChecks',1);
       if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
         scoreRiskBanana(state,item);
-        removeCourseAt(i);
+        removeCourseItem(item);
         state.bananas++;
         audio.play('banana');
         haptics.banana?.();
@@ -853,7 +910,7 @@ function update(dt){
       }
 
       if(item.userData.kind==='ramp'){
-        const approachDepth=player.position.z-item.position.z;
+        const approachDepth=player.position.z-itemWorldZ;
         const previousApproachDepth=player.position.z-previousItemZ;
         const aligned=dx<=radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X;
 
@@ -925,13 +982,9 @@ function update(dt){
 
       crash(item.userData.kind,item);
     }
-
-    if(nearestSectionItem){
-      state.courseSection=nearestSectionItem.userData.section||state.courseSection;
-      state.safeRouteX=nearestSectionItem.userData.safeX??state.safeRouteX;
     }
-    performanceTelemetry.record('courseTraversal',performance.now()-courseTraversalStarted);
-    }
+    performanceTelemetry.record('physics',performance.now()-physicsStarted);
+    syncCourseVisuals();
     if(state.mode==='playing')fillCourse(state.difficulty);
   }else if(state.mode==='countdown'){
     skier?.userData?.updateSkiPose?.({
@@ -1013,8 +1066,10 @@ function update(dt){
 }
 
 function render(now){
-  const dt=Math.min(.05,(now-last)/1000||.016);last=now;
-  update(dt);
+  const frameMs=Math.max(0,now-last)||16;
+  const dt=Math.min(.05,frameMs/1000||.016);last=now;
+  quality.observeFrame(frameMs,now);
+  update(dt,frameMs);
   if(startScreen.isActive){
     // Hold the 3D presentation completely still behind the artwork/fade.
   }else if(state.mode==='countdown'){
@@ -1037,9 +1092,16 @@ addEventListener('resize',resize);
 window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
   const batch=courseRenderBatches.getDiagnostics();
+  const broadphase=collisionBroadphase.getDiagnostics();
   let standaloneCourseObjects=0;
   let standaloneCourseDrawCalls=0;
+  let activeHazardCount=0;
+  let visibleHazardCount=0;
   for(const item of course){
+    if(item.visible&&item.userData.kind!=='banana'){
+      activeHazardCount++;
+      if(item.position.z>=batch.renderMinZ&&item.position.z<=batch.renderMaxZ)visibleHazardCount++;
+    }
     if(item.userData.batchedCourseRender)continue;
     standaloneCourseObjects++;
     if(item.visible&&item.position.z>=batch.renderMinZ&&item.position.z<=batch.renderMaxZ){
@@ -1051,8 +1113,13 @@ window.chimpionsSki=()=>{
     ...state,
     ...performanceTelemetry.getFlatSnapshot(),
     ...environment.getQualityDiagnostics?.(),
-    qualityProfile:quality.current,
+    ...quality.getDiagnostics(),
+    ...broadphase,
+    qualityProfile:quality.active,
+    qualityMode:quality.current,
     qualitySettings:quality.getSettings(),
+    activeHazardCount,
+    visibleHazardCount,
     rendererPixelRatio:renderer.getPixelRatio(),
     physicsSubsteps,
     activeRamp:!!activeRamp,
@@ -1128,6 +1195,7 @@ window.chimpionsSki=()=>{
     riderVisual:skier?.userData?.riderVisual?.name||'',
     skierFallback:!!skier?.userData?.fallback,
     rigReady:!!skier?.userData?.rigReady,
+    localAvatarComplexity:skier?.userData?.localAvatarComplexity||null,
     modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',
     courseObjects:course.length,
     pooledCourseObjects:pooledObjects
