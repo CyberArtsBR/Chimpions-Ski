@@ -57,7 +57,7 @@ app.innerHTML=`
       <p class="tagline">Carve the endless mountain, chase bananas, clear the jumps and keep your line as the descent gets faster.</p>
       <div class="selected-avatar" id="selected-avatar">
         <span class="selected-avatar-image" id="selected-avatar-image">🐵</span>
-        <span><small>YOUR RIDER</small><strong id="selected-avatar-name">Loading Chimpions…</strong><em id="selected-ride-mode" class="selected-ride-mode">SKI · 160–300 KM/H</em></span>
+        <span><small>YOUR RIDER</small><strong id="selected-avatar-name">Loading Chimpions…</strong><em id="selected-ride-mode" class="selected-ride-mode">SKI · 150–300 KM/H</em></span>
       </div>
       <div class="menu-actions">
         <button class="secondary" id="choose" aria-label="Choose Chimpion" disabled>CHOOSE CHIMPION</button>
@@ -80,15 +80,18 @@ let cameraViewMode=Object.values(CAMERA_VIEW).includes(userPreferences.cameraVie
 skiCamera.setViewMode(cameraViewMode);
 document.documentElement.dataset.cameraView=cameraViewMode;
 let cameraMotionMode=userPreferences.cameraMotion;
+if(cameraMotionMode===CAMERA_MOTION.AUTO){
+  cameraMotionMode=reducedMotionMedia?.matches?CAMERA_MOTION.REDUCED:CAMERA_MOTION.FULL;
+}
 function applyCameraMotionPreference(mode=cameraMotionMode){
-  cameraMotionMode=[CAMERA_MOTION.AUTO,CAMERA_MOTION.FULL,CAMERA_MOTION.REDUCED].includes(mode)?mode:CAMERA_MOTION.AUTO;
-  const reduced=cameraMotionMode===CAMERA_MOTION.REDUCED||(cameraMotionMode===CAMERA_MOTION.AUTO&&!!reducedMotionMedia?.matches);
-  skiCamera.setReducedMotion(reduced);
-  document.documentElement.dataset.cameraMotion=reduced?'reduced':'full';
-  return reduced;
+  cameraMotionMode=[CAMERA_MOTION.FULL,CAMERA_MOTION.FIXED,CAMERA_MOTION.REDUCED].includes(mode)
+    ?mode
+    :CAMERA_MOTION.FULL;
+  skiCamera.setMotionMode?.(cameraMotionMode);
+  document.documentElement.dataset.cameraMotion=cameraMotionMode;
+  return cameraMotionMode;
 }
 applyCameraMotionPreference();
-reducedMotionMedia?.addEventListener?.('change',()=>{if(cameraMotionMode===CAMERA_MOTION.AUTO)applyCameraMotionPreference();});
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const performanceTelemetry=createPerformanceTelemetry();
@@ -225,8 +228,11 @@ const COLLISION_QUERY_HALF_Z=3.5;
 let courseDirector=null;
 let courseFrame=0;
 let activeRamp=null;
+const OPENING_CLEAR_DISTANCE=245;
 // Keep the authored section frontier, including empty recovery/landing space.
-let courseEndZ=-12,courseTravel=0;
+// The first generated hazards begin near the far edge of the initial camera
+// view so every run opens with a few seconds of clean downhill breathing room.
+let courseEndZ=-OPENING_CLEAR_DISTANCE,courseTravel=0;
 
 function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
@@ -322,7 +328,7 @@ function resetCourse(difficulty=0){
   while(course.length)releaseCourseItem(course.pop());
   collisionBroadphase.clear();
   courseDirector.reset();
-  courseEndZ=-12;courseTravel=0;
+  courseEndZ=-OPENING_CLEAR_DISTANCE;courseTravel=0;
   fillCourse(difficulty);
 }
 
@@ -430,6 +436,7 @@ const ui=createGameUI({
 });
 
 const CAMERA_VIEW_ORDER=[CAMERA_VIEW.CHASE,CAMERA_VIEW.FIXED,CAMERA_VIEW.HIGH_FAR,CAMERA_VIEW.FIRST_PERSON];
+const CAMERA_MOTION_ORDER=[CAMERA_MOTION.FULL,CAMERA_MOTION.FIXED,CAMERA_MOTION.REDUCED];
 function setCameraView(mode,{persist=true,announce=false}={}){
   cameraViewMode=Object.values(CAMERA_VIEW).includes(mode)?mode:CAMERA_VIEW.CHASE;
   skiCamera.setViewMode(cameraViewMode);
@@ -442,6 +449,18 @@ function setCameraView(mode,{persist=true,announce=false}={}){
 function cycleCameraView(){
   const current=Math.max(0,CAMERA_VIEW_ORDER.indexOf(cameraViewMode));
   return setCameraView(CAMERA_VIEW_ORDER[(current+1)%CAMERA_VIEW_ORDER.length],{persist:true,announce:true});
+}
+function setCameraMotion(mode,{persist=true,announce=false}={}){
+  cameraMotionMode=CAMERA_MOTION_ORDER.includes(mode)?mode:CAMERA_MOTION.FULL;
+  applyCameraMotionPreference(cameraMotionMode);
+  ui.setCameraMotionMode?.(cameraMotionMode);
+  if(persist)saveCameraMotionPreference(cameraMotionMode);
+  if(announce)ui.showCameraMotion?.(cameraMotionMode);
+  return cameraMotionMode;
+}
+function cycleCameraMotion(){
+  const current=Math.max(0,CAMERA_MOTION_ORDER.indexOf(cameraMotionMode));
+  return setCameraMotion(CAMERA_MOTION_ORDER[(current+1)%CAMERA_MOTION_ORDER.length],{persist:true,announce:true});
 }
 
 function collectBananaPower(){
@@ -503,9 +522,7 @@ ui.configureSettings?.({
   },
   cameraMotion:cameraMotionMode,
   onCameraMotionChange:mode=>{
-    cameraMotionMode=mode;
-    saveCameraMotionPreference(mode);
-    applyCameraMotionPreference(mode);
+    setCameraMotion(mode,{persist:true,announce:false});
   },
   onHapticsChange:enabled=>{
     haptics.setEnabled?.(enabled);
@@ -519,6 +536,109 @@ quality.subscribe(applyRuntimeQuality,{immediate:true});
 
 const feedback=createGameFeedback({audio,ui});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
+
+const SESSION_TUTORIAL_KEY='chimpions-ski-tutorial-seen-v2';
+const TUTORIAL_PART_COUNT=8;
+let sessionTutorialVisible=false;
+let sessionTutorialResolve=null;
+let tutorialPreviousButtons=[];
+let tutorialArtObjectUrl='';
+
+const sessionTutorialRoot=document.createElement('section');
+sessionTutorialRoot.className='session-tutorial';
+sessionTutorialRoot.hidden=true;
+sessionTutorialRoot.setAttribute('role','dialog');
+sessionTutorialRoot.setAttribute('aria-modal','true');
+sessionTutorialRoot.setAttribute('aria-label','Chimpions Ski how to play tutorial');
+sessionTutorialRoot.innerHTML=`
+  <div class="session-tutorial-stage">
+    <img class="session-tutorial-art" alt="Chimpions Ski How to Play tutorial: movement, jump and tricks, Banana Power, cameras, goal and pause controls" />
+    <div class="session-tutorial-motion-hint"><b>R</b> / <b>B</b> · CAMERA MOTION · FULL / FIXED / REDUCED</div>
+    <div class="session-tutorial-fallback" hidden>
+      <strong>CHIMPIONS SKI · HOW TO PLAY</strong>
+      <span>A / D · CARVE &nbsp; SPACE / A · JUMP &nbsp; Q / X · BULLET TIME</span>
+      <span>E / Y · CAMERA &nbsp; R / B · CAMERA MOTION</span>
+      <em>PRESS ANY KEY OR BUTTON TO START</em>
+    </div>
+  </div>
+`;
+document.body.append(sessionTutorialRoot);
+const sessionTutorialArt=sessionTutorialRoot.querySelector('.session-tutorial-art');
+const sessionTutorialFallback=sessionTutorialRoot.querySelector('.session-tutorial-fallback');
+
+function hasSeenSessionTutorial(){
+  try{return sessionStorage.getItem(SESSION_TUTORIAL_KEY)==='1';}catch{return false;}
+}
+function markSessionTutorialSeen(){
+  try{sessionStorage.setItem(SESSION_TUTORIAL_KEY,'1');}catch{}
+}
+async function loadSessionTutorialArt(){
+  if(tutorialArtObjectUrl||sessionTutorialArt.src)return true;
+  try{
+    const parts=[];
+    for(let index=0;index<TUTORIAL_PART_COUNT;index++){
+      const response=await fetch('/tutorial/chimpions-ski-tutorial-'+String(index).padStart(2,'0')+'.b64',{cache:'force-cache'});
+      if(!response.ok)throw new Error('tutorial asset part '+index+' unavailable');
+      parts.push((await response.text()).trim());
+    }
+    const binary=atob(parts.join(''));
+    const bytes=new Uint8Array(binary.length);
+    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+    tutorialArtObjectUrl=URL.createObjectURL(new Blob([bytes],{type:'image/webp'}));
+    sessionTutorialArt.src=tutorialArtObjectUrl;
+    sessionTutorialFallback.hidden=true;
+    return true;
+  }catch(error){
+    console.warn('Tutorial artwork fallback:',error);
+    sessionTutorialArt.hidden=true;
+    sessionTutorialFallback.hidden=false;
+    return false;
+  }
+}
+function dismissSessionTutorial(){
+  if(!sessionTutorialVisible)return false;
+  sessionTutorialVisible=false;
+  sessionTutorialRoot.hidden=true;
+  document.body.classList.remove('session-tutorial-active');
+  markSessionTutorialSeen();
+  gameplayInput?.resetTransient?.();
+  touchControls?.reset?.();
+  tutorialPreviousButtons=[];
+  const resolve=sessionTutorialResolve;
+  sessionTutorialResolve=null;
+  resolve?.(true);
+  return true;
+}
+function showSessionTutorialOnce(){
+  if(hasSeenSessionTutorial())return Promise.resolve(false);
+  sessionTutorialVisible=true;
+  sessionTutorialRoot.hidden=false;
+  document.body.classList.add('session-tutorial-active');
+  tutorialPreviousButtons=[];
+  void loadSessionTutorialArt();
+  return new Promise(resolve=>{sessionTutorialResolve=resolve;});
+}
+function updateSessionTutorialController(pad={}){
+  if(!sessionTutorialVisible)return false;
+  const buttons=Array.from(pad.buttons||[],Boolean);
+  const pressed=buttons.some((value,index)=>value&&!tutorialPreviousButtons[index]);
+  tutorialPreviousButtons=buttons.slice();
+  if(pressed)dismissSessionTutorial();
+  return true;
+}
+addEventListener('keydown',event=>{
+  if(!sessionTutorialVisible||event.repeat)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  dismissSessionTutorial();
+},{capture:true});
+addEventListener('pointerdown',event=>{
+  if(!sessionTutorialVisible)return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  dismissSessionTutorial();
+},{capture:true});
+
 const startScreen=createStartScreen({
   audio,
   onStart:()=>{
@@ -759,9 +879,11 @@ async function beginRun(){
     return false;
   }
   runPreparing=true;
-  ui.showRunLoading?.();
   try{
     if(!ready||selector?.dialog?.open||document.hidden)return false;
+    await showSessionTutorialOnce();
+    if(!ready||selector?.dialog?.open||document.hidden)return false;
+    ui.showRunLoading?.();
     audio.unlock();
     audio.play('menu',.38);
     resetRunState('countdown');
@@ -837,11 +959,16 @@ function update(dt,frameMs=dt*1000){
     startScreen.updateController(pad);
     return;
   }
+  if(sessionTutorialVisible){
+    updateSessionTutorialController(pad);
+    return;
+  }
   performanceTelemetry.beginFrame(frameMs);
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   if(actions.pausePressed&&state.mode==='playing')pauseGame();
   if(actions.cameraPressed&&state.mode==='playing')cycleCameraView();
+  if(actions.cameraMotionPressed&&state.mode==='playing')cycleCameraMotion();
   if(actions.specialPressed&&state.mode==='playing')activateBananaPower();
   const steer=actions.steer;
   const jumpPressed=wasPlaying&&state.mode==='playing'&&actions.jumpPressed;
@@ -853,7 +980,7 @@ function update(dt,frameMs=dt*1000){
     stepBananaPower(dt);
     const bulletTimeActive=state.specialActiveTime>0;
     simulationFrameDt=dt*(bulletTimeActive?BANANA_BULLET_TIME_SCALE:1);
-    // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
+    // 150–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
     const physicsStarted=performance.now();
     const steps=Math.max(1,Math.ceil(simulationFrameDt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS));
     const stepDt=simulationFrameDt/steps;
