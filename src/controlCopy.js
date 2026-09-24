@@ -2,6 +2,8 @@ export const CONTROL_COPY=Object.freeze({
   carve:'← → / LEFT STICK',
   jump:'SPACE / A · CROSS',
   pause:'ESC / START · MENU',
+  special:'Q / X',
+  camera:'E / Y',
   confirm:'ENTER / SPACE / A',
   cancel:'ESC / B',
   trick360:'↑ / W + JUMP = 360',
