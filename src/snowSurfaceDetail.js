@@ -41,7 +41,7 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
   const ridges=new THREE.InstancedMesh(ridgeGeometry,ridgeMaterial,ridgeCount);
   for(const mesh of [mounds,ridges]){
     mesh.receiveShadow=true;
-    mesh.frustumCulled=false;
+    mesh.frustumCulled=true;
     world.add(mesh);
   }
 
@@ -88,6 +88,8 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
     ridges.count=activeRidges;
     mounds.instanceMatrix.needsUpdate=true;
     ridges.instanceMatrix.needsUpdate=true;
+    if(mounds.count>0)mounds.computeBoundingSphere();
+    if(ridges.count>0)ridges.computeBoundingSphere();
   }
 
   function update(dt,worldSpeed){
