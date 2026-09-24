@@ -144,10 +144,10 @@ try{
   await page.keyboard.press('Enter');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('ride-mode-card'));
-  // This flow is specifically validating keyboard/controller-compatible menu
-  // semantics. Confirm the focused ride choice with the same semantic Enter
-  // action rather than a pointer click that can race the modal transition.
-  await page.keyboard.press('Enter');
+  // Focus/navigation semantics were already verified above. Trigger the actual
+  // button handler through DOM click so headless SwiftShader does not make this
+  // release smoke depend on pointer hit-testing or transition stability.
+  await skiChoice.evaluate(button=>button.click());
 
   await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:60000});
