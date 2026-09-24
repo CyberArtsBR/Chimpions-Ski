@@ -177,10 +177,18 @@
 }
 .banana-power.is-ready .banana-power-track{box-shadow:0 0 18px rgba(255,220,58,.46)}
 .banana-power.is-active .banana-power-track>span{background:linear-gradient(90deg,#ffd22f,#fff2a0)}
-.banana-power-active{color:#fff7c8;animation:bananaShieldPulse .72s ease-in-out infinite alternate}
+.banana-power-active{color:#dff8ff;animation:bananaBulletPulse .62s ease-in-out infinite alternate}
 .banana-power.power-burst{animation:bananaPowerBurst .72s ease-out}
-@keyframes bananaShieldPulse{to{filter:brightness(1.28);transform:scale(1.025)}}
+@keyframes bananaBulletPulse{to{filter:brightness(1.32);transform:scale(1.035);letter-spacing:.11em}}
 @keyframes bananaPowerBurst{35%{filter:brightness(1.55) drop-shadow(0 0 16px rgba(255,218,54,.7));transform:translateX(-50%) scale(1.04)}}
+
+body.bullet-time-active::after{
+  content:"";position:fixed;z-index:4;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 54%,transparent 36%,rgba(34,115,170,.09) 68%,rgba(5,31,54,.24) 100%);
+  box-shadow:inset 0 0 90px rgba(91,211,255,.13);
+  animation:bulletTimeVignette .42s ease-out;
+}
+@keyframes bulletTimeVignette{from{opacity:0}to{opacity:1}}
 .camera-mode-callout{
   position:fixed;z-index:7;left:50%;bottom:8%;transform:translateX(-50%);
   padding:7px 14px;border-radius:999px;border:1px solid rgba(211,245,255,.52);
@@ -196,5 +204,5 @@
   .banana-power-ready{font-size:10px}.banana-power-ready strong{font-size:13px}
 }
 @media(prefers-reduced-motion:reduce){
-  .banana-power-track>span,.banana-power-active,.banana-power.power-burst,.camera-mode-callout.pulse{animation:none!important;transition:none!important}
+  .banana-power-track>span,.banana-power-active,.banana-power.power-burst,.camera-mode-callout.pulse,body.bullet-time-active::after{animation:none!important;transition:none!important}
 }
