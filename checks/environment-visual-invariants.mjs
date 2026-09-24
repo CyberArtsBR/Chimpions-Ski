@@ -69,13 +69,21 @@ assert(particles.includes('setDensityMultiplier'),'snow particle density hook mi
 assert(surface.includes('setDetailLevel'),'snow surface detail hook missing');
 assert(boundary.includes('woodTexture=null'),'fence does not consume shared wood texture');
 assert(boundary.includes('setDecorativeShadows'),'fence shadow quality hook missing');
-assert(flybys.includes('const prototypes={plane:makePlane(),ufo:makeUfo()}'),'ambient flybys do not reuse shared prototypes');
-assert(flybys.includes('sharedPrototypeCount:2'),'ambient flyby diagnostics missing shared resource count');
+assert(
+  flybys.includes('const prototypes={')&&
+  flybys.includes('plane:makePlane()')&&
+  flybys.includes('birds:makeBirdFlock()')&&
+  flybys.includes('zeppelin:makeZeppelin()')&&
+  flybys.includes('ufo:makeUfo()')&&
+  flybys.includes('fighter:makeFighter()'),
+  'ambient flybys do not reuse shared prototypes'
+);
+assert(flybys.includes('sharedPrototypeCount:Object.keys(prototypes).length'),'ambient flyby diagnostics missing shared resource count');
 
 console.log(JSON.stringify({
   check:'environment-visual-invariants',
   qualityHooks:Object.keys(defaults),
-  sharedFlybyPrototypes:2,
+  sharedFlybyPrototypes:5,
   skyline:'shader-side-ridges',
   heavyMountainGeometry:false
 }));

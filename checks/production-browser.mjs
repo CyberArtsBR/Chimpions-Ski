@@ -31,7 +31,7 @@ try{
   assert.equal(state.startCrowdModelSources,0);
   assert.equal(state.skierFallback,true);
   assert.equal(state.mode,'menu');
-  assert.equal(Math.round(state.baseSpeed*3.6),160,'Default SKI base speed must be 160 km/h');
+  assert.equal(Math.round(state.baseSpeed*3.6),150,'Default SKI base speed must be 150 km/h');
   assert.equal(Math.round(state.maxSpeed*3.6),300,'Default max speed must be 300 km/h');
   console.log('PASS production desktop browser:',live,base);
 }finally{

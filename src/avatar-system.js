@@ -5,7 +5,7 @@ import {
   filterAvatarSearchIndex,
   getAvatarRenderTarget
 } from './avatar-selector-model.js';
-import {RIDE_MODE,normalizeRideMode} from './rideMode.js';
+import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {AVATAR_COMPATIBILITY_STATUS,getAvatarCompatibility} from './avatarCompatibility.js';
 import {MENU_ACTION,menuActionFromKeyboardEvent} from './menuNavigation.js';
 import {BUILTIN_AVATAR_NAMES,canonicalizeBuiltinCatalog} from './avatarRoster.js';
@@ -92,6 +92,11 @@ export function createAvatarSelector({catalog,onSelect,onValidateLocalAvatar=asy
   dialog.setAttribute('aria-labelledby','selector-title');
   dialog.innerHTML='<form method="dialog" class="selector-shell"><header class="selector-head"><div><small>THE CHIMPIONS</small><h2 id="selector-title">Choose your Chimpion</h2></div><button class="selector-close" value="close" aria-label="Close Chimpion selector">×</button></header><div class="selector-featured"><span id="selector-preview-portrait" class="selector-preview-portrait">🐵</span><span><small id="selector-step-label">STEP 1 OF 2 · CHIMPION</small><strong id="selector-preview-name">Choose a Chimpion</strong><em id="selector-preview-tribe">The Chimpions</em></span></div><input id="chimpion-search" class="selector-search" type="search" placeholder="Search Chimpion..." autocomplete="off" aria-label="Search Chimpions"><div id="chimpion-grid" class="selector-grid" role="list"></div><input id="local-glb-upload" type="file" accept=".glb,model/gltf-binary" hidden><p id="selector-status" class="selector-status" role="status" aria-live="polite" hidden></p><section class="ride-mode-step" id="ride-mode-step" hidden aria-label="Choose ride mode"><div class="ride-mode-copy"><small>STEP 2 OF 2</small><strong>Choose Ride</strong><span>Same mountain. Different speed and stance.</span></div><div class="ride-mode-options"><button type="button" class="ride-mode-card" data-ride-mode="ski"><b>⛷</b><strong>SKI</strong><span>160 → 300 km/h</span></button><button type="button" class="ride-mode-card" data-ride-mode="snowboard"><b>🏂</b><strong>SNOWBOARD</strong><span>180 → 300 km/h</span></button></div><button type="button" class="ride-mode-back">BACK TO CHIMPIONS</button></section><div class="selector-help">D-PAD / STICK · Navigate &nbsp; A / ENTER · Select &nbsp; B / ESC · Back</div></form>';
   document.body.append(dialog);
+  for(const mode of [RIDE_MODE.SKI,RIDE_MODE.SNOWBOARD]){
+    const profile=getRideProfile(mode);
+    const speedLabel=dialog.querySelector(`[data-ride-mode="${mode}"] span`);
+    if(speedLabel)speedLabel.textContent=`${speedToKmh(profile.baseSpeed)} → ${speedToKmh(profile.maxSpeed)} km/h`;
+  }
 
   const grid=dialog.querySelector('#chimpion-grid');
   const search=dialog.querySelector('#chimpion-search');

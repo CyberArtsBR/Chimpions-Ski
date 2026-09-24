@@ -153,12 +153,17 @@ try{
   await skiChoice.evaluate(button=>button.click());
 
   await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:60000});
+  const sessionTutorial=page.locator('.session-tutorial:not([hidden])');
+  if(await sessionTutorial.isVisible().catch(()=>false)){
+    await page.keyboard.press('Enter');
+    await sessionTutorial.waitFor({state:'hidden',timeout:5000});
+  }
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000});
   assert.equal(await page.locator('.start-screen').isVisible(),false);
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
   const playing=await page.evaluate(()=>window.chimpionsSki());
-  assert.equal(Math.round(playing.speed*3.6),160,'Run must begin at 160 km/h');
+  assert.equal(Math.round(playing.speed*3.6),150,'Run must begin at 150 km/h');
   assert(playing.courseLookaheadTarget>280,'Course streaming must remain beyond camera far plane');
   assert(playing.courseAhead>280,'Generated course must remain ahead of the visible camera range');
 
@@ -326,7 +331,12 @@ try{
     const touchSkiChoice=touchSelector.locator('.ride-mode-card[data-ride-mode="ski"]');
     await touchSkiChoice.waitFor({state:'visible',timeout:5000});
     await touchSkiChoice.evaluate(button=>button.click());
-    await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:60000});
+    const touchTutorial=touchPage.locator('.session-tutorial:not([hidden])');
+    if(await touchTutorial.isVisible().catch(()=>false)){
+      await touchPage.keyboard.press('Enter');
+      await touchTutorial.waitFor({state:'hidden',timeout:5000});
+    }
+    await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000});
 
     const touchRoot=touchPage.locator('#touch-controls');
     assert.equal(await touchRoot.isVisible(),true,'Touch controls are not visible in coarse-pointer gameplay');

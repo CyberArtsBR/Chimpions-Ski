@@ -25,20 +25,21 @@ No credentials are required or accepted by the harness.
 
 The runtime now exposes one authoritative rendering-quality service from `src/renderQuality.js`:
 
-- `quality.current` — `high` or `reduced`.
+- `quality.current` — `auto`, `high`, `max`, `medium`, or `low`.
 - `quality.getSettings()` — immutable settings for the current profile.
 - `quality.setProfile(name)` — switch profile without throwing on the supported values.
 - `quality.subscribe(listener)` — integration hook for renderer/environment/crowd systems.
 
-HIGH remains the default. No device is silently downgraded. For deterministic benchmark runs, use the benchmark-only environment selector, which appends the matching `?quality=` query parameter:
+AUTO is the normal default unless the player saved another profile or a `?quality=` URL override is present. AUTO begins at High and adapts from measured frame time. For deterministic benchmark runs, use the benchmark-only environment selector, which appends the matching `?quality=` query parameter:
 
 ```bash
 QUALITY_PROFILE=high BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-high.json node scripts/benchmark-ski-runtime.mjs
-QUALITY_PROFILE=reduced BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-reduced.json node scripts/benchmark-ski-runtime.mjs
-node scripts/compare-performance-results.mjs benchmark-baseline.json benchmark-high.json benchmark-reduced.json benchmark-comparison.json
+QUALITY_PROFILE=medium BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-medium.json node scripts/benchmark-ski-runtime.mjs
+QUALITY_PROFILE=low BASE_URL=http://localhost:4173 RESULTS_PATH=benchmark-low.json node scripts/benchmark-ski-runtime.mjs
+node scripts/compare-performance-results.mjs benchmark-high.json benchmark-medium.json benchmark-low.json benchmark-comparison.json
 ```
 
-The reduced profile materially lowers DPR, shadow-map size, snow workload, decorative instance workload, the crowd budget hook and distant-scenery update frequency. It does not alter collision reliability, physics substeps, course generation, game balance or camera behavior.
+The Medium and Low profiles materially lower DPR, nominal shadow-map budget, snow-surface detail, decorative instance workload, the crowd budget hook and distant-scenery update frequency. It does not alter collision reliability, physics substeps, course generation, game balance or camera behavior.
 
 ## Hotspot telemetry
 
@@ -60,7 +61,7 @@ The machine-readable report contains these independent phases:
 - **H repeated selector open/close** — measures repeated dialog churn when accessible.
 - **I SKI mode**, **J SNOWBOARD mode**, **K trick-heavy run** — feature detected. On runtimes without the future rider/trick integration these are `PENDING`, not failures.
 
-The future mode comparison records natural speeds and speed bins. It does **not** force 160/180/300 km/h or alter balance. A 300 km/h cap comparison is produced only when that speed is naturally observed in configured runs.
+The future mode comparison records natural speeds and speed bins. It does **not** force hardcoded ride speeds or alter balance. A 300 km/h cap comparison is produced only when that speed is naturally observed in configured runs.
 
 ## Frame metrics
 
@@ -148,7 +149,7 @@ For a lightweight smoke benchmark set `LONG_RUN_SECONDS=0`, lower selector/resta
 
 When `.ride-mode-card[data-ride-mode="ski"]` and `.ride-mode-card[data-ride-mode="snowboard"]` are present, the harness selects each mode through the UI and records FPS, frame percentiles, course churn, pool growth, draw-call estimate, physics substeps, speed bins, initial speed, base speed, and max speed diagnostics.
 
-When `trickState` diagnostics exist, the trick-heavy workload attempts repeated manual 360 inputs using `ArrowDown + Space` while preserving normal steering/recovery behavior. It compares frame time, DOM feedback counts, heap delta, trick-state observations, and any exposed trick/score counter diagnostics. Pivot/timer/event-reference accumulation checks remain `PENDING` when the runtime does not expose a safe observable counter; the harness never patches runtime code to manufacture one.
+When `trickState` diagnostics exist, the trick-heavy workload attempts repeated manual 360 inputs using `ArrowUp + Space` while preserving normal steering/recovery behavior. It compares frame time, DOM feedback counts, heap delta, trick-state observations, and any exposed trick/score counter diagnostics. Pivot/timer/event-reference accumulation checks remain `PENDING` when the runtime does not expose a safe observable counter; the harness never patches runtime code to manufacture one.
 
 ## Status meanings
 

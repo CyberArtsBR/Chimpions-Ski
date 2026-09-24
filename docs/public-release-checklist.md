@@ -45,28 +45,28 @@ For a local preview, use `BASE_URL=http://127.0.0.1:4173`.
 
 ### SKI
 
-- Start speed: 160 km/h.
-- Progression: +20 km/h every 30 seconds.
+- Start speed: 150 km/h.
+- Progression: +10 km/h every 30 seconds.
 - Maximum: 300 km/h.
 - `window.chimpionsSki().rideMode` is `ski`.
-- Exposed `baseSpeed` and `maxSpeed` match 160 and 300 km/h.
+- Exposed `baseSpeed` and `maxSpeed` match 150 and 300 km/h.
 
 ### SNOWBOARD
 
-- Start speed: 180 km/h.
-- Progression: +20 km/h every 30 seconds.
+- Start speed: 150 km/h.
+- Progression: +10 km/h every 30 seconds.
 - Maximum: 300 km/h.
 - `window.chimpionsSki().rideMode` is `snowboard`.
-- Exposed `baseSpeed` and `maxSpeed` match 180 and 300 km/h.
+- Exposed `baseSpeed` and `maxSpeed` match 150 and 300 km/h.
 
-Do not spend several minutes waiting to reach the cap during smoke testing; static invariants validate the 30-second / +20 km/h progression.
+Do not spend several minutes waiting to reach the cap during smoke testing; static invariants validate the 30-second / +10 km/h progression.
 
 ## Tricks
 
 - Normal SPACE still performs the ordinary jump.
 - A second airborne SPACE does not add an extra vertical boost.
-- DOWN + SPACE exposes 360 intent/event.
-- UP + SPACE exposes BACKFLIP intent/event.
+- UP + SPACE exposes 360 intent/event.
+- DOWN + SPACE exposes BACKFLIP intent/event.
 - `CLEAN LANDING` legacy text does not return.
 
 ## Audio

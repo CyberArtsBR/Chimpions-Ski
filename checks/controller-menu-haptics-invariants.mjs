@@ -19,7 +19,7 @@ assert(ui.includes("import {createMenuInputRepeat} from './menuInputRepeat.js';"
 assert(ui.includes('menuInput.update(pad)'),'semantic menu repeat adapter is not wired');
 assert(main.includes('haptics.setActiveGamepad?.(pad.activeGamepad)'),'haptics are not targeted at the authoritative active controller');
 assert(main.includes('haptics.update?.(dt,{'),'continuous gameplay haptics are not updated from the main loop');
-assert(main.includes('haptics.banana?.()'),'banana pickup haptic cue is missing');
+assert(main.includes('haptics.banana?.('),'banana pickup haptic cue is missing');
 
 console.log(JSON.stringify({
   check:'controller-menu-haptics-invariants',
