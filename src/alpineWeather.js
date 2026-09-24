@@ -36,10 +36,15 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
         vec2 uv=d.xz/(max(.08,d.y)+.28)*.15+vec2(time*.0021,time*.00035);
         float shape=texture2D(clouds,uv).r,detail=texture2D(clouds,uv*2.7+vec2(.4,-time*.0007)).r;
         float cloud=smoothstep(.72-cover*.38,.88-cover*.28,shape*.82+detail*.18);
+        vec2 highUv=d.xz/(max(.10,d.y)+.42)*.085+vec2(-time*.00075,time*.00016);
+        float highShape=texture2D(clouds,highUv+vec2(.17,.33)).r;
+        float highCloud=smoothstep(.66-cover*.22,.90-cover*.12,highShape)*(.28+.34*cover);
         float edge=texture2D(clouds,uv+direction.xz*.012).r-shape;
         vec3 cloudColor=mix(horizon*.80,sunColor*.9,clamp(.42+edge*9.,0.,1.))*(1.-night*.62);
         cloudColor+=vec3(.62,.72,1.)*flash*(.3+detail);
         color=mix(color,cloudColor,cloud*smoothstep(.015,.15,d.y));
+        color=mix(color,mix(top,horizon,.45),highCloud*smoothstep(.18,.42,d.y)*.32);
+        float horizonAir=exp(-max(d.y,0.)*13.0)*(1.-night*.45);color=mix(color,horizon,horizonAir*.075);
         color+=vec3(.38,.47,.7)*flash*.35;
         gl_FragColor=vec4(color,1.);
         #include <tonemapping_fragment>

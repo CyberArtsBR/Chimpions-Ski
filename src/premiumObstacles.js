@@ -7,7 +7,8 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 const bark=makeBarkTexture(256);
 const wood=new THREE.MeshStandardMaterial({color:0x936d49,map:bark,bumpMap:bark,bumpScale:.045,roughness:.94,vertexColors:true});
 const foliage=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.86,sheen:.22,sheenColor:new THREE.Color(0x517b56),sheenRoughness:.9,side:THREE.DoubleSide});
-const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.96,flatShading:true});
+const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.93,flatShading:true});
+const snowCover=new THREE.MeshPhysicalMaterial({color:0xf5fbff,roughness:.70,metalness:0,clearcoat:.06,clearcoatRoughness:.64,sheen:.25,sheenColor:new THREE.Color(0xd8f1ff)});
 
 function paint(geometry,fn){
   const p=geometry.attributes.position,colors=[];
@@ -73,7 +74,8 @@ function makeFir(variant){
         const mid=[dx*reach*tipT,cy+.065,dz*reach*tipT];
         const back=[cx-dx*.09,cy+.045,cz-dz*.09];
         const green=.13+hash(seed+tier*13+j*7+k)*.11;
-        const tone=[green*.30,green,green*.65];
+        const baseTone=[green*.30,green,green*.65],snowLoad=THREE.MathUtils.clamp((tier-4)/6,0,1)*(.30+hash(seed+tier*17+j+k)*.27),winter=[.76,.86,.90];
+        const tone=baseTone.map((value,index)=>THREE.MathUtils.lerp(value,winter[index],snowLoad));
         triangle(back,[cx+px*spread,cy-.08,cz+pz*spread],mid,tone);
         triangle(back,mid,[cx-px*spread,cy-.08,cz-pz*spread],tone.map(v=>v*.8));
         // Pointed needle clusters create real silhouette detail, without alpha cards.
@@ -121,7 +123,8 @@ function makeRock(variant){
       const y=-.035+t*.795+(r>0&&r<rings-1?Math.sin(a*3+seed)*.045:0);
       positions.push(x,y,z);uvs.push(s/sides,t);
       const grain=hash(s%sides+r*37+seed),v=.31+t*.12+grain*.09;
-      colors.push(v*.77,v*.9,v);
+      const snowCap=THREE.MathUtils.smoothstep(t,.58,.94)*(.55+.45*Math.max(0,Math.cos(a*2+seed))),rockColor=[v*.77,v*.9,v];
+      colors.push(THREE.MathUtils.lerp(rockColor[0],.80,snowCap),THREE.MathUtils.lerp(rockColor[1],.88,snowCap),THREE.MathUtils.lerp(rockColor[2],.92,snowCap));
       if(r<rings-1&&s<sides){const a0=r*(sides+1)+s,b=a0+sides+1;indices.push(a0,b,a0+1,a0+1,b,b+1);}
     }
   }
@@ -174,6 +177,8 @@ function makeLog(wide){
   }
   const group=new THREE.Group();
   const mesh=new THREE.Mesh(merge(parts),wood);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
+  const snowStrip=new THREE.Mesh(new THREE.BoxGeometry(tuning.length*.82,.042,radius*.82),snowCover);
+  snowStrip.position.set(0,radius*1.94,-radius*.06);snowStrip.rotation.z=(wide?.012:-.016);snowStrip.castShadow=false;snowStrip.receiveShadow=true;group.add(snowStrip);
   const caps=[];
   for(const sign of [-1,1]){
     const g=new THREE.CircleGeometry(radius*(sign<0?.825:.995),32);

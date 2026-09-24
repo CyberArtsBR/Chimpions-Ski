@@ -117,12 +117,9 @@ const {
   logEnd:logEndMat
 }=environment.courseMaterials;
 
-const oilMat=new THREE.MeshStandardMaterial({
-  color:0x10141b,roughness:.16,metalness:.42,transparent:true,opacity:.94
-});
-const oilSheenMat=new THREE.MeshBasicMaterial({
-  color:0x39496f,transparent:true,opacity:.30,depthWrite:false
-});
+const oilMat=new THREE.MeshStandardMaterial({color:0x0b1118,roughness:.10,metalness:.34,transparent:true,opacity:.96,emissive:0x07101b,emissiveIntensity:.18});
+const oilSheenMat=new THREE.MeshBasicMaterial({color:0x6689b7,transparent:true,opacity:.38,depthWrite:false,blending:THREE.AdditiveBlending});
+const oilEdgeMat=new THREE.MeshBasicMaterial({color:0x263948,transparent:true,opacity:.72,depthWrite:false,side:THREE.DoubleSide});
 
 const tiles=[];
 for(let i=0;i<9;i++){
@@ -200,6 +197,8 @@ function makeOil(){
   puddle.rotation.x=-Math.PI/2;puddle.scale.set(tuning.visualScaleX,tuning.visualScaleZ,1);puddle.position.y=.024;g.add(puddle);
   const sheen=new THREE.Mesh(new THREE.RingGeometry(.46,.82,28),oilSheenMat);
   sheen.rotation.x=-Math.PI/2;sheen.scale.set(tuning.sheenScaleX,tuning.sheenScaleZ,1);sheen.position.y=.031;sheen.rotation.z=.38;g.add(sheen);
+  const edge=new THREE.Mesh(new THREE.RingGeometry(.91,1.02,32),oilEdgeMat);
+  edge.rotation.x=-Math.PI/2;edge.scale.set(tuning.visualScaleX,tuning.visualScaleZ,1);edge.position.y=.035;g.add(edge);
   g.userData.kind='oil';g.userData.radius=tuning.collisionHalfWidth;g.userData.radiusX=tuning.collisionHalfWidth;g.userData.radiusZ=tuning.radiusZ;g.userData.clearance=tuning.clearance;g.userData.yOffset=.012;
   return g;
 }
@@ -495,15 +494,11 @@ function stepBananaPower(realDt){
   }
 }
 function updateBananaPowerVisual(time=0){
-  const active=state.specialActiveTime>0;
-  specialAura.visible=active;
-  if(!active)return;
-  specialAura.rotation.y=time*2.4;
-  specialAuraRingLow.rotation.z=time*1.8;
-  specialAuraRingHigh.rotation.z=-time*2.2;
-  const pulse=1+Math.sin(time*8)*.08;
-  specialAuraRingLow.scale.setScalar(pulse);
-  specialAuraRingHigh.scale.setScalar(1+(1-pulse)*.6);
+  const active=state.specialActiveTime>0,ready=state.specialReady;
+  specialAura.visible=active||ready;if(!specialAura.visible)return;
+  const intensity=active?1:.28;specialAuraMaterial.opacity=.58*intensity;specialAuraRingHigh.material.opacity=.44*intensity;
+  specialAura.rotation.y=time*(active?2.4:.72);specialAuraRingLow.rotation.z=time*(active?1.8:.58);specialAuraRingHigh.rotation.z=-time*(active?2.2:.66);
+  const pulse=1+Math.sin(time*(active?8:3.2))*(active?.08:.035);specialAuraRingLow.scale.setScalar(pulse);specialAuraRingHigh.scale.setScalar(1+(1-pulse)*.6);
 }
 
 // Integration bridge: one authoritative quality profile drives every scalable subsystem.
