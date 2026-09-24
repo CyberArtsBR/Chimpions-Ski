@@ -18,7 +18,7 @@ const reconnectGuards=new Map();
 
 function makeAxisState(){return {engaged:false,sign:0};}
 function makeAxisPair(){return {x:makeAxisState(),y:makeAxisState()};}
-function emptySemantic(){return {confirm:false,jump:false,cancel:false,special:false,camera:false,menu:false};}
+function emptySemantic(){return {confirm:false,jump:false,cancel:false,cameraMotion:false,special:false,camera:false,menu:false};}
 function clampAxis(value=0){return Math.max(-1,Math.min(1,Number(value)||0));}
 function buttonPressed(button){
   if(typeof button==='boolean')return button;
@@ -116,6 +116,7 @@ function edgeData(current){
       confirm:current.confirm&&!previousSemantic.confirm,
       jump:current.jump&&!previousSemantic.jump,
       cancel:current.cancel&&!previousSemantic.cancel,
+      cameraMotion:current.cameraMotion&&!previousSemantic.cameraMotion,
       special:current.special&&!previousSemantic.special,
       camera:current.camera&&!previousSemantic.camera,
       menu:current.menu&&!previousSemantic.menu
@@ -124,6 +125,7 @@ function edgeData(current){
       confirm:!current.confirm&&previousSemantic.confirm,
       jump:!current.jump&&previousSemantic.jump,
       cancel:!current.cancel&&previousSemantic.cancel,
+      cameraMotion:!current.cameraMotion&&previousSemantic.cameraMotion,
       special:!current.special&&previousSemantic.special,
       camera:!current.camera&&previousSemantic.camera,
       menu:!current.menu&&previousSemantic.menu
@@ -142,6 +144,7 @@ function disconnectedState(){
     confirm:false,
     jump:false,
     cancel:false,
+    cameraMotion:false,
     special:false,
     camera:false,
     menu:false,
@@ -208,6 +211,7 @@ export function readPad(pads){
     confirm:!!buttons[STANDARD_BUTTON.confirm],
     jump:!!buttons[STANDARD_BUTTON.confirm],
     cancel:!!buttons[STANDARD_BUTTON.cancel],
+    cameraMotion:!!buttons[STANDARD_BUTTON.cancel],
     special:!!buttons[STANDARD_BUTTON.special],
     camera:!!buttons[STANDARD_BUTTON.camera],
     menu:!!buttons[STANDARD_BUTTON.menu]

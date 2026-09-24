@@ -13,7 +13,7 @@ for(const edge of [-3,0,.1,.5,1,4]){
     edge,
     carveLoad:edge,
     speed:300/3.6,
-    baseSpeed:160/3.6,
+    baseSpeed:150/3.6,
     maxSpeed:300/3.6,
     lateralVelocity:14,
     grounded:true,

@@ -135,7 +135,7 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
 
     const speed=Math.max(0,Number(feel.speed)||0);
     const maxSpeed=Math.max(speed,Number(feel.maxSpeed)||83.3333);
-    const baseSpeed=Math.max(1,Number(feel.baseSpeed)||44.4444);
+    const baseSpeed=Math.max(1,Number(feel.baseSpeed)||41.6667);
     const speedProgress=clamp((speed-baseSpeed)/Math.max(.001,maxSpeed-baseSpeed));
     const carve=clamp(Math.abs(Number(feel.edge)||0));
     const terrain=clamp(Math.abs(Number(feel.groundRoll)||0)*2.6+Math.abs(Number(feel.groundPitch)||0)*1.1);

@@ -16,16 +16,16 @@ const DT=1/180;
 
 const ski=getRideProfile('ski');
 const snowboard=getRideProfile('snowboard');
-assert(near(ski.baseSpeed*3.6,160));
-assert(near(snowboard.baseSpeed*3.6,180));
-assert(near(ski.tierIncrement*3.6,20));
+assert(near(ski.baseSpeed*3.6,150));
+assert(near(snowboard.baseSpeed*3.6,150));
+assert(near(ski.tierIncrement*3.6,10));
 assert.equal(ski.tierSeconds,30);
 assert(near(ski.maxSpeed*3.6,300));
 assert.equal(snowboard.tierIncrement,ski.tierIncrement);
 assert.equal(snowboard.tierSeconds,ski.tierSeconds);
 assert.equal(snowboard.maxSpeed,ski.maxSpeed);
-add('SKI 160/+20/30s/300','current ski speed contract');
-add('SNOWBOARD 180/+20/30s/300','current snowboard speed contract');
+add('SKI 150/+10/30s/300','current ski speed contract');
+add('SNOWBOARD 150/+10/30s/300','current snowboard speed contract');
 
 function makeState(speed=T.BASE_SPEED){
   return {
@@ -50,7 +50,7 @@ add('manual 360 possible',`required=${manual360.requiredAirTime.toFixed(4)}s ava
 add('manual backflip possible',`required=${manualBackflip.requiredAirTime.toFixed(4)}s available=${manualBackflip.remainingAirTime.toFixed(4)}s`);
 
 let minimumRampAir=Infinity;
-for(const kmh of [160,180,220,260,300]){
+for(const kmh of [150,180,220,260,300]){
   const state=makeState(kmh/3.6);
   assert.equal(launchRamp(state,0),true,'ramp launch must succeed');
   const timing=evaluateTrickTiming(TRICK_TYPE.BACKFLIP,state,{landingHeight:GROUND_Y,gravity:T.GRAVITY});

@@ -1,6 +1,7 @@
 export const CAMERA_MOTION=Object.freeze({
   AUTO:'auto',
   FULL:'full',
+  FIXED:'fixed',
   REDUCED:'reduced'
 });
 
@@ -46,7 +47,7 @@ export function loadUserPreferences(){
     avatarName:read(KEYS.avatar,''),
     rideMode:normalizedChoice(read(KEYS.rideMode,'ski'),['ski','snowboard'],'ski'),
     quality:normalizedChoice(read(KEYS.quality,'auto'),['auto','high','max','medium','low'],'auto'),
-    cameraMotion:normalizedChoice(read(KEYS.cameraMotion,CAMERA_MOTION.AUTO),Object.values(CAMERA_MOTION),CAMERA_MOTION.AUTO),
+    cameraMotion:normalizedChoice(read(KEYS.cameraMotion,CAMERA_MOTION.FULL),Object.values(CAMERA_MOTION),CAMERA_MOTION.FULL),
     cameraView:normalizedChoice(read(KEYS.cameraView,CAMERA_VIEW.CHASE),Object.values(CAMERA_VIEW),CAMERA_VIEW.CHASE),
     haptics:read(KEYS.haptics,'1')!=='0'
   };
@@ -63,7 +64,7 @@ export function saveQualityPreference(mode){
   return write(KEYS.quality,normalizedChoice(mode,['auto','high','max','medium','low'],'auto'));
 }
 export function saveCameraMotionPreference(mode){
-  return write(KEYS.cameraMotion,normalizedChoice(mode,Object.values(CAMERA_MOTION),CAMERA_MOTION.AUTO));
+  return write(KEYS.cameraMotion,normalizedChoice(mode,Object.values(CAMERA_MOTION),CAMERA_MOTION.FULL));
 }
 export function saveCameraViewPreference(mode){
   return write(KEYS.cameraView,normalizedChoice(mode,Object.values(CAMERA_VIEW),CAMERA_VIEW.CHASE));

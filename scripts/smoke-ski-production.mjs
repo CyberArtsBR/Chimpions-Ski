@@ -110,11 +110,25 @@ async function chooseRide(page,mode){
   const ready=await waitDiag(page,d=>d.ready===true&&String(d.rideMode||'').toLowerCase()===mode,UI_TIMEOUT);
   return {available:true,selected:String(ready?.rideMode||'').toLowerCase()===mode,diag:ready};
 }
+async function dismissTutorial(page){
+  const tutorial=page.locator('.session-tutorial:not([hidden])');
+  if(await tutorial.isVisible().catch(()=>false)){
+    await page.keyboard.press('Enter');
+    await tutorial.waitFor({state:'hidden',timeout:3000}).catch(()=>{});
+    return true;
+  }
+  return false;
+}
 async function startRun(page){
-  const d=await diag(page);
+  await dismissTutorial(page);
+  let d=await diag(page);
   if(d?.mode==='playing')return d;
-  if(!await clickDom(page,'#start'))return d;
-  return waitDiag(page,x=>x.mode==='playing',12000);
+  if(await clickDom(page,'#start')){
+    await page.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:1200}).catch(()=>{});
+    await dismissTutorial(page);
+  }
+  d=await waitDiag(page,x=>x.mode==='playing',12000);
+  return d;
 }
 async function restart(page){
   let d=await diag(page);
@@ -299,7 +313,7 @@ try{
     const skiChoice=await chooseRide(page,'ski');
     if(skiChoice.selected){
       const skiRun=await startRun(page);
-      String(skiRun?.rideMode||'').toLowerCase()==='ski'&&near(skiRun?.speed,160)?pass('SKI MODE','rideMode=ski; start '+Math.round(kmh(skiRun.speed))+' km/h',skiRun):fail('SKI MODE','Wrong ski mode/start profile',skiRun);
+      String(skiRun?.rideMode||'').toLowerCase()==='ski'&&near(skiRun?.speed,150)?pass('SKI MODE','rideMode=ski; start '+Math.round(kmh(skiRun.speed))+' km/h',skiRun):fail('SKI MODE','Wrong ski mode/start profile',skiRun);
       finite(skiRun?.maxSpeed)&&Math.abs(kmh(skiRun.maxSpeed)-300)<=2?pass('SKI MAX PROFILE','Max profile 300 km/h'):fail('SKI MAX PROFILE','SKI max is not 300 km/h',kmh(skiRun?.maxSpeed));
     }else fail('SKI MODE','Could not select SKI',skiChoice);
 
@@ -307,15 +321,15 @@ try{
     if(boardChoice.selected){
       const boardRun=await startRun(page);
       const boardMode=String(boardRun?.rideMode||'').toLowerCase()==='snowboard';
-      boardMode&&near(boardRun?.speed,180)?pass('SNOWBOARD MODE','rideMode=snowboard; start '+Math.round(kmh(boardRun.speed))+' km/h',boardRun):fail('SNOWBOARD MODE','Wrong snowboard mode/start profile',boardRun);
+      boardMode&&near(boardRun?.speed,150)?pass('SNOWBOARD MODE','rideMode=snowboard; start '+Math.round(kmh(boardRun.speed))+' km/h',boardRun):fail('SNOWBOARD MODE','Wrong snowboard mode/start profile',boardRun);
       if(finite(boardRun?.maxSpeed)){
         Math.abs(kmh(boardRun.maxSpeed)-300)<=2?pass('SNOWBOARD MAX PROFILE','Max profile 300 km/h shared with SKI'):fail('SNOWBOARD MAX PROFILE','Snowboard max is not 300 km/h',kmh(boardRun.maxSpeed));
       }else warn('SNOWBOARD MAX PROFILE','maxSpeed not exposed');
     }else fail('SNOWBOARD MODE','Could not select SNOWBOARD',boardChoice);
   }else{
     const baseline=await startRun(page);
-    if(near(baseline?.speed,160))pass('BASELINE SKI SPEED','Current baseline starts ~160 km/h');
-    else warn('BASELINE SKI SPEED','Could not confirm 160 km/h baseline',baseline?.speed);
+    if(near(baseline?.speed,150))pass('BASELINE SKI SPEED','Current baseline starts ~150 km/h');
+    else warn('BASELINE SKI SPEED','Could not confirm 150 km/h baseline',baseline?.speed);
     future('SKI MODE',false,'','Integrated rideMode=ski diagnostics not present');
     future('SNOWBOARD MODE',false,'','Snowboard mode not present');
   }

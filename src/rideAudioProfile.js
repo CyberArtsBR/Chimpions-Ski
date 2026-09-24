@@ -3,7 +3,7 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 export const RIDE_AUDIO_PROFILES=Object.freeze({
   ski:Object.freeze({
     mode:'ski',
-    minSpeedKmh:160,
+    minSpeedKmh:150,
     maxSpeedKmh:300,
     feelFloor:.62,
     contactGain:1,
@@ -16,7 +16,7 @@ export const RIDE_AUDIO_PROFILES=Object.freeze({
   }),
   snowboard:Object.freeze({
     mode:'snowboard',
-    minSpeedKmh:180,
+    minSpeedKmh:150,
     maxSpeedKmh:300,
     feelFloor:.62,
     contactGain:1.07,

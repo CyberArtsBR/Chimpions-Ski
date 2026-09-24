@@ -44,7 +44,7 @@ for(const call of [
   ()=>unsupported.trickFail('360'),
   ()=>unsupported.oil(),
   ()=>unsupported.crash('tree'),
-  ()=>unsupported.update(.1,{mode:'playing',speed:300/3.6,baseSpeed:160/3.6,maxSpeed:300/3.6,edge:.8})
+  ()=>unsupported.update(.1,{mode:'playing',speed:300/3.6,baseSpeed:150/3.6,maxSpeed:300/3.6,edge:.8})
 ])assert.doesNotThrow(call,'Unsupported haptics path threw');
 for(const [name,pattern] of Object.entries(HAPTIC_PATTERNS)){
   assert(pattern.duration>0&&pattern.duration<=180,name+' haptic duration is not sane');
@@ -86,7 +86,7 @@ continuous.setActiveGamepad(continuousPad);
 continuous.update(.09,{
   mode:'playing',
   speed:300/3.6,
-  baseSpeed:160/3.6,
+  baseSpeed:150/3.6,
   maxSpeed:300/3.6,
   edge:.85,
   groundRoll:.03,

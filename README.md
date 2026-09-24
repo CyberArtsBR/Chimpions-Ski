@@ -21,9 +21,9 @@ Only those 10 built-in character GLBs are deployed. Players may also choose a lo
 
 Speed is defined by the current ride profiles:
 
-- SKI starts at 160 km/h.
-- SNOWBOARD starts at 180 km/h.
-- Both gain +20 km/h every 30 seconds.
+- SKI starts at 150 km/h.
+- SNOWBOARD starts at 150 km/h.
+- Both gain +10 km/h every 30 seconds.
 - Both cap at 300 km/h.
 
 ## Release verification

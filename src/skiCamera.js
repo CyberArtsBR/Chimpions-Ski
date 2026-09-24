@@ -74,6 +74,7 @@ export function createSkiCamera(camera){
   let previewLookDown=0;
   let predictedLandingTime=0;
   let motionScale=1;
+  let motionMode='full';
   let viewMode=SKI_CAMERA_VIEW.CHASE;
 
   function reset(){
@@ -91,8 +92,26 @@ export function createSkiCamera(camera){
     predictedLandingTime=0;
   }
 
+  function setMotionMode(mode='full'){
+    const next=['full','fixed','reduced'].includes(String(mode).toLowerCase())
+      ?String(mode).toLowerCase()
+      :'full';
+    motionMode=next;
+    motionScale=next==='reduced'?SKI_CAMERA_LIMITS.REDUCED_MOTION_SCALE:next==='fixed'?0:1;
+    if(next==='fixed'){
+      roll=0;
+      landingKick=0;
+      landingOpen=0;
+      airborneLookBlend=0;
+      previewForwardLead=0;
+      previewLateralLead=0;
+      previewLookDown=0;
+    }
+    return motionMode;
+  }
+
   function setReducedMotion(enabled=false){
-    motionScale=enabled?SKI_CAMERA_LIMITS.REDUCED_MOTION_SCALE:1;
+    setMotionMode(enabled?'reduced':'full');
     return motionScale;
   }
 
@@ -168,21 +187,24 @@ export function createSkiCamera(camera){
     const previewWeight=air?(rampAir?.72:manualAir?.56:.62):1;
     const previewStrength=airborneLookBlend*previewWeight;
 
-    const steerLead=heading*(.82+speed01*.34)+lateralVelocity*.014;
+    const centeredChase=viewMode===SKI_CAMERA_VIEW.CHASE||motionMode==='fixed';
+    const steerLead=centeredChase?0:heading*(.82+speed01*.34)+lateralVelocity*.014;
     const downhillCameraLift=.30+speed01*.18;
     positionOut.set(
-      lateralFollow-steerLead,
+      centeredChase?finite(state.x,0):lateralFollow-steerLead,
       6.02+speed01*.78+downhillCameraLift+y*.14+airHeight*(rampAir?.17:manualAir?.08:0)+(rampAir?apex*.18:0),
       10.48+speed01*1.98+(rampAir?1.05+airHeight*.14+apex*.42:manualAir?airHeight*.07:0)+previewForwardLead*previewStrength*.085
     );
 
     const lookAhead=1.36+speed01*1.52;
-    const lateralLook=heading*lookAhead+lateralVelocity*.042;
+    const lateralLook=centeredChase?0:heading*lookAhead+lateralVelocity*.042;
     const rampFraming=rampAir?(.88+descent*.08):1;
     const downhillLookBias=(1.62+speed01*.84)*rampFraming;
     const downhillLookDistance=1.35+speed01*1.18;
     lookOut.set(
-      lateralFollow*.24+finite(state.x,0)*.12+lateralLook+previewLateralLead*previewStrength,
+      centeredChase
+        ?finite(state.x,0)
+        :lateralFollow*.24+finite(state.x,0)*.12+lateralLook+previewLateralLead*previewStrength,
       .34+y*.072-downhillLookBias+airHeight*(rampAir?.012:.025)-descent*.12-previewLookDown*previewStrength,
       -15.85-speed01*5.35-downhillLookDistance-(rampAir?2.35+descent*1.95:air?.85:0)-previewForwardLead*previewStrength
     );
@@ -251,11 +273,20 @@ export function createSkiCamera(camera){
     landingKick=THREE.MathUtils.damp(landingKick,0,8.2,safeDt);
     landingOpen=THREE.MathUtils.damp(landingOpen,0,5.6,safeDt);
 
-    const desiredLateral=lateralTarget(state);
+    const centeredChase=viewMode===SKI_CAMERA_VIEW.CHASE||motionMode==='fixed';
+    const desiredLateral=centeredChase?finite(state.x,0):lateralTarget(state);
     const returning=Math.abs(desiredLateral)<Math.abs(lateralFollow);
-    lateralFollow=THREE.MathUtils.damp(lateralFollow,desiredLateral,returning?4.25:5.15,safeDt);
+    lateralFollow=THREE.MathUtils.damp(lateralFollow,desiredLateral,returning?5.4:6.2,safeDt);
 
-    updatePrediction(state,safeDt);
+    if(motionMode==='fixed'){
+      airborneLookBlend=0;
+      previewForwardLead=0;
+      previewLateralLead=0;
+      previewLookDown=0;
+      predictedLandingTime=0;
+    }else{
+      updatePrediction(state,safeDt);
+    }
     let baseFov=getChaseFrame(state,chasePosition,lookTarget);
     if(viewMode===SKI_CAMERA_VIEW.HIGH_FAR){
       chasePosition.y+=2.45;
@@ -285,7 +316,8 @@ export function createSkiCamera(camera){
     if(!Number.isFinite(camera.position.x))camera.position.x=chasePosition.x;
     if(!Number.isFinite(camera.position.y))camera.position.y=chasePosition.y;
     if(!Number.isFinite(camera.position.z))camera.position.z=chasePosition.z;
-    camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,safeDt);
+    if(viewMode===SKI_CAMERA_VIEW.CHASE&&!crash)camera.position.x=chasePosition.x;
+    else camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,safeDt);
     camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,safeDt);
     camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,safeDt);
 
@@ -304,8 +336,10 @@ export function createSkiCamera(camera){
     camera.lookAt(lookTarget);
 
     const speed01=getSpeedFeel(finite(state.speed,T.BASE_SPEED));
-    const carveRoll=-finite(state.edge,0)*(.009+speed01*.014);
-    const terrainRoll=-finite(state.groundRoll,0)*.042;
+    const carveRoll=(viewMode===SKI_CAMERA_VIEW.CHASE||motionMode==='fixed')
+      ?0
+      :-finite(state.edge,0)*(.009+speed01*.014);
+    const terrainRoll=motionMode==='fixed'?0:-finite(state.groundRoll,0)*.042;
     const crashRoll=THREE.MathUtils.clamp(-crashDir*.038,-SKI_CAMERA_LIMITS.MAX_CRASH_ROLL,SKI_CAMERA_LIMITS.MAX_CRASH_ROLL)*crashSettle;
     const gameplayRoll=THREE.MathUtils.clamp(
       carveRoll+terrainRoll,
@@ -334,9 +368,20 @@ export function createSkiCamera(camera){
       previewLookDown,
       predictedLandingTime,
       motionScale,
+      motionMode,
       viewMode
     };
   }
 
-  return {update,reset,getChaseFrame,setReducedMotion,setViewMode,getViewMode:()=>viewMode,getDiagnostics};
+  return {
+    update,
+    reset,
+    getChaseFrame,
+    setReducedMotion,
+    setMotionMode,
+    getMotionMode:()=>motionMode,
+    setViewMode,
+    getViewMode:()=>viewMode,
+    getDiagnostics
+  };
 }
