@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import './style.css';
 import './floatingUI.css';
+import {createMountainWeather} from './mountainWeather.js';
 import {createFallbackSkier,loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
 import {createGameplayInput} from './gameplayInput.js';
@@ -381,6 +382,7 @@ const initialRideProfile=getRideProfile(selectedRideMode);
 const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,speed:initialRideProfile.baseSpeed,maxRunSpeed:initialRideProfile.baseSpeed,bestCombo:0,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
 
 const audio=createSkiAudio();
+const mountainWeather=createMountainWeather({app,scene,camera,renderer,environment,audio});
 audio.setRideMode?.(selectedRideMode);
 const haptics=createHaptics({enabled:userPreferences.haptics});
 const ui=createGameUI({
@@ -519,7 +521,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     const previousSkier=skier;
-    skier=nextSkier;
+    skier=nextSkier;mountainWeather.setRider(skier);
     trickVisualPivot.add(skier);
     if(previousSkier){
       trickVisualPivot.remove(previousSkier);
@@ -588,7 +590,7 @@ function installAvatarSelector(initialAvatar){
 
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
-  skier=createFallbackSkier({rideMode:selectedRideMode});
+  skier=createFallbackSkier({rideMode:selectedRideMode});mountainWeather.setRider(skier);
   trickVisualPivot.add(skier);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
@@ -1059,6 +1061,7 @@ function update(dt,frameMs=dt*1000){
   const worldSpeed=worldDistance/dt;
   const environmentUpdateStarted=performance.now();
   environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode);
+  mountainWeather.update(state.mode==='paused'?0:dt,state);
   performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
 
   ui.updateHud({distance:state.distance,bananas:state.bananas,speed:state.speed,best:state.best,air:state.air,mode:state.mode});

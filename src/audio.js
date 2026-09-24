@@ -10,6 +10,7 @@ export function createSkiAudio(){
   const JUMP_MUSIC_URL='/audio/music-full.mp3';
   let context=null;
   let graph=null;
+  let weatherGraph=null,weatherNoise=null,lastWeatherUpdate=-1;
   let jumpMusic=null;
   let jumpMusicReady=false;
   let jumpMusicFailed=false;
@@ -544,7 +545,7 @@ export function createSkiAudio(){
     return {
       contextState:context?.state??'uninitialized',
       graphInitialized:!!graph,
-      persistentLoopCount:graph?5:0,
+      persistentLoopCount:graph?(weatherGraph?7:5):0,
       bufferCount:buffers.size,
       recentEventCount:eventLast.size,
       jumpMusicInitialized:!!jumpMusic,
@@ -579,11 +580,31 @@ export function createSkiAudio(){
   }
   function getSettings(){return {...settings};}
 
+  function updateWeather(weather,mode='playing'){
+    if(!graph||!context)return;
+    if(!weatherGraph){
+      weatherNoise=noiseBuffer(3.8,32941);
+      const layer=(type,frequency)=>{const source=makeLoop(weatherNoise),filter=context.createBiquadFilter(),gain=context.createGain();filter.type=type;filter.frequency.value=frequency;filter.Q.value=.4;gain.gain.value=0;source.connect(filter);filter.connect(gain);gain.connect(graph.sfxBus);source.start();return gain;};
+      weatherGraph={rain:layer('highpass',1400),wind:layer('lowpass',420)};
+    }
+    const stamp=context.currentTime;if(stamp-lastWeatherUpdate<.12)return;lastWeatherUpdate=stamp;
+    const audible=globalThis.document?.hidden||mode==='paused'?0:1;
+    setTarget(weatherGraph.rain.gain,weather.rain*.13*audible,.3);setTarget(weatherGraph.wind.gain,weather.wind*.05*audible,.5);
+  }
+  function playWeatherThunder(){
+    if(!graph||!context||!weatherNoise||!settings.sfxEnabled||globalThis.document?.hidden)return;
+    const source=context.createBufferSource(),filter=context.createBiquadFilter(),gain=context.createGain(),t=context.currentTime;
+    source.buffer=weatherNoise;filter.type='lowpass';filter.frequency.setValueAtTime(400,t);filter.frequency.exponentialRampToValueAtTime(65,t+3.2);
+    gain.gain.setValueAtTime(0,t);gain.gain.linearRampToValueAtTime(1.1,t+.065);gain.gain.exponentialRampToValueAtTime(.22,t+.7);gain.gain.exponentialRampToValueAtTime(.001,t+3.5);
+    source.connect(filter);filter.connect(gain);gain.connect(graph.sfxBus);source.start();source.stop(t+3.6);source.onended=()=>{source.disconnect();filter.disconnect();gain.disconnect();};
+  }
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&weatherGraph){setTarget(weatherGraph.rain.gain,0,.1);setTarget(weatherGraph.wind.gain,0,.1);}lastWeatherUpdate=-1;});
+
   document.addEventListener('pointerdown',unlock,{once:true,capture:true});
   document.addEventListener('keydown',unlock,{once:true,capture:true});
 
   return {
-    play,playGoCue,playEdgeContact,playClear,playTrickStart,playTrickSuccess,playTrickFail,resetRun,unlock,update,
+    updateWeather,playWeatherThunder,play,playGoCue,playEdgeContact,playClear,playTrickStart,playTrickSuccess,playTrickFail,resetRun,unlock,update,
     getSemanticFeedback,getDiagnostics,setRideMode,getRideMode,getSettings,setMasterVolume,setSfxVolume,setMusicVolume,setSfxEnabled,setMusicEnabled
   };
 }

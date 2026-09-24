@@ -459,6 +459,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       refreshTrees(time);
 
       for(const layer of snowLayers){
+        if(layer.points.userData.externalWeather)continue;
         const p=layer.positions;
         layer.materialScale=speed01;
         for(let i=0;i<(layer.activeCount??layer.count);i++){
@@ -504,6 +505,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   }
 
   return {
+    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail},
     update,
     reset,
     ambientFlybys,

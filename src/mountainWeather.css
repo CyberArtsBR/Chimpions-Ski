@@ -1,0 +1,15 @@
+/* Hidden attributes must override component display declarations. */
+[hidden]{display:none!important}
+.graphics-panel{position:fixed;right:20px;bottom:18px;z-index:12;color:#e5f1fc;max-width:calc(100vw - 32px);font-size:13px}
+.graphics-panel summary{list-style:none;cursor:pointer;display:flex;gap:10px;align-items:center;padding:12px 17px;border:1px solid #ffffff30;border-radius:14px;background:#102c42d9;box-shadow:0 8px 24px #00142522;backdrop-filter:blur(12px);font-weight:650;letter-spacing:.015em}
+.graphics-panel summary::-webkit-details-marker{display:none}
+.graphics-panel summary span{color:#a3d5f4;font-size:19px;line-height:1}
+.graphics-panel summary:focus-visible{outline:3px solid #a3d5f4;outline-offset:3px}
+.graphics-content{width:285px;max-width:100%;margin-bottom:8px;padding:20px;border:1px solid #ffffff26;border-radius:18px;background:#11283bef;backdrop-filter:blur(16px);box-shadow:0 16px 50px #00142540;position:absolute;right:0;bottom:100%;max-height:70vh;overflow:auto}
+.graphics-heading{font-size:10px;color:#9cbbd1;letter-spacing:.16em;margin-bottom:18px}
+.graphics-content label{display:flex;flex-direction:column;gap:7px;margin-bottom:15px;color:#d7e7f2}
+.graphics-content select{font:inherit;color:#ecf7ff;background:#223e53;border:1px solid #779ab350;border-radius:9px;padding:10px 9px;width:100%;outline-offset:3px}
+.graphics-content .graphics-toggle{flex-direction:row;align-items:center;gap:9px;font-size:12px}
+.graphics-toggle input{accent-color:#8dcef2;width:16px;height:16px;margin:0}
+.graphics-content p{font-size:11px;line-height:1.5;color:#9bb6c9;margin:6px 0 0}
+@media(max-width:520px){.graphics-panel{right:12px;bottom:12px}.graphics-panel summary{font-size:11px;padding:10px 13px}.graphics-content{max-height:55vh}.card{max-height:82vh;overflow:auto}.tagline{font-size:13px;margin:14px auto}.logo{font-size:52px}}

@@ -1,4 +1,4 @@
-const MODE_NAMES=Object.freeze(['auto','high','medium','low']);
+const MODE_NAMES=Object.freeze(['auto','high','max','medium','low']);
 const PROFILE_ORDER=Object.freeze(['high','medium','low']);
 
 const HIGH=Object.freeze({
@@ -43,7 +43,7 @@ const LOW=Object.freeze({
   distantSceneryUpdateHz:18
 });
 
-export const QUALITY_PROFILES=Object.freeze({high:HIGH,medium:MEDIUM,low:LOW});
+export const QUALITY_PROFILES=Object.freeze({high:HIGH,max:Object.freeze({...HIGH,profile:'max',dprCap:2}),medium:MEDIUM,low:LOW});
 export const QUALITY_PROFILE_NAMES=MODE_NAMES;
 
 export function resolveQualityProfile(value,fallback='auto'){

@@ -46,3 +46,10 @@ Production smoke/audit tooling uses the `PRODUCTION_URL` environment or GitHub r
 For a local preview smoke, `BASE_URL` can override the target, for example `BASE_URL=http://127.0.0.1:4173`.
 
 This repository remains separate from Chimp Jump while reusing compatible Chimpion assets and web-game architecture.
+
+## Mountain atmosphere graphics update
+The bottom-right **Mountain atmosphere** control selects daylight, golden hour, moonlight, windblown snow, night rain or thunderstorms. Changing skies transitions automatically. Gentle lightning reduces flashes and hides the bolt. Weather sound follows the existing SFX/master controls. High and Max are available alongside the existing adaptive Auto, Balanced/Medium and Low profiles.
+
+This release integrates camera-local GPU rain/snow, cloud cover, moon/stars, local mist/splashes, delayed thunder, selective wetness, static environment reflections and warm course lights into the current production scenery and snow systems. Existing ski/snowboard physics, collision, touch controls, avatar selection, tricks, audio and settings are preserved. No screen-space AO/reflections, full-screen post-processing, ray tracing or ray-marched clouds are included.
+
+No test suites or gameplay testing were run for this release, at the user's explicit request. The user will test the deployed version. Preview a storm with `?quality=high&weather=storm`.
