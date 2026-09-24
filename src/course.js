@@ -12,6 +12,28 @@ import {
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 const lerp=(a,b,t)=>a+(b-a)*t;
+
+function hashRunSeed(value){
+  const text=String(value??'');
+  let hash=2166136261;
+  for(let i=0;i<text.length;i++){
+    hash^=text.charCodeAt(i);
+    hash=Math.imul(hash,16777619);
+  }
+  return (hash>>>0)||0x9e3779b9;
+}
+
+function createSeededRandom(seed){
+  let state=hashRunSeed(seed);
+  return ()=>{
+    state=(state+0x6d2b79f5)>>>0;
+    let t=state;
+    t=Math.imul(t^(t>>>15),t|1);
+    t^=t+Math.imul(t^(t>>>7),t|61);
+    return ((t^(t>>>14))>>>0)/4294967296;
+  };
+}
+
 const PHYSICAL_HAZARDS=new Set(['tree','rock','log','wideLog','oil']);
 const HAZARD_HALF_DEPTH=Object.freeze({tree:.68,rock:.58,log:.48,wideLog:.58,oil:.74});
 
@@ -58,7 +80,9 @@ export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
   return clamp((speedPart*.64+distancePart*.36)*.95,0,1);
 }
 
-export function createCourseDirector({routeCenter,random=Math.random}){
+export function createCourseDirector({routeCenter,random:externalRandom=Math.random,seed=null}){
+  let runSeed=seed==null?null:String(seed);
+  let random=runSeed==null?externalRandom:createSeededRandom(runSeed);
   let lastType='RECOVERY';
   let sectionIndex=0;
   let recentBands=[3];
@@ -69,7 +93,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let recentFormations=[];
   let denseFormationStreak=0;
   const safeRoute=createSafeRouteTracker(0,null);
-  const runDirector=createExpertRunDirector({random});
+  const runDirector=createExpertRunDirector({random:()=>random()});
 
   // Bands guide macro route choices only. Physical hazards themselves are
   // placed continuously so the player cannot memorize a seven-column grid.
@@ -783,6 +807,64 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
 
+  function estimateThreatCost(placement,currentSpeed,plan){
+    if(!PHYSICAL_HAZARDS.has(placement.kind))return 0;
+    const kindCost={tree:1,rock:1.08,log:1.22,wideLog:1.40,oil:1.30}[placement.kind]??1;
+    const routeDistance=Math.abs((Number(placement.x)||0)-(Number(placement.safeX)||0));
+    const routePressure=clamp(1-routeDistance/Math.max(2.2,T.COURSE_OBJECT_HALF_WIDTH),0,1);
+    const speedPressure=.82+getSpeedProgress(currentSpeed)*.34;
+    const commitment=placement.commitmentDecision?.24:0;
+    const edge=placement.edgeRisk?.12:0;
+    const optionalDiscount=placement.safetyOptional?.90:1;
+    return kindCost*(.72+routePressure*.55+commitment+edge)*speedPressure*optionalDiscount;
+  }
+
+  function applyThreatBudget(placements,plan,currentSpeed){
+    const budget=plan?.threatBudget;
+    if(!budget){
+      return {target:0,maxCost:Infinity,estimatedCost:0,removed:0,optionalHazards:0};
+    }
+    const costOf=item=>estimateThreatCost(item,currentSpeed,plan);
+    let estimatedCost=placements.reduce((sum,item)=>sum+costOf(item),0);
+    let optionalHazards=placements.filter(item=>
+      PHYSICAL_HAZARDS.has(item.kind)&&
+      item.safetyOptional&&
+      !item.commitmentDecision&&
+      !item.landingProtected&&
+      !item.jumpTarget
+    );
+    const removableScore=item=>
+      (item.irregularField?4:0)+
+      (item.sidePressure?3:0)+
+      (item.postMaxPressure?2:0)+
+      (item.expertOverlay?1:0)+
+      costOf(item);
+    optionalHazards.sort((a,b)=>removableScore(b)-removableScore(a));
+
+    let removed=0;
+    while(optionalHazards.length&&(
+      estimatedCost>budget.maxCost||
+      optionalHazards.length>budget.maxOptionalHazards
+    )){
+      const victim=optionalHazards.shift();
+      const index=placements.indexOf(victim);
+      if(index<0)continue;
+      estimatedCost-=costOf(victim);
+      placements.splice(index,1);
+      removed++;
+    }
+
+    return {
+      target:budget.target,
+      maxCost:budget.maxCost,
+      estimatedCost:Math.max(0,estimatedCost),
+      removed,
+      optionalHazards:placements.filter(item=>PHYSICAL_HAZARDS.has(item.kind)&&item.safetyOptional).length,
+      reactionSpacingScale:budget.reactionSpacingScale,
+      routeCommitment:budget.routeCommitment
+    };
+  }
+
   function addExpertPattern(placements,{
     plan,
     startZ,
@@ -796,8 +878,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     let bananaCount=0;
     let rewardCursor={x:startSafeX,z:startZ};
     const patternRoute=createSafeRouteTracker(startSafeX,startZ);
-    const gap=lerp(26,22,plan.intensity);
-    const shift=plan.routeShift;
+    const readabilityScale=plan.threatBudget?.reactionSpacingScale??1;
+    const gap=lerp(27.5,22.5,plan.intensity)*readabilityScale;
+    const shift=plan.routeShift*(.94+(plan.threatBudget?.routeCommitment??.5)*.10);
     const side=plan.side||1;
     const pattern=plan.pattern;
     const phase=plan.phase;
@@ -846,7 +929,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         safeX,
         {
           riskReward:rewardTier,
-          rewardPoints:55+rewardTier*35,
+          rewardPoints:Math.round((55+rewardTier*35)*(1+(plan.threatBudget?.rewardBias??0)*.16)),
           rewardRoute:true,
           rewardRouteStep:bananaCount,
           rewardRouteFromX:rewardCursor.x,
@@ -884,9 +967,12 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     const z0=startZ-Math.min(27,Math.max(20,length*.22));
 
     if(pattern==='FUNNEL'){
-      decision(startSafeX*.45,z0,'DIAGONAL',['tree','rock'],.40+plan.intensity*.18);
+      const neck=decision(startSafeX*.42,z0,'DIAGONAL',['tree','rock'],.40+plan.intensity*.18);
       const exit=decision(side*shift*.82,z0-gap,'OFFSET_GATE',['rock','tree'],.54+plan.intensity*.18);
-      addRiskBanana(z0-gap-6,exit+side*1.15,exit,plan.intensity>.74?2:1);
+      addRiskBanana(z0-gap*.72,exit+side*1.15,neck,plan.intensity>.74?2:1,{funnelExit:true});
+      if((plan.threatBudget?.decisionCount??3)>=3){
+        decision(-side*shift*.34,z0-gap*2,'DIAGONAL',['tree','rock'],.50+plan.intensity*.14);
+      }
     }
 
     if(pattern==='CROSS_COURSE'){
@@ -1105,7 +1191,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
   }
 
-  function next({startZ,difficulty=0,speed,postMaxTime=0,runTime=0}){
+  function next({startZ,difficulty=0,speed,postMaxTime=0,runTime=0,performance=null}){
     const currentSpeed=effectiveSpeed(speed,difficulty);
     const sectionStartSafeX=safeRoute.previousSafeX??0;
     const runPlan=runDirector.plan({
@@ -1115,7 +1201,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       postMaxTime,
       lastType,
       pendingLanding:!!pendingLanding,
-      sectionIndex
+      sectionIndex,
+      performance
     });
     const type=chooseType(difficulty,runPlan);
     const hazardProgress=clamp(difficulty*.55+getSpeedProgress(currentSpeed)*.45,0,1);
@@ -1311,48 +1398,92 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         {kinds:['tree','rock'],intensity:.34,landingProtected:true}
       );
 
-      // Resume real pressure shortly after the protected touchdown envelope.
-      const postLandingZ=landingEndZ-16;
-      const postLandingSafe=safeRoute.constrain(rampSafe,postLandingZ,currentSpeed);
+      // Resume pressure only after the protected touchdown envelope, then turn
+      // the landing into a readable two-step route rather than an empty runway.
+      const landingGap=24*(runPlan.threatBudget?.reactionSpacingScale??1);
+      const postLandingZ=landingEndZ-18;
+      const firstLandingTarget=clamp(
+        rampSafe+(runPlan.side||1)*Math.min(2.8,1.25+runPlan.intensity*1.7),
+        -T.SAFE_ROUTE_HALF_WIDTH,
+        T.SAFE_ROUTE_HALF_WIDTH
+      );
+      const postLandingSafe=safeRoute.constrain(firstLandingTarget,postLandingZ,currentSpeed);
       addFormation(
         placements,
-        'ISOLATED',
+        'DIAGONAL',
         postLandingZ,
         postLandingSafe,
-        {kinds:['rock','tree'],intensity:.30}
+        {kinds:['rock','tree'],intensity:.28,landingFollowUp:true}
       );
-      if(random()<.38)placements.push(banana(postLandingZ-7,postLandingSafe,postLandingSafe));
+      if(random()<.58)placements.push(banana(
+        postLandingZ-6,
+        clamp(postLandingSafe+(runPlan.side||1)*1.0,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
+        postLandingSafe,
+        {riskReward:runPlan.intensity>.66?2:1,landingReward:true}
+      ));
+
+      const followUpZ=postLandingZ-landingGap;
+      const followUpTarget=clamp(
+        postLandingSafe-(runPlan.side||1)*Math.min(3.6,1.6+runPlan.intensity*2.0),
+        -T.SAFE_ROUTE_HALF_WIDTH,
+        T.SAFE_ROUTE_HALF_WIDTH
+      );
+      const followUpSafe=safeRoute.constrain(followUpTarget,followUpZ,currentSpeed);
+      if(runPlan.intensity>.42){
+        addFormation(
+          placements,
+          'OFFSET_GATE',
+          followUpZ,
+          followUpSafe,
+          {kinds:['tree','rock'],intensity:.30+runPlan.intensity*.12,landingFollowUp:true}
+        );
+      }
 
       pendingLanding={
-        safeX:postLandingSafe,
+        safeX:followUpSafe,
         touchdownSafeX:rampSafe,
         touchdownZ,
         landingEndZ,
-        postLandingZ,
+        postLandingZ:followUpZ,
         envelope
       };
 
-      // Keep the section only slightly beyond the first post-landing pressure row.
-      length=Math.max(112,Math.abs(startZ-postLandingZ)+12);
+      length=Math.max(126,Math.abs(startZ-followUpZ)+14);
     }
 
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
-      length=78;
-      // Recovery is deliberately hazard-free and brief. It acts as a visual and input
-      // reset after jumps/dense sections while still advancing the safe route.
+      length=92;
+      // Recovery still asks for light carving: one easy readable obstacle,
+      // generous route width and simple banana guidance instead of dead terrain.
       let z=startZ-24;
       let safeX=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
-      placements.push(banana(z,safeX,safeX));
+      placements.push(banana(z,safeX,safeX,{recoveryGuide:true}));
 
-      z-=spacing(currentSpeed,false,1.18);
-      safeX=safeRoute.constrain(recoveryAnchor*.45,z,currentSpeed);
-      placements.push(banana(z,safeX,safeX));
+      z-=spacing(currentSpeed,false,1.28);
+      safeX=safeRoute.constrain(recoveryAnchor*.56,z,currentSpeed);
+      addFormation(
+        placements,
+        'ISOLATED',
+        z,
+        safeX,
+        {kinds:['rock'],intensity:.14}
+      );
+      placements.push(banana(z-5,safeX,safeX,{recoveryGuide:true}));
 
-      z-=spacing(currentSpeed,false,1.12);
+      z-=spacing(currentSpeed,false,1.22);
       safeX=safeRoute.constrain(0,z,currentSpeed);
-      if(random()<.78)placements.push(banana(z,safeX,safeX));
+      if(random()<.86)placements.push(banana(z,safeX,safeX,{recoveryGuide:true}));
+      if(!landing&&random()<.48){
+        addFormation(
+          placements,
+          'OFFSET_GATE',
+          z-10,
+          safeX,
+          {kinds:['tree','rock'],intensity:.12}
+        );
+      }
       pendingLanding=null;
     }
 
@@ -1407,6 +1538,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         postMaxPressure
       );
     }
+
+    const threatBudgetResult=applyThreatBudget(placements,runPlan,currentSpeed);
 
     pruneExcessiveOverlap(placements);
 
@@ -1464,7 +1597,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       sectionType:type,
       side:runPlan.side,
       pressure:runPlan.expertPressure,
-      obstacleFamily:physicalKinds.join('+')
+      obstacleFamily:physicalKinds.join('+'),
+      threatCost:threatBudgetResult.estimatedCost
     });
 
     lastType=type;
@@ -1480,6 +1614,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       runPhase:runPlan.phase,
       expertPattern:runPlan.pattern,
       expertPressure:runPlan.expertPressure,
+      mastery:runPlan.mastery,
+      threatBudget:threatBudgetResult,
+      runSeed,
       corridorValidation,
       pendingLanding:pendingLanding?{
         safeX:pendingLanding.safeX,
@@ -1495,7 +1632,15 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
   return {
     next,
-    reset(){
+    reset({seed:nextSeed=runSeed}={}){
+      if(nextSeed!=null){
+        runSeed=String(nextSeed);
+        random=createSeededRandom(runSeed);
+      }else if(runSeed!=null){
+        random=createSeededRandom(runSeed);
+      }else{
+        random=externalRandom;
+      }
       lastType='RECOVERY';
       sectionIndex=0;
       recentBands=[3];
@@ -1514,6 +1659,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     get previousSafeZ(){return safeRoute.previousSafeZ;},
     get pendingLanding(){return pendingLanding;},
     get recentRunPhases(){return runDirector.recentPhases;},
-    get recentExpertPatterns(){return runDirector.recentPatterns;}
+    get recentExpertPatterns(){return runDirector.recentPatterns;},
+    get runSeed(){return runSeed;},
+    get mastery(){return runDirector.mastery;}
   };
 }
