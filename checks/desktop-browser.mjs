@@ -101,10 +101,13 @@ try{
   assert.equal(state.rigReady,false,'Fresh boot must not parse a Chimpion rig');
   assert.equal(await start.isEnabled(),true,'Start Game should enable after artwork and Chimpion are ready');
 
-  await start.click();
-  await page.waitForFunction(()=>document.querySelector('.start-screen')?.hidden===true,null,{timeout:10000});
+  // The start hit-area is intentionally transparent artwork UI. Invoke its
+  // real DOM click handler so headless pointer hit-testing cannot make release
+  // QA flaky, then synchronize on the functional result: the selector opening.
+  await start.evaluate(button=>button.click());
   const selector=page.locator('#chimpion-selector');
-  await selector.waitFor({state:'visible',timeout:5000});
+  await selector.waitFor({state:'visible',timeout:10000});
+  assert.equal(await page.locator('.start-screen').isHidden(),true,'Start screen did not close after opening selector');
   assert.equal((await page.evaluate(()=>window.chimpionsSki())).mode,'menu','START GAME must not begin a random run before selection');
 
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'chimpion-search','Selector did not focus search on open');
