@@ -11,7 +11,8 @@ export function createSnowParticles({scene,densityMultiplier=1}={}){
   const uniforms={tint:{value:new THREE.Color(0xf4fbff)}};
   const material=new THREE.ShaderMaterial({uniforms,transparent:true,depthWrite:false,
     vertexShader:`attribute float aAlpha;attribute float aSize;varying float vAlpha;void main(){vAlpha=aAlpha;vec4 mvPosition=modelViewMatrix*vec4(position,1.0);gl_Position=projectionMatrix*mvPosition;gl_PointSize=aSize*clamp(18.0/max(1.0,-mvPosition.z),.46,2.15);}`,
-    fragmentShader:`uniform vec3 tint;varying float vAlpha;void main(){vec2 p=gl_PointCoord-.5;float d=length(p);float soft=1.0-smoothstep(.16,.50,d);float crystalline=1.0-smoothstep(.02,.20,abs(p.x+p.y*.45));float a=vAlpha*soft*(.82+.18*crystalline);if(a<.008)discard;gl_FragColor=vec4(tint,a);#include <tonemapping_fragment>
+    fragmentShader:`uniform vec3 tint;varying float vAlpha;void main(){vec2 p=gl_PointCoord-.5;float d=length(p);float soft=1.0-smoothstep(.16,.50,d);float crystalline=1.0-smoothstep(.02,.20,abs(p.x+p.y*.45));float a=vAlpha*soft*(.82+.18*crystalline);if(a<.008)discard;gl_FragColor=vec4(tint,a);
+#include <tonemapping_fragment>
 #include <colorspace_fragment>}`});
   const points=new THREE.Points(geometry,material);points.name='local-snow-vfx';points.frustumCulled=false;points.renderOrder=7;scene?.add(points);
   let cursor=0,serial=0,densityScale=clamp(Number(densityMultiplier)||1,0,1.4),emitBudget=0,speedBudget=0,previousEdge=0,previousLanding=0;
