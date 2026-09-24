@@ -86,7 +86,7 @@ const collisionHalfDepth={
   tree:.68+.20
 };
 const lipWindow=1.78-1.42;
-const collisionSpeedsKmh=[160,180,200,220,240,260,280,300];
+const collisionSpeedsKmh=[150,180,200,220,240,260,280,300];
 for(const kmh of collisionSpeedsKmh){
   const speed=kmh/3.6;
   const travel=speed/180;
