@@ -42,6 +42,7 @@ import {createRunSession} from './runSession.js';
 import {createBananaPowerSystem} from './bananaPowerSystem.js';
 import {createCollisionRuntime} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
+import {createRiderController} from './riderController.js';
 
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
@@ -392,6 +393,7 @@ player.add(specialAura);
 const trickVisualPivot=new THREE.Group();
 trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
+const riderController=createRiderController({visualRoot:trickVisualPivot,disposeRider:disposeAvatarObject});
 const tricks=createTrickSystem({visualTarget:trickVisualPivot});
 const startCamera=createStartCameraSequence({camera,skiCamera,player});
 const startCrowd=createStartCrowd({world,terrainHeight});
@@ -684,7 +686,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     saveRideModePreference(selectedRideMode);
     if(!entry.localOnly)saveAvatarPreference(entry.name);
     audio.setRideMode?.(selectedRideMode);
-    skier.userData.setRideMode?.(selectedRideMode);
+    riderController.setRideMode(selectedRideMode);
     applyRideProfileToState(selectedRideMode,{resetSpeed:state.mode==='menu'});
     syncRideModePresentation();
     selector?.setSelected(entry,selectedRideMode);
@@ -701,20 +703,15 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     const nextSkier=await loadRiderAsset(sourceUrl,{rideMode:nextRideMode,requireGameplayRig:!!entry.localOnly,compatibilityInput:entry.name});
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
-    const previousSkier=skier;
-    skier=nextSkier;mountainWeather.setRider(skier);
-    trickVisualPivot.add(skier);
-    if(previousSkier){
-      trickVisualPivot.remove(previousSkier);
-      disposeAvatarObject(previousSkier);
-    }
+    skier=riderController.replace(nextSkier);
+    mountainWeather.setRider(skier);
     selectedAvatar=entry;
     avatarCommitted=true;
     selectedRideMode=nextRideMode;
     saveRideModePreference(selectedRideMode);
     if(!entry.localOnly)saveAvatarPreference(entry.name);
     audio.setRideMode?.(selectedRideMode);
-    skier.userData.setRideMode?.(selectedRideMode);
+    riderController.setRideMode(selectedRideMode);
     applyRideProfileToState(selectedRideMode,{resetSpeed:state.mode==='menu'});
     ui.setAvatar(entry);
     syncRideModePresentation();
@@ -770,8 +767,8 @@ function installAvatarSelector(initialAvatar){
 
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
-  skier=createFallbackSkier({rideMode:selectedRideMode});mountainWeather.setRider(skier);
-  trickVisualPivot.add(skier);
+  skier=riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
+  mountainWeather.setRider(skier);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
   ui.setAvatar(initialAvatar);
@@ -801,7 +798,7 @@ function resetRunState(){
   const rideProfile=getRideProfile(state.rideMode);
   runSession.reset({rideProfile});
   bananaPower.reset();
-  skier?.userData?.setRideMode?.(state.rideMode);
+  riderController.setRideMode(state.rideMode);
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
   resetTrickScoring(state);
@@ -851,6 +848,7 @@ function startRaceCountdown(){
 async function beginRun(){
   if(!ready||selector?.dialog?.open||document.hidden||runPreparing)return false;
   if(!avatarCommitted){
+    gameFlow.enter(GAME_FLOW.SELECT_RIDER,{reason:'avatar-required'});
     selector?.open();
     return false;
   }
