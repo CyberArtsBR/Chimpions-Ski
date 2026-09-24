@@ -14,7 +14,12 @@ assert(urlContract.includes('allowBaseUrl&&env.BASE_URL'),'shared production res
 assert(urlContract.includes("DEFAULT_PRODUCTION_URL='https://chimpions-ski.onrender.com'"),'documented fallback public target is missing');
 has('https://chimp-jump.onrender.com/','game-selection URL invariant is missing');
 has('music-full.mp3','local music network check is missing');
-has('chimp-jump.onrender.com\\/audio\\/music-full.mp3','external music hotlink guard is missing');
+assert(
+  source.includes('const externalMusic=')&&
+  source.includes("fail('AUDIO ORIGIN'")&&
+  /chimp-jump\\\\?\.onrender\\\\?\.com/.test(source),
+  'external music hotlink guard is missing'
+);
 has('#chimpion-selector','selector smoke coverage is missing');
 has('SELECTOR SEARCH','selector search coverage is missing');
 has('data-ride-mode','ride selection coverage is missing');
