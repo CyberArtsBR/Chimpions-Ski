@@ -316,7 +316,8 @@ export function createSkiCamera(camera){
     if(!Number.isFinite(camera.position.x))camera.position.x=chasePosition.x;
     if(!Number.isFinite(camera.position.y))camera.position.y=chasePosition.y;
     if(!Number.isFinite(camera.position.z))camera.position.z=chasePosition.z;
-    camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,safeDt);
+    if(viewMode===SKI_CAMERA_VIEW.CHASE&&!crash)camera.position.x=chasePosition.x;
+    else camera.position.x=THREE.MathUtils.damp(camera.position.x,chasePosition.x,lateralResponse,safeDt);
     camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,safeDt);
     camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,safeDt);
 
