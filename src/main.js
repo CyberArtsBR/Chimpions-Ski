@@ -20,7 +20,7 @@ import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {OBSTACLE_TUNING} from './obstacleTuning.js';
 import {getCourseLookahead} from './courseStreaming.js';
-import {resetAirborneScoring,resetHazardScoring,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
+import {breakSkillCombo,resetAirborneScoring,resetHazardScoring,scoreRiskBanana,tryScoreNearMiss,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
 import {createStartScreen} from './startScreen.js';
 import {createScorePresentation} from './scorePresentation.js';
 import {createCourseRenderBatches} from './courseRenderBatches.js';
@@ -254,6 +254,11 @@ function addCoursePlacement(placement){
   item.userData.spawnFrame=courseFrame;
   item.userData.section=placement.section;
   item.userData.safeX=placement.safeX;
+  item.userData.runPhase=placement.runPhase||'';
+  item.userData.expertPattern=placement.expertPattern||'';
+  item.userData.routePressure=Number(placement.routePressure)||0;
+  item.userData.riskReward=Number(placement.riskReward)||0;
+  item.userData.rewardPoints=Number(placement.rewardPoints)||0;
   item.userData.activated=false;
   item.userData.landingZone=!!placement.landingZone;
   item.userData.jumpTarget=!!placement.jumpTarget;
@@ -268,7 +273,8 @@ function fillCourse(difficulty=0){
       startZ:courseEndZ-5.5,
       difficulty,
       speed:state.speed,
-      postMaxTime:state.postMaxHazardTime
+      postMaxTime:state.postMaxHazardTime,
+      runTime:state.time
     });
     for(const placement of section.placements)addCoursePlacement(placement);
     courseEndZ=section.endZ;
@@ -611,6 +617,7 @@ function crash(kind='tree',item=null){
   state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
   state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
   state.crashTime=0;
+  breakSkillCombo(state);
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
   ui.setMode('crashed');
@@ -826,11 +833,18 @@ function update(dt){
         radiusX,
         requiredClearance
       });
+      tryScoreNearMiss(state,item,{
+        previousZ:previousItemZ,
+        playerZ:player.position.z,
+        radiusX,
+        paddingX:SKI_TUNING.COURSE_COLLISION_PADDING_X
+      });
 
       if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
 
       if(item.userData.kind==='banana'){
         if(state.y>item.position.y+.45||state.y+2.45<item.position.y-.35)continue;
+        scoreRiskBanana(state,item);
         removeCourseAt(i);
         state.bananas++;
         audio.play('banana');
@@ -891,6 +905,7 @@ function update(dt){
       if(item.userData.kind==='oil'){
         if(!item.userData.triggered){
           item.userData.triggered=true;
+          breakSkillCombo(state);
           state.oilSlipTime=SKI_TUNING.OIL_SLIP_SECONDS;
           state.landingGripLoss=Math.max(state.landingGripLoss||0,.82);
           const slipDirection=Math.sign(state.x-item.position.x)||Math.sign(state.vx)||1;
