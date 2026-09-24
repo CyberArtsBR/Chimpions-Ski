@@ -18,6 +18,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
   let jumpQueued=false;
   let specialQueued=false;
   let cameraQueued=false;
+  let cameraMotionQueued=false;
   let pauseQueued=false;
   let touchTrickIntent=null;
 
@@ -30,6 +31,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     }
     if(event.code==='KeyQ'&&!event.repeat)specialQueued=true;
     if(event.code==='KeyE'&&!event.repeat)cameraQueued=true;
+    if(event.code==='KeyR'&&!event.repeat)cameraMotionQueued=true;
     if(event.code==='Escape'&&!event.repeat)pauseQueued=true;
   }
   function onKeyUp(event){
@@ -66,6 +68,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     jumpQueued=false;
     specialQueued=false;
     cameraQueued=false;
+    cameraMotionQueued=false;
     pauseQueued=false;
     keys.clear();
   }
@@ -84,11 +87,13 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     const airborneTrickIntent=authoredTrick||(jumpPressed?readAirborneTrickIntent(keys,pad):null);
     const specialPressed=specialQueued||!!pad?.edges?.pressed?.special;
     const cameraPressed=cameraQueued||!!pad?.edges?.pressed?.camera;
+    const cameraMotionPressed=cameraMotionQueued||!!pad?.edges?.pressed?.cameraMotion;
     const pausePressed=pauseQueued||!!pad?.edges?.pressed?.menu;
 
     jumpQueued=false;
     specialQueued=false;
     cameraQueued=false;
+    cameraMotionQueued=false;
     pauseQueued=false;
     touchTrickIntent=null;
 
@@ -100,8 +105,9 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
       airborneTrickIntent,
       specialPressed,
       cameraPressed,
+      cameraMotionPressed,
       pausePressed,
-      keyboardActive:keyboardSteer!==0||keys.has('Space')||keys.has('KeyQ')||keys.has('KeyE'),
+      keyboardActive:keyboardSteer!==0||keys.has('Space')||keys.has('KeyQ')||keys.has('KeyE')||keys.has('KeyR'),
       touchActive:Math.abs(touchSteer)>.01||touchJump||touchTricks.size>0,
       keys
     };
@@ -113,6 +119,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
       touchJump,
       specialQueued,
       cameraQueued,
+      cameraMotionQueued,
       touchTricks:[...touchTricks]
     };
   }
