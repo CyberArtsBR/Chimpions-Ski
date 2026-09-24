@@ -6,6 +6,7 @@ import {OBSTACLE_TUNING} from '../src/obstacleTuning.js';
 import {estimateRampFlightEnvelope} from '../src/rampTrajectory.js';
 import {maxReachableLateralDelta} from '../src/courseSafety.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
+import {getCourseSectionLengthBounds} from '../src/courseSectionContract.js';
 
 function rng(seed=0x5f3759df){
   let x=seed>>>0;
@@ -47,7 +48,6 @@ for(const seed of seeds){
   const director=createCourseDirector({routeCenter,random:rng(seed)});
   let z=-12;
   let previousType='RECOVERY';
-  let previousDecision=null;
   let leftEdgeThreats=0,rightEdgeThreats=0,sidePressureHazards=0,leftDry=0,rightDry=0;
   const columnStreak=new Map();
 
@@ -59,9 +59,12 @@ for(const seed of seeds){
     totalMeters+=section.length;
 
     assert(COURSE_TYPES.includes(section.type),'unknown course section type');
-    const maxRampLength=Math.ceil(62+estimateRampFlightEnvelope(T.MAX_SPEED).protectedEndDistance);
-    const maxAllowed=(section.type==='RAMP'||section.type==='LOG JUMP')?maxRampLength:120;
-    assert(section.length>=20&&section.length<=maxAllowed,'implausible section length');
+    const maxJumpLength=Math.ceil(62+estimateRampFlightEnvelope(T.MAX_SPEED).protectedEndDistance);
+    const lengthBounds=getCourseSectionLengthBounds(section.type,{maxJumpLength});
+    assert(
+      section.length>=lengthBounds.min&&section.length<=lengthBounds.max,
+      `implausible section length: ${section.type} ${section.length}m outside ${lengthBounds.min}-${lengthBounds.max}m`
+    );
     assert(section.endZ<z,'section does not advance downhill');
 
     if(previousType==='RAMP'||previousType==='LOG JUMP'){
@@ -99,7 +102,15 @@ for(const seed of seeds){
       }
     }
 
-    // Route-decision metadata mirrors the exact safe-route constraints used by generation.
+    // routeDecision metadata describes the hazard formations in this section.
+    // It is intentionally not a complete trace of createSafeRouteTracker:
+    // RECOVERY and some flight/visual placements can advance or reuse the
+    // stateful tracker without emitting a routeDecision. Do not stitch the
+    // last metadata point of one section directly to the first of the next,
+    // because that would collapse multiple legitimate constrained transitions
+    // into one artificial reachability step. Within a section, recorded
+    // decision movement must still remain reachable.
+    let previousDecision=null;
     const decisions=[];
     for(const p of section.placements){
       if(!p.routeDecision)continue;

@@ -31,7 +31,7 @@ The production crowd warms only after the selected rider is loaded; the run wait
 - `npm run build`: production build.
 - `npm run smoke:production`: non-test browser smoke against an already-running preview.
 - `npm run audit:crowd`: strict crowd asset audit.
-- `npm run benchmark:crowd`: production crowd benchmark.
+- `npm run check:roster`: validates the exact 10-character built-in roster, local-upload contract, and zero spectator GLB crowd.
 - `npm run check:performance`: quality/telemetry/harness invariants.
 - `node scripts/benchmark-ski-runtime.mjs`: runtime benchmark; set `QUALITY_PROFILE=high` or `reduced`.
 

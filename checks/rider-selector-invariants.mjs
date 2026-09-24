@@ -5,11 +5,22 @@ const avatar=read(root,'src/avatar-system.js'),model=read(root,'src/avatar-selec
 const ride=read(root,'src/rideMode.js')+read(root,'src/riderPose.js')+main+avatar;
 const feature=/snowboard|ride.?mode|ride choice/i.test(ride);
 const results=[];
-let catalogCount=null;
-try{const v=JSON.parse(read(root,'public/avatars.json'));if(Array.isArray(v))catalogCount=v.length;}catch{}
-results.push(result('~220 Chimpions remain available',
- catalogCount==null?STATUS.PENDING:(catalogCount>=200&&catalogCount<=240?STATUS.PASS:STATUS.FAIL),
- catalogCount==null?'avatars.json unavailable':String(catalogCount)+' entries (accepted ~220 band: 200-240)'));
+const expectedRoster=[
+ 'The Archon','The Heretic','The Commodore','The Pioneer','The Punk',
+ 'The Street Fighter','The Bosun','The Adolescent','The Angsty','The Apologetic'
+];
+let catalogNames=null;
+try{
+ const v=JSON.parse(read(root,'public/avatars.json'));
+ if(Array.isArray(v))catalogNames=v.map(entry=>entry?.name);
+}catch{}
+const catalogCount=catalogNames?.length??null;
+const exactRoster=Array.isArray(catalogNames)&&
+ catalogNames.length===expectedRoster.length&&
+ catalogNames.every((name,index)=>name===expectedRoster[index]);
+results.push(result('exact 10 built-in Chimpions remain available',
+ catalogNames==null?STATUS.PENDING:(exactRoster?STATUS.PASS:STATUS.FAIL),
+ catalogNames==null?'avatars.json unavailable':JSON.stringify(catalogNames)));
 results.push(result('initial selector lazy rendering remains optimized',
  /AVATAR_SELECTOR_INITIAL_RENDER/.test(avatar)&&/Closed selector owns zero card\/image nodes/.test(avatar)?STATUS.PASS:STATUS.FAIL,'lazy card materialization'));
 results.push(result('search remains normalized/precomputed',

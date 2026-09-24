@@ -22,12 +22,20 @@ if(!feature){
 }else{
  const trickPivotSites=(all.match(/\btrickVisualPivot\s*=\s*new THREE\.Group\(\)/g)||[]).length;
  const trickPivotWired=/createTrickSystem\s*\(\s*\{[^}]*visualTarget\s*:\s*trickVisualPivot/s.test(all);
- const listenerSites=(all.match(/addEventListener\(/g)||[]).length;
+ const selectorSource=read(root,'src/avatar-system.js');
+ const listenerSites=(selectorSource.match(/addEventListener\(/g)||[]).length;
+ const openStart=selectorSource.indexOf('function open()');
+ const openEnd=openStart>=0?selectorSource.indexOf('\n  window.addEventListener',openStart):-1;
+ const openBody=openStart>=0?selectorSource.slice(openStart,openEnd>openStart?openEnd:undefined):'';
  const pushes=[...all.matchAll(/([A-Za-z_$][\w$]*(?:Events|events|history|queue|listeners|handlers))\.push\(/g)].map(function(m){return m[1];});
  results.push(result(future[0],/(trickState|trickType|trickProgress)/i.test(all)&&!/trickStates\s*=\s*\[|trickStates\.push/i.test(all)?STATUS.PASS:STATUS.FAIL,'temporary trick state should not be a growing collection'));
  results.push(result(future[1],/(rideMode|rideProfile|snowboard)/i.test(all)&&!/(riderVisuals|skiers|avatars)\.push/i.test(all)?STATUS.PASS:STATUS.FAIL,'reuse selected rider visual'));
  results.push(result(future[2],!/equipment(?:Objects|History|Instances)\.push/i.test(all)?STATUS.PASS:STATUS.FAIL,'only one active equipment mode'));
- results.push(result(future[3],!/(function open|open\s*\()[\s\S]{0,900}addEventListener\(/i.test(all)?STATUS.PASS:STATUS.FAIL,'listener sites='+listenerSites+'; none should be installed per open'));
+ results.push(result(
+   future[3],
+   openStart>=0&&!/addEventListener\(/.test(openBody)?STATUS.PASS:STATUS.FAIL,
+   'selector listener sites='+listenerSites+'; open() installs '+((openBody.match(/addEventListener\(/g)||[]).length)
+ ));
  results.push(result(future[4],trickPivotSites===1&&trickPivotWired?STATUS.PASS:STATUS.FAIL,'trickVisualPivot construction sites='+trickPivotSites+'; createTrickSystem visualTarget wired='+trickPivotWired));
  results.push(result(future[5],pushes.length?STATUS.FAIL:STATUS.PASS,pushes.length?'potential unbounded pushes: '+[...new Set(pushes)].join(', '):'no obvious event/history arrays growing by push'));
 }

@@ -104,7 +104,13 @@ for(const seed of [1,7,19,43,101,31337,0xabcdef,0xdeadbeef]){
 
 const environmentSource=readFileSync(new URL('../src/environment.js',import.meta.url),'utf8');
 const boundarySource=readFileSync(new URL('../src/boundaryMarkers.js',import.meta.url),'utf8');
-assert(environmentSource.includes('createSideRidgePair'),'split lateral ridge framing is missing');
+const landscapeSource=readFileSync(new URL('../src/alpineLandscape.js',import.meta.url),'utf8');
+assert(
+  environmentSource.includes('createAlpineLandscape')&&
+  landscapeSource.includes("const side=i%2?-1:1")&&
+  landscapeSource.includes('COURSE_FLAG_X+18'),
+  'split lateral alpine framing is missing'
+);
 assert(!environmentSource.includes('valleyGap'),'legacy center-only mountain gap returned');
 assert(environmentSource.includes('const side=entry.side??sideForIndex(i)'),'moving bank side ownership is missing');
 assert(environmentSource.includes('const side=entry.side??sideForIndex(cluster)'),'moving forest side ownership is missing');
