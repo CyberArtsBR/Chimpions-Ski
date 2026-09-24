@@ -41,7 +41,7 @@ import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveC
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
 try{explicitQualityOverride=new URLSearchParams(globalThis.location?.search||'').has('quality');}catch{}
-if(!explicitQualityOverride)quality.setProfile('max');
+if(!explicitQualityOverride)quality.setProfile(userPreferences.quality||'auto');
 
 const app=document.querySelector('#app');
 app.innerHTML=`

@@ -224,7 +224,7 @@ for(const frameDt of frameDts){
 
 const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 assert(
-  mainSource.includes('Math.ceil(dt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS)'),
+  mainSource.includes('Math.ceil(simulationFrameDt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS)'),
   'runtime no longer uses the tested physics substep ceiling'
 );
 assert(

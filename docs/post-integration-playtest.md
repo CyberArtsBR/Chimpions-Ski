@@ -4,8 +4,8 @@ Use a clean page load, then repeat critical items after at least one restart and
 
 ## SKI
 
-- Starts at 160 km/h.
-- Gains +20 km/h every 30 seconds.
+- Starts at 150 km/h.
+- Gains +10 km/h every 30 seconds.
 - Caps at 300 km/h.
 - Rider arms remain in the intended pose.
 - Keyboard and gamepad steering remain responsive without drift.
@@ -14,8 +14,8 @@ Use a clean page load, then repeat critical items after at least one restart and
 
 ## SNOWBOARD
 
-- Starts at 180 km/h.
-- Gains +20 km/h every 30 seconds.
+- Starts at 150 km/h.
+- Gains +10 km/h every 30 seconds.
 - Caps at 300 km/h.
 - Rider is visibly sideways while gameplay/camera heading remains stable.
 - Exactly one snowboard is aligned to the rider; skis are not simultaneously visible.

@@ -10,15 +10,18 @@ const required=[
   'distantSceneryDetail','crowdMaxSpectators','distantSceneryUpdateHz'
 ];
 
-assert.deepEqual([...QUALITY_PROFILE_NAMES],['auto','high','medium','low'],'quality values changed unexpectedly');
-for(const name of ['high','medium','low']){
+assert.deepEqual([...QUALITY_PROFILE_NAMES],['auto','high','max','medium','low'],'quality values changed unexpectedly');
+for(const name of ['high','max','medium','low']){
   const settings=QUALITY_PROFILES[name];
   for(const key of required)assert.notEqual(settings[key],undefined,name+' quality missing '+key);
   assert.equal(settings.profile,name);
   assert(settings.dprCap>0&&settings.dprCap<=3);
   assert(settings.shadowMapSize>=512);
-  for(const key of ['snowLayerDensity','snowParticleDensity','snowSurfaceDetailDensity','environmentDecorationDensity','distantSceneryDetail']){
+  for(const key of ['snowSurfaceDetailDensity','environmentDecorationDensity','distantSceneryDetail']){
     assert(settings[key]>0&&settings[key]<=1,name+' invalid '+key);
+  }
+  for(const key of ['snowLayerDensity','snowParticleDensity']){
+    assert(settings[key]>=0&&settings[key]<=1,name+' invalid '+key);
   }
   assert(settings.crowdMaxSpectators>=1);
 }
@@ -26,8 +29,8 @@ assert(QUALITY_PROFILES.low.dprCap<QUALITY_PROFILES.medium.dprCap);
 assert(QUALITY_PROFILES.medium.dprCap<QUALITY_PROFILES.high.dprCap);
 assert(QUALITY_PROFILES.low.shadowMapSize<QUALITY_PROFILES.medium.shadowMapSize);
 assert(QUALITY_PROFILES.medium.shadowMapSize<QUALITY_PROFILES.high.shadowMapSize);
-assert(QUALITY_PROFILES.low.snowParticleDensity<QUALITY_PROFILES.medium.snowParticleDensity);
-assert(QUALITY_PROFILES.medium.snowParticleDensity<QUALITY_PROFILES.high.snowParticleDensity);
+for(const name of ['high','max','medium','low'])assert.equal(QUALITY_PROFILES[name].snowParticleDensity,0,'legacy snow point-sprite density must remain disabled');
+assert(QUALITY_PROFILES.high.dprCap<QUALITY_PROFILES.max.dprCap,'MAX should only extend premium DPR headroom');
 assert(QUALITY_PROFILES.low.environmentDecorationDensity<QUALITY_PROFILES.high.environmentDecorationDensity);
 assert.equal(resolveQualityProfile('reduced'),'medium','legacy reduced profile must map to medium');
 assert.equal(resolveQualityProfile('bogus'),'auto');
