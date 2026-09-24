@@ -545,6 +545,13 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     hapticsCallback=typeof onHapticsChange==='function'?onHapticsChange:null;
     syncSettingsButtons();
   }
+  function setCameraViewMode(mode='chase'){
+    cameraViewMode=['chase','fixed','high-far','first-person'].includes(String(mode).toLowerCase())
+      ?String(mode).toLowerCase()
+      :'chase';
+    syncSettingsButtons();
+    return cameraViewMode;
+  }
   function cycleCameraView(){
     const options=['chase','fixed','high-far','first-person'];
     cameraViewMode=options[(Math.max(0,options.indexOf(cameraViewMode))+1)%options.length];
@@ -681,5 +688,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp,showCameraMode,showBananaPowerActivated};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp,showCameraMode,showBananaPowerActivated,setCameraViewMode};
 }
