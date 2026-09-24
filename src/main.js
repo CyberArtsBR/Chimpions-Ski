@@ -1343,6 +1343,7 @@ window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
   const batch=courseRenderBatches.getDiagnostics();
   const runtimeDiagnostics=getRuntimeDiagnostics();
+  const trickSnapshot=tricks.getSnapshot();
   let standaloneCourseObjects=0;
   let standaloneCourseDrawCalls=0;
   let activeHazardCount=0;
@@ -1417,17 +1418,17 @@ window.chimpionsSki=()=>{
     carveLoad:state.carveLoad,
     landingQuality:state.landingQuality,
     rampGrace:state.rampGrace,
-    trickState:tricks.state.state,
-    trickType:tricks.state.type||tricks.state.lastCompletedType||'',
-    trickActive:tricks.state.state==='SPIN_360'||tricks.state.state==='BACKFLIP',
-    trickRotation:tricks.state.rotation,
-    trickProgress:tricks.state.progress,
-    trickSystemProgress:tricks.state.progress,
-    tricksThisAir:tricks.state.tricksThisAir,
-    remainingAirTime:tricks.state.remainingAirTime,
-    trickAllowed:tricks.state.trickAllowed,
-    pendingTrick:tricks.state.pendingTrick,
-    trickRejectionReason:tricks.state.rejectionReason,
+    trickState:trickSnapshot.state,
+    trickType:trickSnapshot.type||trickSnapshot.lastCompletedType||'',
+    trickActive:trickSnapshot.state==='SPIN_360'||trickSnapshot.state==='BACKFLIP',
+    trickRotation:trickSnapshot.rotation,
+    trickProgress:trickSnapshot.progress,
+    trickSystemProgress:trickSnapshot.progress,
+    tricksThisAir:trickSnapshot.tricksThisAir,
+    remainingAirTime:trickSnapshot.remainingAirTime,
+    trickAllowed:trickSnapshot.trickAllowed,
+    pendingTrick:trickSnapshot.pendingTrick,
+    trickRejectionReason:trickSnapshot.rejectionReason,
     trickVisualPivot:trickVisualPivot.name,
     rendererCalls:renderer.info.render.calls,
     rendererTriangles:renderer.info.render.triangles,
