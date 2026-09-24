@@ -1,6 +1,7 @@
 import {getSpeedProgress,SKI_TUNING as T} from './gameplayTuning.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+const lerp=(a,b,t)=>a+(b-a)*t;
 
 export const RUN_PHASES=Object.freeze([
   'FLOW',
@@ -42,6 +43,95 @@ const PATTERN_WEIGHTS=Object.freeze({
   RECOVERY:[.28,.26,.24,.24,.26,.20,.22]
 });
 
+const PHASE_PRESSURE=Object.freeze({
+  FLOW:.14,
+  TECHNICAL:.44,
+  PRESSURE:.68,
+  RISK_REWARD:.54,
+  TRICK:.46,
+  EXPERT:.84,
+  RECOVERY:.06
+});
+
+function normalizePerformance(performance={}){
+  const safe=performance&&typeof performance==='object'?performance:{};
+  return {
+    nearMisses:Math.max(0,Number(safe.nearMisses)||0),
+    cleanLandings:Math.max(0,Number(safe.cleanLandings)||0),
+    successfulTricks:Math.max(0,Number(safe.successfulTricks)||0),
+    failedTricks:Math.max(0,Number(safe.failedTricks)||0),
+    oilContacts:Math.max(0,Number(safe.oilContacts)||0),
+    bananas:Math.max(0,Number(safe.bananas)||0),
+    riskBananas:Math.max(0,Number(safe.riskBananas)||0),
+    timeSinceMistake:Math.max(0,Number(safe.timeSinceMistake)||0),
+    steeringCorrectionIntensity:clamp(Number(safe.steeringCorrectionIntensity)||0,0,1)
+  };
+}
+
+function masterySignal(performance={}){
+  const p=normalizePerformance(performance);
+  const positive=
+    clamp(p.nearMisses/10,0,1)*.18+
+    clamp(p.cleanLandings/8,0,1)*.16+
+    clamp(p.successfulTricks/5,0,1)*.17+
+    clamp(p.riskBananas/10,0,1)*.15+
+    clamp(p.bananas/28,0,1)*.08+
+    clamp(p.timeSinceMistake/24,0,1)*.14;
+  const mistakes=
+    clamp(p.failedTricks/4,0,1)*.20+
+    clamp(p.oilContacts/5,0,1)*.18+
+    p.steeringCorrectionIntensity*.10;
+  return clamp(.48+positive-mistakes,0,1);
+}
+
+function buildThreatBudget({phase,intensity,speed01,post01,mastery,recentPressure}){
+  const phasePressure=PHASE_PRESSURE[phase]??.3;
+  const masteryBias=(mastery-.5)*.16;
+  const target=clamp(
+    .24+intensity*.40+speed01*.18+post01*.12+phasePressure*.16+masteryBias,
+    phase==='RECOVERY'?.18:.30,
+    phase==='RECOVERY'?.38:.96
+  );
+  const reactionSpacingScale=clamp(
+    1+speed01*.16+post01*.04-(phase==='RECOVERY'?.02:0),
+    .98,
+    1.22
+  );
+  const routeCommitment=clamp(
+    .32+intensity*.42+phasePressure*.20+Math.max(0,mastery-.55)*.10,
+    .28,
+    .92
+  );
+  const decisionCount=phase==='RECOVERY'
+    ?1
+    :Math.max(2,Math.min(4,2+Math.floor((intensity+phasePressure*.65)*1.55)));
+  const maxCost=lerp(
+    phase==='RECOVERY'?7.5:14,
+    phase==='RECOVERY'?10.5:31,
+    target
+  );
+  const maxOptionalHazards=Math.round(lerp(
+    phase==='RECOVERY'?1:3,
+    phase==='RECOVERY'?2:9,
+    target
+  ));
+  const recoveryNeed=clamp(
+    Math.max(0,recentPressure-.62)*.82+Math.max(0,.42-mastery)*.34,
+    0,
+    1
+  );
+  return {
+    target,
+    maxCost,
+    maxOptionalHazards,
+    reactionSpacingScale,
+    routeCommitment,
+    decisionCount,
+    rewardBias:clamp(.48+(phase==='RISK_REWARD'?.30:0)+(phase==='EXPERT'?.14:0)+masteryBias*.6,0,1),
+    recoveryNeed
+  };
+}
+
 export function createExpertRunDirector({random=Math.random}={}){
   let recentPhases=[];
   let recentPatterns=[];
@@ -51,6 +141,7 @@ export function createExpertRunDirector({random=Math.random}={}){
   let recentPressure=[];
   let sectionsSinceRamp=3;
   let sectionsSinceRecovery=0;
+  let lastMastery=.5;
 
   const weightedIndex=weights=>{
     const safe=weights.map(value=>Math.max(0,Number(value)||0));
@@ -84,37 +175,61 @@ export function createExpertRunDirector({random=Math.random}={}){
     return recentPressure.reduce((sum,value)=>sum+value,0)/recentPressure.length;
   }
 
-  function choosePhase({difficulty=0,speed=T.BASE_SPEED,postMaxTime=0,lastType='RECOVERY',pendingLanding=false}={}){
+  function choosePhase({
+    difficulty=0,
+    speed=T.BASE_SPEED,
+    postMaxTime=0,
+    lastType='RECOVERY',
+    pendingLanding=false,
+    mastery=.5
+  }={}){
     if(lastType==='RAMP'||lastType==='LOG JUMP'||pendingLanding)return 'RECOVERY';
 
     const speed01=getSpeedProgress(speed);
     const post01=clamp((Number(postMaxTime)||0)/Math.max(1,T.POST_MAX_HAZARD_RAMP_SECONDS),0,1);
-    const mastery=clamp(difficulty*.42+speed01*.38+post01*.34,0,1.12);
+    const masteryBias=(mastery-.5)*.18;
+    const pressureProgress=clamp(difficulty*.40+speed01*.35+post01*.30+masteryBias,0,1.12);
     const fatigue=pressureAverage();
+    const recoveryNeed=clamp(
+      Math.max(0,fatigue-.60)*1.25+
+      Math.max(0,.44-mastery)*.45+
+      (sectionsSinceRecovery>=5?.24:0),
+      0,
+      1
+    );
 
     const weights=[
-      1.28-mastery*.54,
-      .72+mastery*.90,
-      .50+mastery*1.02,
-      .48+mastery*.84,
-      sectionsSinceRamp>2?.42+mastery*.58:.16,
-      .12+Math.max(0,mastery-.42)*1.34+post01*.68,
-      (sectionsSinceRecovery>=4||fatigue>.74)?.48+fatigue*.92:.08
+      1.30-pressureProgress*.56,
+      .72+pressureProgress*.92,
+      .50+pressureProgress*1.06,
+      .48+pressureProgress*.88,
+      sectionsSinceRamp>2?.40+pressureProgress*.58:.14,
+      .12+Math.max(0,pressureProgress-.40)*1.38+post01*.66,
+      .07+recoveryNeed*1.08
     ];
 
-    if(sectionsSinceRecovery<=1)weights[6]*=.15;
-    if(recentPhases.at(-1)==='PRESSURE'||recentPhases.at(-1)==='EXPERT')weights[6]*=1.5;
+    if(sectionsSinceRecovery<=1)weights[6]*=.12;
+    if(recentPhases.at(-1)==='PRESSURE'||recentPhases.at(-1)==='EXPERT')weights[6]*=1.48;
+    if(recentPhases.slice(-2).every(value=>value==='FLOW'))weights[1]*=1.28;
+    if(recentPhases.slice(-2).every(value=>value==='RECOVERY'))weights[6]*=.08;
+
     if(post01>.45){
-      weights[1]*=1.18;
+      weights[1]*=1.16;
       weights[2]*=1.18;
       weights[3]*=1.22;
-      weights[5]*=1.42;
-      weights[0]*=.68;
-      // At sustained 300 km/h the course should remain readable but genuinely
-      // dense. Too many TRICK -> forced RECOVERY pairs were cancelling the
-      // intended post-max hazard escalation.
-      weights[4]*=.58;
-      weights[6]*=.48;
+      weights[5]*=1.38;
+      weights[0]*=.70;
+      weights[4]*=.62;
+    }
+
+    if(mastery>.70){
+      weights[2]*=1.08;
+      weights[5]*=1.10;
+      weights[6]*=.86;
+    }else if(mastery<.34){
+      weights[0]*=1.10;
+      weights[6]*=1.18;
+      weights[5]*=.86;
     }
 
     const adjusted=antiRepeat(weights,RUN_PHASES,recentPhases,.16,.60);
@@ -148,57 +263,91 @@ export function createExpertRunDirector({random=Math.random}={}){
     postMaxTime=0,
     lastType='RECOVERY',
     pendingLanding=false,
-    sectionIndex=0
+    sectionIndex=0,
+    performance=null
   }={}){
-    const phase=choosePhase({difficulty,speed,postMaxTime,lastType,pendingLanding});
+    const mastery=masterySignal(performance);
+    lastMastery=mastery;
+    const phase=choosePhase({difficulty,speed,postMaxTime,lastType,pendingLanding,mastery});
     const speed01=getSpeedProgress(speed);
     const post01=clamp((Number(postMaxTime)||0)/Math.max(1,T.POST_MAX_HAZARD_RAMP_SECONDS),0,1);
     const time01=clamp((Number(runTime)||0)/300,0,1);
-    const phasePressure={FLOW:.14,TECHNICAL:.44,PRESSURE:.66,RISK_REWARD:.52,TRICK:.46,EXPERT:.82,RECOVERY:.04}[phase]??.3;
+    const phasePressure=PHASE_PRESSURE[phase]??.3;
+    const masteryBias=(mastery-.5)*.12;
     const intensity=clamp(
-      .18+difficulty*.32+speed01*.20+post01*.18+time01*.08+phasePressure*.34,
-      .16,
+      .18+difficulty*.31+speed01*.19+post01*.17+time01*.07+phasePressure*.34+masteryBias,
+      phase==='RECOVERY'?.10:.16,
       1
     );
+    const recentPressureAverage=pressureAverage();
+    const threatBudget=buildThreatBudget({
+      phase,
+      intensity,
+      speed01,
+      post01,
+      mastery,
+      recentPressure:recentPressureAverage
+    });
 
     const pattern=phase==='RECOVERY'?null:choosePattern(phase);
     const side=chooseSide();
     const preferredSections=[...(SECTION_FAMILIES[phase]||SECTION_FAMILIES.FLOW)];
-    const sequenceLength=Math.max(2,Math.min(5,2+Math.floor(intensity*3)));
-    const corridorHalfWidth=clamp(3.15-intensity*.92,2.05,3.05);
-    const routeShift=clamp(4.3+intensity*3.9,4.3,8.2);
+    const sequenceLength=threatBudget.decisionCount;
+    const corridorHalfWidth=clamp(
+      3.25-intensity*.84+speed01*.18,
+      2.20,
+      3.20
+    );
+    const routeShift=clamp(
+      4.25+intensity*3.55+threatBudget.routeCommitment*.55,
+      4.25,
+      8.35
+    );
 
     return {
       phase,
       pattern,
       side,
       intensity,
+      mastery,
       preferredSections,
       sequenceLength,
       corridorHalfWidth,
       routeShift,
       speed01,
       postMaxPressure:post01,
-      expertPressure:clamp(intensity*.72+post01*.28,0,1),
+      expertPressure:clamp(intensity*.70+post01*.26+Math.max(0,mastery-.58)*.08,0,1),
+      threatBudget,
       sectionIndex
     };
   }
 
-  function noteSection({phase,pattern,sectionType,side=0,pressure=0,obstacleFamily=''}={}){
-    if(phase){recentPhases.push(phase);if(recentPhases.length>5)recentPhases.shift();}
-    if(pattern){recentPatterns.push(pattern);if(recentPatterns.length>6)recentPatterns.shift();}
+  function noteSection({
+    phase,
+    pattern,
+    sectionType,
+    side=0,
+    pressure=0,
+    obstacleFamily='',
+    threatCost=null
+  }={}){
+    if(phase){recentPhases.push(phase);if(recentPhases.length>6)recentPhases.shift();}
+    if(pattern){recentPatterns.push(pattern);if(recentPatterns.length>7)recentPatterns.shift();}
     if(sectionType){
       recentSections.push(sectionType);
-      if(recentSections.length>6)recentSections.shift();
+      if(recentSections.length>7)recentSections.shift();
       if(sectionType==='RAMP'||sectionType==='LOG JUMP')sectionsSinceRamp=0;
       else sectionsSinceRamp++;
       if(sectionType==='RECOVERY')sectionsSinceRecovery=0;
       else sectionsSinceRecovery++;
     }
-    if(side){recentSides.push(Math.sign(side));if(recentSides.length>5)recentSides.shift();}
-    if(obstacleFamily){recentFamilies.push(obstacleFamily);if(recentFamilies.length>5)recentFamilies.shift();}
-    recentPressure.push(clamp(Number(pressure)||0,0,1));
-    if(recentPressure.length>5)recentPressure.shift();
+    if(side){recentSides.push(Math.sign(side));if(recentSides.length>6)recentSides.shift();}
+    if(obstacleFamily){recentFamilies.push(obstacleFamily);if(recentFamilies.length>6)recentFamilies.shift();}
+    const normalizedThreat=Number.isFinite(threatCost)
+      ?clamp(threatCost/31,0,1)
+      :clamp(Number(pressure)||0,0,1);
+    recentPressure.push(normalizedThreat);
+    if(recentPressure.length>6)recentPressure.shift();
   }
 
   function reset(){
@@ -210,6 +359,7 @@ export function createExpertRunDirector({random=Math.random}={}){
     recentPressure=[];
     sectionsSinceRamp=3;
     sectionsSinceRecovery=0;
+    lastMastery=.5;
   }
 
   return {
@@ -220,6 +370,7 @@ export function createExpertRunDirector({random=Math.random}={}){
     get recentPatterns(){return [...recentPatterns];},
     get recentSections(){return [...recentSections];},
     get recentSides(){return [...recentSides];},
-    get recentFamilies(){return [...recentFamilies];}
+    get recentFamilies(){return [...recentFamilies];},
+    get mastery(){return lastMastery;}
   };
 }
