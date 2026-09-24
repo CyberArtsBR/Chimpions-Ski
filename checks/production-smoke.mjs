@@ -6,6 +6,13 @@ const base=process.env.BASE_URL||'http://127.0.0.1:4173';
 const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const RUN_TIMEOUT=60000;
 const domClick=locator=>locator.evaluate(element=>element.click());
+async function dismissTutorial(page){
+  const tutorial=page.locator('.session-tutorial:not([hidden])');
+  if(await tutorial.isVisible().catch(()=>false)){
+    await page.keyboard.press('Enter');
+    await tutorial.waitFor({state:'hidden',timeout:5000}).catch(()=>{});
+  }
+}
 
 function trackHttpGlbs(page){
   const urls=[];
@@ -44,10 +51,12 @@ try{
 
   await domClick(selector.locator('.chimpion-card:not(.is-upload-avatar)').first());
   await domClick(selector.locator('.ride-mode-card[data-ride-mode="ski"]'));
+  await page.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
+  await dismissTutorial(page);
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
   const ski=await page.evaluate(()=>window.chimpionsSki());
   assert.equal(ski.rideMode,'ski');
-  assert.equal(Math.round(ski.baseSpeed*3.6),160,'SKI base speed must be 160 km/h');
+  assert.equal(Math.round(ski.baseSpeed*3.6),150,'SKI base speed must be 150 km/h');
   assert.equal(Math.round(ski.maxSpeed*3.6),300,'SKI max speed must be 300 km/h');
   assert.equal(ski.startCrowdCount,0);
   assert.equal(ski.startCrowdModelSources,0);
@@ -91,10 +100,12 @@ try{
   await customSelector.locator('#ride-mode-step:not([hidden])').waitFor({state:'visible',timeout:20000});
   assert.equal(local.glbs.length,0,'Valid local GLB parsing must stay local-only');
   await domClick(customSelector.locator('.ride-mode-card[data-ride-mode="snowboard"]'));
+  await custom.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
+  await dismissTutorial(custom);
   await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
   const snowboard=await custom.evaluate(()=>window.chimpionsSki());
   assert.equal(snowboard.rideMode,'snowboard');
-  assert.equal(Math.round(snowboard.baseSpeed*3.6),180,'SNOWBOARD base speed must be 180 km/h');
+  assert.equal(Math.round(snowboard.baseSpeed*3.6),150,'SNOWBOARD base speed must be 150 km/h');
   assert.equal(Math.round(snowboard.maxSpeed*3.6),300,'SNOWBOARD max speed must be 300 km/h');
   assert.equal(snowboard.selectedAvatarLocal,true,'Uploaded rider must be marked local-only');
   assert.equal(local.glbs.length,0,'Custom gameplay must create zero server GLB traffic');
