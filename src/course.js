@@ -741,7 +741,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     if(runPlan?.preferredSections?.length){
       const repeats=1+Math.floor((runPlan.intensity||0)*2);
-      for(let repeat=0;repeat<repeats;repeat++)options.push(...runPlan.preferredSections);
+      const postPressure=clamp(Number(runPlan.postMaxPressure)||0,0,1);
+      const preferred=postPressure>.45
+        ?runPlan.preferredSections.filter(type=>type!=='RAMP'&&type!=='LOG JUMP')
+        :runPlan.preferredSections;
+      for(let repeat=0;repeat<repeats;repeat++)options.push(...(preferred.length?preferred:runPlan.preferredSections));
     }
 
     if(difficulty>.45)options.push('FOREST','ROCK SLALOM');
@@ -755,7 +759,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       options.push('RAMP','LOG JUMP');
     }
     if(runPlan?.phase==='EXPERT'){
-      options.push('ROCK SLALOM','FOREST','GATE','LOG JUMP');
+      const expertPost=clamp(Number(runPlan.postMaxPressure)||0,0,1);
+      options.push('ROCK SLALOM','FOREST','GATE');
+      if(expertPost<=.45)options.push('LOG JUMP');
     }
 
     // Sustained top-speed pressure must increase actual playable density, not
