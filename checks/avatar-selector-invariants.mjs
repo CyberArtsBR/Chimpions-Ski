@@ -61,7 +61,10 @@ assert(avatarSource.includes("ensureRenderedThrough(index)"),'virtualized gamepa
 assert(avatarSource.includes("focusCard(selectedIndex>=0?selectedIndex:0)"),'gamepad selected-avatar focus path is missing');
 assert(avatarSource.includes("grid.replaceChildren();"),'search/open should discard old card DOM instead of accumulating nodes');
 assert(avatarSource.includes('Closed selector owns zero card/image nodes'),'selector eagerly renders cards before first open');
-assert(avatarSource.includes('UPLOAD YOUR 3D CHARACTER (GLB)'),'local upload action is missing from selector source');
+assert(
+  avatarSource.includes('UPLOAD_AVATAR_ACTION')&&avatarSource.includes('isUploadAvatarAction')&&avatarSource.includes("fileInput.click()"),
+  'local upload action is missing from selector source'
+);
 assert(avatarSource.includes('URL.createObjectURL(file)'),'selector does not create a local object URL');
 assert(avatarSource.includes('URL.revokeObjectURL'),'selector does not revoke obsolete local object URLs');
 assert(!mainSource.includes('await setAvatar(initialAvatar'),'boot should not eagerly load a built-in GLB');
