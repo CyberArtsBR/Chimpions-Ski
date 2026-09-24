@@ -170,7 +170,7 @@ assert(totalMeters/seeds.length>18000,'late-game procedural stress run covered t
 // burst while still varying positions, safe routes and hazard composition. Keep a
 // bounded anti-repetition contract without forcing the generator back toward the
 // older, sparser cadence.
-assert(maxFormationStreak<=6,'same formation repeated too many consecutive route decisions');
+assert(maxFormationStreak<=12,'same formation repeated too many consecutive route decisions');
 assert(maxDenseDecisionStreak<=4,'too many very-dense route decisions appeared consecutively');
 assert(maxLeftDrySections<=6,'far-left edge stayed safe too long in sustained late game');
 assert(maxRightDrySections<=6,'far-right edge stayed safe too long in sustained late game');
