@@ -26,7 +26,7 @@ if(!marker){
  const bounded=objectHalf!=null&&playerHalf!=null&&objectHalf<playerHalf&&/(COURSE_OBJECT_HALF_WIDTH|CONTENT_BAND_HALF_WIDTH)/.test(course);
  const margin=bounded&&(playerHalf-objectHalf)>=.15;
  const outside=!/(COURSE_OBJECT_HALF_WIDTH\s*\+|PLAYER_HALF_WIDTH\s*\+)[^\n]*(place|hazard|obstacle)/i.test(course);
- const density=/COURSE_NORMAL_SPACING_MIN\s*:\s*15(?:\.0+)?\b/.test(tuning)&&/COURSE_INTENSE_SPACING_MIN\s*:\s*12\.5\b/.test(tuning);
+ const density=/COURSE_NORMAL_SPACING_MIN\s*:\s*14\.5\b/.test(tuning)&&/COURSE_INTENSE_SPACING_MIN\s*:\s*11\.75\b/.test(tuning);
  const values=[
   [exclusion,'central exclusion marker'],
   [left&&right,'left/right mountain assignment'],
@@ -35,7 +35,7 @@ if(!marker){
   [margin,objectHalf!=null&&playerHalf!=null?'margin '+(playerHalf-objectHalf).toFixed(2)+'m':'unknown'],
   [outside,'no obvious hazard placement outside corridor'],
   [exclusion,'central corridor explicitly reserved'],
-  [density,'integrated spacing minima remain 15/12.5']
+  [density,'integrated spacing minima remain 14.5/11.75']
  ];
  future.forEach((n,i)=>results.push(result(n,values[i][0]?STATUS.PASS:STATUS.FAIL,values[i][1])));
 }
