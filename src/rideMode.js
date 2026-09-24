@@ -24,7 +24,7 @@ const PROFILES=Object.freeze({
   [RIDE_MODE.SNOWBOARD]:Object.freeze({
     mode:RIDE_MODE.SNOWBOARD,
     label:'SNOWBOARD',
-    baseSpeed:180*KMH_TO_MPS,
+    baseSpeed:SKI_TUNING.BASE_SPEED,
     tierSeconds:SKI_TUNING.SPEED_TIER_SECONDS,
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
     maxSpeed:SKI_TUNING.MAX_SPEED,
