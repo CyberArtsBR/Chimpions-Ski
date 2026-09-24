@@ -20,8 +20,11 @@ assert(
   'alpine scenery keeps the downhill center visually open'
 );
 assert(
-  alpineLandscape.includes('new THREE.InstancedMesh(forestGeometry(),forestMaterial,280)')&&
-  alpineLandscape.includes('forest.count=Math.round(80+200*detail)'),
-  'non-playable decorative forest remains batched and quality-scalable'
+  alpineLandscape.includes('const forestCapacity=280')&&
+  alpineLandscape.includes('const forestChunkCount=6')&&
+  alpineLandscape.includes('new THREE.InstancedMesh(forestGeo,forestMaterial,forestCapacity)')&&
+  alpineLandscape.includes('activeForestCount=Math.round(80+200*detail)')&&
+  alpineLandscape.includes('mesh.frustumCulled=true'),
+  'non-playable decorative forest remains chunk-batched, culled and quality-scalable'
 );
 assert(!/atmosphere\.add\([^\n]*(createSideRidgePair|createMountainField|createDistantForest)/.test(environment),'legacy static mountains/forest remain inactive at runtime');
