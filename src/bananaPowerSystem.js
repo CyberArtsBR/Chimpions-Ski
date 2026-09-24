@@ -11,11 +11,10 @@ export function createBananaPowerSystem({
   if(!state)throw new Error('createBananaPowerSystem requires shared state');
 
   function reset(){
-    const wasActive=(Number(state.specialActiveTime)||0)>0;
     state.bananaPowerProgress=0;
     state.specialReady=false;
     state.specialActiveTime=0;
-    if(wasActive)onDeactivated?.();
+    onDeactivated?.();
   }
 
   function collect(){
