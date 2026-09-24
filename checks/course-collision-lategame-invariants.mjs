@@ -190,7 +190,11 @@ assert(
   minSidePressureHazards>=minimumSidePressureHazards,
   `dedicated late-game side pressure became too sparse (${minSidePressureHazards} < ${minimumSidePressureHazards})`
 );
-assert(totalPostMaxFill>5000,'post-max sparse-gap pressure did not meaningfully activate');
+const minimumPostMaxFill=Math.ceil(totalSections*.25);
+assert(
+  totalPostMaxFill>=minimumPostMaxFill,
+  `post-max sparse-gap pressure did not meaningfully activate (${totalPostMaxFill} < ${minimumPostMaxFill})`
+);
 assert(totalRamps>400,'late-game stress run did not exercise enough ramp trajectories');
 assert(minMeaningfulReactionTime>.04,'meaningful safe-route decision provided effectively no reaction time');
 
