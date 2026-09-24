@@ -55,11 +55,11 @@ try{
 
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
-  await domClick(page.getByRole('button',{name:'RESUME',exact:true}));
+  await domClick(page.locator('#resume-game'));
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000});
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
-  await domClick(page.getByRole('button',{name:'RESTART',exact:true}));
+  await domClick(page.locator('#restart-pause'));
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:20000});
   const restarted=await page.evaluate(()=>window.chimpionsSki());
   assert(restarted.distance<120,'Restart did not reset run distance');
