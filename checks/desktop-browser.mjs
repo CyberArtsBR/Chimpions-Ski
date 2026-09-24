@@ -343,10 +343,25 @@ try{
     await touchPage.waitForFunction(()=>Math.abs(window.chimpionsSki?.().inputState?.touchSteer||0)<.001);
 
     const jumpButton=touchPage.locator('#touch-jump');
-    await jumpButton.dispatchEvent('pointerdown',{pointerId:42,pointerType:'touch',isPrimary:true,buttons:1});
-    await touchPage.waitForFunction(()=>window.chimpionsSki?.().inputState?.touchJump===true);
-    await jumpButton.dispatchEvent('pointercancel',{pointerId:42,pointerType:'touch',isPrimary:true,buttons:0});
-    await touchPage.waitForFunction(()=>window.chimpionsSki?.().inputState?.touchJump===false);
+    const jumpTransition=await jumpButton.evaluate(button=>{
+      let observedHeld=false;
+      const observeHeld=()=>{
+        observedHeld=window.chimpionsSki?.().inputState?.touchJump===true;
+      };
+      button.addEventListener('pointerdown',observeHeld,{once:true});
+      button.dispatchEvent(new PointerEvent('pointerdown',{
+        bubbles:true,cancelable:true,pointerId:42,pointerType:'touch',isPrimary:true,buttons:1
+      }));
+      button.dispatchEvent(new PointerEvent('pointercancel',{
+        bubbles:true,cancelable:true,pointerId:42,pointerType:'touch',isPrimary:true,buttons:0
+      }));
+      return {
+        observedHeld,
+        released:window.chimpionsSki?.().inputState?.touchJump===false
+      };
+    });
+    assert.equal(jumpTransition.observedHeld,true,'Touch Jump pointerdown never reached semantic held state');
+    assert.equal(jumpTransition.released,true,'Touch Jump pointercancel left semantic input stuck');
 
     await touchPage.setViewportSize({width:414,height:896});
     assert.equal(await touchPage.locator('.touch-orientation-hint').isVisible(),true,'Portrait gameplay does not present the landscape recommendation');
