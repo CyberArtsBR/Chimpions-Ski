@@ -343,25 +343,23 @@ try{
     await touchPage.waitForFunction(()=>Math.abs(window.chimpionsSki?.().inputState?.touchSteer||0)<.001);
 
     const jumpButton=touchPage.locator('#touch-jump');
-    const jumpTransition=await jumpButton.evaluate(button=>{
-      let observedHeld=false;
-      const observeHeld=()=>{
-        observedHeld=window.chimpionsSki?.().inputState?.touchJump===true;
-      };
-      button.addEventListener('pointerdown',observeHeld,{once:true});
-      button.dispatchEvent(new PointerEvent('pointerdown',{
-        bubbles:true,cancelable:true,pointerId:42,pointerType:'touch',isPrimary:true,buttons:1
-      }));
-      button.dispatchEvent(new PointerEvent('pointercancel',{
-        bubbles:true,cancelable:true,pointerId:42,pointerType:'touch',isPrimary:true,buttons:0
-      }));
-      return {
-        observedHeld,
-        released:window.chimpionsSki?.().inputState?.touchJump===false
-      };
-    });
-    assert.equal(jumpTransition.observedHeld,true,'Touch Jump pointerdown never reached semantic held state');
-    assert.equal(jumpTransition.released,true,'Touch Jump pointercancel left semantic input stuck');
+    const jumpBox=await jumpButton.boundingBox();
+    assert(jumpBox,'Touch Jump button has no layout box');
+    const beforeJump=await touchPage.evaluate(()=>window.chimpionsSki?.());
+    assert.equal(beforeJump?.air,false,'Touch jump smoke did not begin grounded');
+    await touchPage.touchscreen.tap(
+      jumpBox.x+jumpBox.width*.5,
+      jumpBox.y+jumpBox.height*.5
+    );
+    await touchPage.waitForFunction(()=>{
+      const state=window.chimpionsSki?.();
+      return state?.air===true&&state?.jumpSource==='manual';
+    },null,{timeout:5000});
+    await touchPage.waitForFunction(
+      ()=>window.chimpionsSki?.().inputState?.touchJump===false,
+      null,
+      {timeout:2000}
+    );
 
     await touchPage.setViewportSize({width:414,height:896});
     assert.equal(await touchPage.locator('.touch-orientation-hint').isVisible(),true,'Portrait gameplay does not present the landscape recommendation');
