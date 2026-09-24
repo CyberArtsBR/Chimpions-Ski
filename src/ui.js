@@ -379,6 +379,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     cancelCountdown();
     menuFocus.reset();
     leaveConfirm.hidden=true;
+    settings.hidden=true;
     results.hidden=true;
     pause.hidden=true;
     overlay.hidden=false;
