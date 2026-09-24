@@ -1,6 +1,6 @@
 import {readFile,writeFile} from 'node:fs/promises';
 
-const [baselinePath='benchmark-baseline.json',highPath='benchmark-high.json',reducedPath='benchmark-reduced.json',outputPath='benchmark-comparison.json']=process.argv.slice(2);
+const [baselinePath='benchmark-baseline.json',highPath='benchmark-high.json',lowPath='benchmark-low.json',outputPath='benchmark-comparison.json']=process.argv.slice(2);
 
 async function load(path){return JSON.parse(await readFile(path,'utf8'));}
 
@@ -57,13 +57,13 @@ function summarize(report){
   };
 }
 
-const [baseline,high,reduced]=await Promise.all([load(baselinePath),load(highPath),load(reducedPath)]);
+const [baseline,high,low]=await Promise.all([load(baselinePath),load(highPath),load(lowPath)]);
 const comparison={
   schemaVersion:1,
   generatedAt:new Date().toISOString(),
   baseline:summarize(baseline),
   high:summarize(high),
-  reduced:summarize(reduced)
+  low:summarize(low)
 };
 await writeFile(outputPath,JSON.stringify(comparison,null,2)+'\n','utf8');
 console.log(JSON.stringify({status:'COMPLETE',outputPath},null,2));
