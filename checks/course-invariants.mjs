@@ -48,7 +48,6 @@ for(const seed of seeds){
   const director=createCourseDirector({routeCenter,random:rng(seed)});
   let z=-12;
   let previousType='RECOVERY';
-  let previousDecision=null;
   let leftEdgeThreats=0,rightEdgeThreats=0,sidePressureHazards=0,leftDry=0,rightDry=0;
   const columnStreak=new Map();
 
@@ -103,7 +102,15 @@ for(const seed of seeds){
       }
     }
 
-    // Route-decision metadata mirrors the exact safe-route constraints used by generation.
+    // routeDecision metadata describes the hazard formations in this section.
+    // It is intentionally not a complete trace of createSafeRouteTracker:
+    // RECOVERY and some flight/visual placements can advance or reuse the
+    // stateful tracker without emitting a routeDecision. Do not stitch the
+    // last metadata point of one section directly to the first of the next,
+    // because that would collapse multiple legitimate constrained transitions
+    // into one artificial reachability step. Within a section, recorded
+    // decision movement must still remain reachable.
+    let previousDecision=null;
     const decisions=[];
     for(const p of section.placements){
       if(!p.routeDecision)continue;

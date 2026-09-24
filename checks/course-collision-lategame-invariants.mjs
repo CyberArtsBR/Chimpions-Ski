@@ -37,7 +37,6 @@ let minMeaningfulReactionTime=Infinity;
 for(const seed of seeds){
   const director=createCourseDirector({routeCenter,random:rng(seed)});
   let z=-12;
-  let previousDecision=null;
   let previousFormation=null,formationStreak=0,denseDecisionStreak=0;
   let leftDry=0,rightDry=0,leftThreats=0,rightThreats=0,sidePressure=0;
 
@@ -68,6 +67,12 @@ for(const seed of seeds){
     maxLeftDrySections=Math.max(maxLeftDrySections,leftDry);
     maxRightDrySections=Math.max(maxRightDrySections,rightDry);
 
+    // Validate reachability among the route-decision metadata emitted by this
+    // section only. The procedural director keeps a stateful safe-route tracker
+    // across section boundaries, but not every tracker transition is represented
+    // by routeDecision metadata (notably RECOVERY). Cross-section stitching of
+    // this partial metadata would therefore create false direct transitions.
+    let previousDecision=null;
     const routeDecisions=[];
     for(const placement of section.placements){
       if(!placement.routeDecision||!Number.isFinite(placement.decisionZ))continue;
