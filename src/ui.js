@@ -109,7 +109,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   results.id='result-overlay';
   results.className='presentation-overlay';
   results.hidden=true;
-  results.innerHTML=`<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>SCORE</small><strong id="result-score">0</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>TIME</small><strong id="result-time">0:00</strong></div><div><small>MAX SPEED</small><strong id="result-max-speed">0 km/h</strong></div><div><small>BEST COMBO</small><strong id="result-combo">0</strong></div><div><small>RIDE</small><strong id="result-ride">SKI</strong></div><div><small>BEST DIST.</small><strong id="result-best">0 m</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result" data-menu-default="true">RIDE AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
+  results.innerHTML=`<section class="presentation-card result-card" role="dialog" aria-modal="true" aria-labelledby="result-title"><small class="eyebrow" id="result-eyebrow">RUN COMPLETE</small><h2 id="result-title">WIPEOUT</h2><div class="result-grid"><div><small>DISTANCE</small><strong id="result-distance">0 m</strong></div><div><small>SCORE</small><strong id="result-score">0</strong></div><div><small>BANANAS</small><strong id="result-bananas">0</strong></div><div><small>TIME</small><strong id="result-time">0:00</strong></div><div><small>MAX SPEED</small><strong id="result-max-speed">0 km/h</strong></div><div><small>BEST COMBO</small><strong id="result-combo">0</strong></div><div><small>RIDE</small><strong id="result-ride">SKI</strong></div><div><small>BEST DIST.</small><strong id="result-best">0 m</strong></div><div><small>NEAR MISSES</small><strong id="result-near-misses">0</strong></div><div><small>TRICKS LANDED</small><strong id="result-tricks-landed">0</strong></div><div><small>TRICKS FAILED</small><strong id="result-tricks-failed">0</strong></div><div><small>CLEAN LANDINGS</small><strong id="result-clean-landings">0</strong></div><div><small>STRONG LANDINGS</small><strong id="result-strong-landings">0</strong></div><div><small>POWER USES</small><strong id="result-power-uses">0</strong></div><div><small>BEST TRICK</small><strong id="result-best-trick">0</strong></div></div><div class="new-best-banner" id="new-best-banner" hidden>NEW BEST!</div><div class="presentation-actions"><button class="primary" id="restart-result" data-menu-default="true">RIDE AGAIN</button><button class="secondary" id="choose-result">CHANGE CHIMPION</button></div><div class="presentation-actions vertical leave-actions"><button class="leave-game-button" id="give-up-result">GIVE UP AND LEAVE TO GAME SELECTION</button></div><p class="controller-hint">${CONTROL_COPY.confirm} · Select &nbsp; · &nbsp; ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(results);
 
   const settings=document.createElement('div');
@@ -384,7 +384,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     pause.hidden=true;
     setMode('playing');
   }
-  function showResults({distance=0,score=0,bananas=0,best=0,newBest=false,crashType='',time=0,maxSpeedKmh=0,bestCombo=0,rideMode='ski'}={},delay=620){
+  function showResults({distance=0,score=0,bananas=0,best=0,newBest=false,crashType='',time=0,maxSpeedKmh=0,bestCombo=0,rideMode='ski',nearMisses=0,tricksLanded=0,tricksFailed=0,cleanLandings=0,strongLandings=0,bananaPowerUses=0,largestTrickScore=0}={},delay=620){
     clearTimeout(resultTimer);
     resultTimer=setTimeout(()=>{
       leaveConfirm.hidden=true;
@@ -397,12 +397,23 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       byId('result-combo').textContent=String(Math.max(0,Math.floor(Number(bestCombo)||0)));
       byId('result-ride').textContent=String(rideMode||'ski').toUpperCase();
       byId('result-best').textContent=Math.floor(best)+' m';
+      byId('result-near-misses').textContent=String(Math.max(0,Math.floor(Number(nearMisses)||0)));
+      byId('result-tricks-landed').textContent=String(Math.max(0,Math.floor(Number(tricksLanded)||0)));
+      byId('result-tricks-failed').textContent=String(Math.max(0,Math.floor(Number(tricksFailed)||0)));
+      byId('result-clean-landings').textContent=String(Math.max(0,Math.floor(Number(cleanLandings)||0)));
+      byId('result-strong-landings').textContent=String(Math.max(0,Math.floor(Number(strongLandings)||0)));
+      byId('result-power-uses').textContent=String(Math.max(0,Math.floor(Number(bananaPowerUses)||0)));
+      byId('result-best-trick').textContent=Math.max(0,Math.floor(Number(largestTrickScore)||0)).toLocaleString();
       const banner=byId('new-best-banner');
       banner.hidden=!newBest;
       const eyebrow=byId('result-eyebrow');
       eyebrow.textContent=crashType?String(crashType).replace(/[-_]/g,' ').toUpperCase():'RUN COMPLETE';
       results.hidden=false;
       pause.hidden=true;
+      if(newBest){
+        audio.playNewBest?.();
+        haptics?.newBest?.();
+      }
       setTimeout(()=>menuFocus.open({root:results,defaultElement:restartResult}),0);
     },delay);
   }
@@ -462,16 +473,17 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       setTimeout(()=>{if(bestFlag)bestFlag.hidden=true;},2200);
     }
   }
-  function showLandingFeedback(quality='clean'){
+  function showLandingFeedback(quality='clean',intensity=0){
     clearTimeout(landingTimer);
-    if(quality==='clean'){
+    const amount=Math.max(0,Math.min(1,Number(intensity)||0));
+    if(quality==='clean'&&amount<.34){
       landingCallout.hidden=true;
       return;
     }
-    landingCallout.textContent=quality==='hard'?'HARD LANDING':'ROUGH LANDING';
-    landingCallout.className='landing-callout is-hard';
+    landingCallout.textContent=quality==='hard'?'HARD LANDING':quality==='clean'?'CLEAN LANDING':'ROUGH LANDING';
+    landingCallout.className=quality==='hard'?'landing-callout is-hard':'landing-callout';
     landingCallout.hidden=false;
-    landingTimer=setTimeout(()=>{landingCallout.hidden=true;},850);
+    landingTimer=setTimeout(()=>{landingCallout.hidden=true;},quality==='clean'?620:850);
   }
   function showSpeedUp(){
     clearTimeout(speedUpTimer);
@@ -490,6 +502,12 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     void cameraCallout.offsetWidth;
     cameraCallout.classList.add('pulse');
     cameraCalloutTimer=setTimeout(()=>{cameraCallout.hidden=true;cameraCallout.classList.remove('pulse');},1300);
+  }
+  function showBananaPowerReady(){
+    bananaPower.classList.remove('power-burst');
+    void bananaPower.offsetWidth;
+    bananaPower.classList.add('power-burst');
+    setTimeout(()=>bananaPower.classList.remove('power-burst'),520);
   }
   function showBananaPowerActivated(){
     bananaPower.classList.remove('power-burst');
@@ -710,5 +728,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp,showCameraMode,showCameraMotion,showBananaPowerActivated,setCameraViewMode,setCameraMotionMode};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp,showCameraMode,showCameraMotion,showBananaPowerReady,showBananaPowerActivated,setCameraViewMode,setCameraMotionMode};
 }

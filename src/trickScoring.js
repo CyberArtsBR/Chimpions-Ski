@@ -26,6 +26,9 @@ export function resetTrickScoring(state){
   state.trickSuccess=null;
   state.failedTrick=false;
   state.trickCrash=false;
+  state.tricksLanded=0;
+  state.tricksFailed=0;
+  state.largestTrickScore=0;
 }
 
 export function announceTrickStart(state,type,source=''){
@@ -39,6 +42,8 @@ export function announceTrickStart(state,type,source=''){
 export function scoreTrickCompletion(state,{type='',source=''}={}){
   const points=TRICK_POINTS[type]||0;
   if(points)state.score=(state.score||0)+points;
+  state.tricksLanded=(state.tricksLanded||0)+1;
+  state.largestTrickScore=Math.max(state.largestTrickScore||0,points);
   state.trickType=type||'';
   state.trickPoints=points;
   state.trickSuccess=true;
@@ -48,6 +53,7 @@ export function scoreTrickCompletion(state,{type='',source=''}={}){
 }
 
 export function scoreTrickFailure(state,{type='',source=''}={}){
+  state.tricksFailed=(state.tricksFailed||0)+1;
   state.trickType=type||'';
   state.trickPoints=0;
   state.trickSuccess=false;

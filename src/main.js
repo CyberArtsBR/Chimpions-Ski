@@ -512,17 +512,24 @@ const bananaPower=createBananaPowerSystem({
   duration:BANANA_POWER_DURATION,
   bulletTimeScale:BANANA_BULLET_TIME_SCALE,
   canActivate:()=>state.mode==='playing',
-  onReady:()=>ui.showBananaPowerActivated?.(),
+  onReady:()=>{
+    audio.playBananaReady?.();
+    haptics.bananaReady?.();
+    ui.showBananaPowerReady?.();
+  },
   onActivated:()=>{
+    state.bananaPowerUses=(state.bananaPowerUses||0)+1;
     specialAura.visible=true;
     document.body.classList.add('banana-power-active','bullet-time-active');
-    audio.play('go',.72,.82);
-    haptics.rampTakeoff?.(1);
+    audio.playBananaPowerActivate?.();
+    haptics.bananaPowerActivate?.();
     ui.showBananaPowerActivated?.();
   },
   onDeactivated:()=>{
     specialAura.visible=false;
     document.body.classList.remove('banana-power-active','bullet-time-active');
+    audio.playBananaPowerEnd?.();
+    haptics.bananaPowerEnd?.(.72);
   }
 });
 function updateBananaPowerVisual(time=0){
@@ -561,7 +568,7 @@ function applyRuntimeQuality(settings=quality.getSettings()){
 }
 const unsubscribeRuntimeQuality=quality.subscribe(applyRuntimeQuality,{immediate:true});
 
-const feedback=createGameFeedback({audio,ui});
+const feedback=createGameFeedback({audio,ui,haptics});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
 
 const SESSION_TUTORIAL_KEY='chimpions-ski-tutorial-seen-v2';
@@ -852,8 +859,15 @@ function resetRunState(){
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
   resetTrickScoring(state);
+  state.cleanLandings=0;
+  state.strongLandings=0;
+  state.bananaPowerUses=0;
+  state.edgeContactCooldown=0;
+  state.edgeContact=false;
+  state.edgeContactSide=0;
   tricks.reset();
   audio.resetRun?.();
+  haptics.reset?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
   startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
@@ -963,7 +977,26 @@ function crash(kind='tree',item=null){
   const crashFeedback=feedback.onCrash({kind:state.crashType,velocity:state.crashVelocity});
   if(!isTrickCrash)haptics.crash(state.crashType,crashFeedback?.hapticStrength);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
-  ui.showResults({distance:runDistance,score:state.score,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType,time:state.time,maxSpeedKmh:speedToKmh(state.maxRunSpeed||state.speed),bestCombo:state.bestCombo||0,rideMode:state.rideMode,runSeed:state.runSeed},650);
+  ui.showResults({
+    distance:runDistance,
+    score:state.score,
+    bananas:state.bananas,
+    best:state.best,
+    newBest,
+    crashType:state.crashType,
+    time:state.time,
+    maxSpeedKmh:speedToKmh(state.maxRunSpeed||state.speed),
+    bestCombo:state.bestCombo||0,
+    rideMode:state.rideMode,
+    runSeed:state.runSeed,
+    nearMisses:state.nearMisses||0,
+    tricksLanded:state.tricksLanded||0,
+    tricksFailed:state.tricksFailed||0,
+    cleanLandings:state.cleanLandings||0,
+    strongLandings:state.strongLandings||0,
+    bananaPowerUses:state.bananaPowerUses||0,
+    largestTrickScore:state.largestTrickScore||0
+  },650);
   gameFlow.enter(GAME_FLOW.RESULTS,{reason:'results'});
 }
 function suspendInput(){
@@ -1050,7 +1083,11 @@ function update(dt,frameMs=dt*1000){
     }
     if(steerSign)state.lastSteerSign=steerSign;
 
-    stepCarving(state,steer,controlDt);
+    const carveStep=stepCarving(state,steer,controlDt);
+    if(carveStep?.edgeScrape){
+      const edgeFeedback=feedback.onEdgeContact(carveStep.edgeScrape.intensity,state.time);
+      if(edgeFeedback?.play)haptics.edgeScrape?.(edgeFeedback.hapticStrength);
+    }
     const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,skier?.userData?.skiTrackSpacing);
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
@@ -1125,6 +1162,8 @@ function update(dt,frameMs=dt*1000){
         crash('trick');
       }else if(state.mode==='playing'){
         const landingFeedback=feedback.onLanding(landing,{jumpSource:landingSource,verticalVelocity:landing.impact});
+        if(landingFeedback?.quality==='clean')state.cleanLandings=(state.cleanLandings||0)+1;
+        if(landingFeedback?.dramatic&&landingFeedback?.quality!=='hard')state.strongLandings=(state.strongLandings||0)+1;
         haptics.land(landingFeedback?.hapticStrength??Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
       }
     }
@@ -1196,12 +1235,13 @@ function update(dt,frameMs=dt*1000){
         radiusX,
         requiredClearance
       });
-      tryScoreNearMiss(state,item,{
+      const nearMissEvent=tryScoreNearMiss(state,item,{
         previousZ:previousItemZ,
         playerZ:player.position.z,
         radiusX,
         paddingX:SKI_TUNING.COURSE_COLLISION_PADDING_X
       });
+      if(nearMissEvent)feedback.onNearMiss?.(nearMissEvent);
 
       performanceTelemetry.increment('collisionChecks',1);
       if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
@@ -1212,8 +1252,8 @@ function update(dt,frameMs=dt*1000){
         removeCourseItem(item);
         state.bananas++;
         const powerBecameReady=bananaPower.collect();
-        audio.play('banana',powerBecameReady ? .52 : 1,powerBecameReady ? 1.24 : 1);
-        haptics.banana?.(powerBecameReady?1.45:1);
+        audio.playBananaPickup?.({ready:powerBecameReady});
+        if(!powerBecameReady)haptics.banana?.();
         continue;
       }
 
@@ -1350,10 +1390,9 @@ function update(dt,frameMs=dt*1000){
     trickEvent:state.trickEvent??null
   });
   audio.playClear?.(state.clearEvent??null);
-  const audioTimeScale=bananaPower.simulationScale;
   audio.update({
     mode:state.mode,
-    speed:state.speed*audioTimeScale,
+    speed:state.speed,
     baseSpeed:state.baseSpeed,
     maxSpeed:state.maxSpeed,
     carve:state.edge,
@@ -1367,6 +1406,7 @@ function update(dt,frameMs=dt*1000){
     air:state.air,
     intensity:state.difficulty,
     jumpSource:state.jumpSource,
+    specialActive:bananaPower.active,
     time:state.time
   });
   haptics.update?.(dt,{
