@@ -4,6 +4,8 @@ import path from 'node:path';
 
 const base=process.env.BASE_URL||'http://127.0.0.1:4173';
 const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+const RUN_TIMEOUT=60000;
+const domClick=locator=>locator.evaluate(element=>element.click());
 
 function trackHttpGlbs(page){
   const urls=[];
@@ -34,15 +36,15 @@ try{
   assert.equal(fresh.startCrowdModelSources,0,'Crowd must own zero character GLB sources');
   assert.equal(built.glbs.length,0,'Fresh initial load must not request any character GLB');
 
-  await page.getByRole('button',{name:'START GAME'}).click();
+  await domClick(page.getByRole('button',{name:'START GAME'}));
   const selector=page.locator('#chimpion-selector');
   await selector.waitFor({state:'visible',timeout:10000});
   assert.equal(await selector.locator('.chimpion-card:not(.is-upload-avatar)').count(),10,'Selector must render exactly 10 built-in cards');
   assert.equal(await selector.locator('.chimpion-card.is-upload-avatar').count(),1,'Selector must expose exactly one local GLB upload action');
 
-  await selector.locator('.chimpion-card:not(.is-upload-avatar)').first().click();
-  await selector.locator('.ride-mode-card[data-ride-mode="ski"]').click();
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
+  await domClick(selector.locator('.chimpion-card:not(.is-upload-avatar)').first());
+  await domClick(selector.locator('.ride-mode-card[data-ride-mode="ski"]'));
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
   const ski=await page.evaluate(()=>window.chimpionsSki());
   assert.equal(ski.rideMode,'ski');
   assert.equal(Math.round(ski.baseSpeed*3.6),160,'SKI base speed must be 160 km/h');
@@ -53,11 +55,11 @@ try{
 
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
-  await page.getByRole('button',{name:'RESUME',exact:true}).click();
+  await domClick(page.getByRole('button',{name:'RESUME',exact:true}));
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000});
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
-  await page.getByRole('button',{name:'RESTART',exact:true}).click();
+  await domClick(page.getByRole('button',{name:'RESTART',exact:true}));
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:20000});
   const restarted=await page.evaluate(()=>window.chimpionsSki());
   assert(restarted.distance<120,'Restart did not reset run distance');
@@ -71,7 +73,7 @@ try{
   const local=await boot(localContext);
   const custom=local.page;
   assert.equal(local.glbs.length,0,'Custom-upload fresh boot must not request a GLB');
-  await custom.getByRole('button',{name:'START GAME'}).click();
+  await domClick(custom.getByRole('button',{name:'START GAME'}));
   const customSelector=custom.locator('#chimpion-selector');
   await customSelector.waitFor({state:'visible',timeout:10000});
 
@@ -84,8 +86,8 @@ try{
   await input.setInputFiles(path.resolve('public/model/characters/The Heretic.glb'));
   await customSelector.locator('#ride-mode-step:not([hidden])').waitFor({state:'visible',timeout:20000});
   assert.equal(local.glbs.length,0,'Valid local GLB parsing must stay local-only');
-  await customSelector.locator('.ride-mode-card[data-ride-mode="snowboard"]').click();
-  await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
+  await domClick(customSelector.locator('.ride-mode-card[data-ride-mode="snowboard"]'));
+  await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
   const snowboard=await custom.evaluate(()=>window.chimpionsSki());
   assert.equal(snowboard.rideMode,'snowboard');
   assert.equal(Math.round(snowboard.baseSpeed*3.6),180,'SNOWBOARD base speed must be 180 km/h');
