@@ -45,7 +45,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
       <strong>SPECIAL READY</strong>
       <span>PRESS <kbd class="keycap-q">Q</kbd> OR <b class="gamepad-x-icon" aria-label="controller X button">X</b></span>
     </div>
-    <div class="banana-power-active" id="banana-power-active" hidden>SHIELD ACTIVE</div>
+    <div class="banana-power-active" id="banana-power-active" hidden>BULLET TIME</div>
   `;
   document.body.append(bananaPower);
   const bananaPowerCount=byId('banana-power-count');
@@ -437,7 +437,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(bananaPowerReady)bananaPowerReady.hidden=!specialReady;
     if(bananaPowerActive){
       bananaPowerActive.hidden=specialActiveTime<=0;
-      if(specialActiveTime>0)bananaPowerActive.textContent='SHIELD ACTIVE · '+specialActiveTime.toFixed(1)+'s';
+      if(specialActiveTime>0)bananaPowerActive.textContent='BULLET TIME · '+specialActiveTime.toFixed(1)+'s';
     }
     bananaPower.classList.toggle('is-ready',specialReady);
     bananaPower.classList.toggle('is-active',specialActiveTime>0);
