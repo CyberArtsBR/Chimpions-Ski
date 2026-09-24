@@ -223,41 +223,25 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   Object.assign(sun.shadow.camera,{left:-23,right:23,top:20,bottom:-9,near:.5,far:52});
   scene.add(sun);
 
-  const rim=new THREE.DirectionalLight(0xb8e5fb,.50);
+  const rim=new THREE.DirectionalLight(0xb8e5fb,.48);
   rim.position.set(11,8,-10);
   scene.add(rim);
 
-  const fill=new THREE.DirectionalLight(0xdff4ff,.24);
-  fill.position.set(-6,5,-7);
+  // One purposeful fill keeps dark Chimpions readable without paying for four
+  // additional scene-wide realtime directional lights.
+  const fill=new THREE.DirectionalLight(0xe7f6ff,.56);
+  fill.position.set(0,7,-9);
   scene.add(fill);
-
-  // Stable scene-wide support lights give metallic/dark avatars specular response
-  // from every major viewing angle without flattening the stronger sun/rim hierarchy.
-  const characterFillFront=new THREE.DirectionalLight(0xf5fbff,.82);
-  characterFillFront.position.set(0,8,-11);
-  scene.add(characterFillFront);
-
-  const characterFillRear=new THREE.DirectionalLight(0xc8e6ff,.68);
-  characterFillRear.position.set(0,7,12);
-  scene.add(characterFillRear);
-
-  const characterFillLeft=new THREE.DirectionalLight(0xffefd8,.48);
-  characterFillLeft.position.set(-11,6,1);
-  scene.add(characterFillLeft);
-
-  const characterFillRight=new THREE.DirectionalLight(0xd9f2ff,.48);
-  characterFillRight.position.set(11,6,1);
-  scene.add(characterFillRight);
 
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
   const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
   bankMesh.castShadow=true;
   bankMesh.receiveShadow=true;
-  bankMesh.frustumCulled=false;
+  bankMesh.frustumCulled=true;
   world.add(bankMesh);
   const windMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.shadowBank,38);
   windMesh.receiveShadow=true;
-  windMesh.frustumCulled=false;
+  windMesh.frustumCulled=true;
   world.add(windMesh);
   const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
   const windBanks=createMovingInstances(38,windMesh,i=>{const e={};resetBank(e,i,false);return e;});
@@ -268,7 +252,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const forestPrototypes=getPremiumObstacleLibrary().trees;
   const forestBatches=forestPrototypes.map(prototype=>prototype.children.map(child=>{
     const mesh=new THREE.InstancedMesh(child.geometry,child.material,treeCount);
-    mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=false;
+    mesh.castShadow=mesh.receiveShadow=true;mesh.frustumCulled=true;
     mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);return mesh;
   }));
   const decorativeTreeMeshes=forestBatches.flat();
@@ -308,7 +292,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     if(input.environmentDecorationDensity!=null||input.decorativeDensity!=null)mapped.decorativeDensity=input.environmentDecorationDensity??input.decorativeDensity;
     if(input.decorativeShadowCasting!=null||input.decorativeShadows!=null)mapped.decorativeShadows=input.decorativeShadowCasting??input.decorativeShadows;
     if(input.snowSurfaceDetailDensity!=null||input.snowDetailLevel!=null)mapped.snowDetailLevel=input.snowSurfaceDetailDensity??input.snowDetailLevel;
-    if(input.profile&&input.distantSceneryDetail==null)mapped.distantSceneryDetail=environmentProfileName==='reduced'?.72:1;
+    if(input.profile&&input.distantSceneryDetail==null){
+      mapped.distantSceneryDetail={high:1,medium:.74,low:.52}[environmentProfileName]??1;
+    }
     environmentQuality=normalizeEnvironmentQuality({...environmentQuality,...mapped});
 
     activeBankCount=Math.max(12,Math.min(banks.entries.length,Math.round(banks.entries.length*environmentQuality.decorativeDensity)));
@@ -363,6 +349,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       activeWindBanks:activeWindBankCount,
       activeDecorativeTrees:activeTreeCount,
       activeSnowLayerParticles:snowLayers.reduce((sum,layer)=>sum+(layer.activeCount??layer.count),0),
+      realtimeDirectionalLights:3,
+      dynamicSceneryFrustumCulled:true,
+      landscape:landscape.getDiagnostics?.()||null,
       snowParticlePool:snowParticles.getDiagnostics?.()||{densityScale:snowParticles.getDensityMultiplier?.()},
       snowSurfaceDetail:surfaceDetail.getDiagnostics?.()||{detailLevel:surfaceDetail.getDetailLevel?.()}
     };
@@ -376,6 +365,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       setInstance(mesh,i,e.x,ground+e.y,e.z,e.sx,e.sy,e.sz,e.ry);
     }
     mesh.instanceMatrix.needsUpdate=true;
+    if(mesh.count>0)mesh.computeBoundingSphere();
   }
 
   function refreshTrees(time=0){
@@ -393,6 +383,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     for(let v=0;v<forestBatches.length;v++)for(const mesh of forestBatches[v]){
       mesh.count=forestCounts[v];mesh.instanceMatrix.needsUpdate=true;
       if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+      if(mesh.count>0)mesh.computeBoundingSphere();
     }
   }
 

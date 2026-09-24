@@ -4,11 +4,12 @@ import {createCourseDirector} from '../src/course.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {BATCHED_COURSE_KINDS} from '../src/courseRenderBatches.js';
+import {createCollisionBroadphase} from '../src/collisionBroadphase.js';
 
 const playerZ=2.2;
 const recycleZ=17;
-const renderMinZ=-315;
-const renderMaxZ=28;
+const renderMinZ=-285;
+const renderMaxZ=24;
 const meshDraws={tree:11,rock:3,log:6,wideLog:4,oil:2,banana:6,ramp:13};
 const batched=new Set(BATCHED_COURSE_KINDS);
 
@@ -40,13 +41,31 @@ function generatedSnapshot(seed,speed,difficulty){
     else after+=meshDraws[item.kind]||0;
   }
   for(const kind of seenBatches)after+=meshDraws[kind];
+
+  const broadphase=createCollisionBroadphase({bucketSize:8});
+  const handles=objects.map((object,index)=>({position:{z:object.z},userData:{kind:object.kind,id:index}}));
+  for(let i=0;i<handles.length;i++)broadphase.add(handles[i],objects[i].z);
+  let queries=0,totalCandidates=0,maxCandidates=0;
+  for(let localPlayerZ=playerZ;localPlayerZ>endZ;localPlayerZ-=8){
+    const candidates=broadphase.query(localPlayerZ,3.5,[]);
+    queries++;
+    totalCandidates+=candidates.length;
+    maxCandidates=Math.max(maxCandidates,candidates.length);
+  }
+  const averageCandidates=queries?totalCandidates/queries:0;
   return {
     lookahead,
     active:objects.length,
     rendered:rendered.length,
     legacyDrawCalls:legacy,
     batchedDrawCalls:after,
-    reduction:legacy?1-after/legacy:0
+    reduction:legacy?1-after/legacy:0,
+    broadphase:{
+      averageCandidates:Number(averageCandidates.toFixed(2)),
+      maxCandidates,
+      fullScanCandidates:objects.length,
+      averageReduction:objects.length?1-averageCandidates/objects.length:0
+    }
   };
 }
 
@@ -55,6 +74,8 @@ const high=generatedSnapshot(0xc0ffee,T.MAX_SPEED,1);
 assert(normal.batchedDrawCalls<normal.legacyDrawCalls*.60,'normal-density batching reduction is too small');
 assert(high.batchedDrawCalls<high.legacyDrawCalls*.55,'high-density batching reduction is too small');
 assert(high.lookahead>=560,'max-speed lookahead regressed');
+assert(high.broadphase.averageCandidates<high.active*.20,'dense-course broadphase candidate reduction is too small');
+assert(high.broadphase.maxCandidates<high.active*.35,'dense-course broadphase max bucket fanout is too large');
 
 // Collision/substep audit through the new 300 km/h high end.
 const collisionHalfDepth={
@@ -125,13 +146,27 @@ function longRun(seed,seconds=600){
 }
 
 const memory=longRun(0xdecafbad,600);
-assert(memory.maxActive<260,'active course set grew beyond practical lookahead bound');
-assert(memory.totalCreated<360,'pooled course high-water allocation is unexpectedly large');
+// Dense irregular hazards intentionally raise the object count versus the old
+// sparse-course baseline. Keep the allocation contract proportional to the
+// current max-speed 720m snapshot, while retaining hard ceilings so a runaway
+// generator/pool regression still fails loudly.
+const practicalActiveLimit=Math.min(520,Math.max(320,Math.ceil(high.active*1.35)));
+const practicalCreatedLimit=Math.min(720,Math.max(420,Math.ceil(practicalActiveLimit*1.45)));
+assert(
+  memory.maxActive<practicalActiveLimit,
+  `active course set grew beyond dense-lookahead bound (${memory.maxActive} >= ${practicalActiveLimit})`
+);
+assert(
+  memory.totalCreated<practicalCreatedLimit,
+  `pooled course high-water allocation is unexpectedly large (${memory.totalCreated} >= ${practicalCreatedLimit})`
+);
 assert(memory.growthSecondHalf<45,'pool high-water kept growing like an unbounded allocation');
 
 const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const scoringSource=readFileSync(new URL('../src/airborneScoring.js',import.meta.url),'utf8');
 assert(mainSource.includes("createCourseRenderBatches"),'course batching integration is missing');
+assert(mainSource.includes("createCollisionBroadphase"),'collision broadphase integration is missing');
+assert(mainSource.includes("COLLISION_QUERY_HALF_Z=3.5"),'collision broadphase safety window changed unexpectedly');
 assert(mainSource.includes("removeCourseAt(i);"),'swap-remove course recycling is missing');
 assert(!mainSource.includes("course.splice(i,1);"),'splice returned to the course traversal hot path');
 assert(!mainSource.includes("world.remove(item);"),'pooled course objects still churn the scene graph');

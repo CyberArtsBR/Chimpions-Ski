@@ -15,7 +15,7 @@ BASE_URL=http://localhost:4173 node scripts/benchmark-ski-runtime.mjs
 The same harness can target a public deployment without a branch merge:
 
 ```bash
-BASE_URL=https://chimpions-ski.onrender.com node scripts/benchmark-ski-runtime.mjs
+BASE_URL="$PRODUCTION_URL" node scripts/benchmark-ski-runtime.mjs
 ```
 
 No credentials are required or accepted by the harness.
@@ -60,7 +60,7 @@ The machine-readable report contains these independent phases:
 - **H repeated selector open/close** — measures repeated dialog churn when accessible.
 - **I SKI mode**, **J SNOWBOARD mode**, **K trick-heavy run** — feature detected. On runtimes without the future rider/trick integration these are `PENDING`, not failures.
 
-The future mode comparison records natural speeds and speed bins. It does **not** force 160/180/230 km/h or alter balance. A 230 km/h comparison is produced only when that speed is naturally observed in configured runs.
+The future mode comparison records natural speeds and speed bins. It does **not** force 160/180/300 km/h or alter balance. A 300 km/h cap comparison is produced only when that speed is naturally observed in configured runs.
 
 ## Frame metrics
 
@@ -139,7 +139,7 @@ BASE_URL=http://localhost:4173 LONG_RUN_SECONDS=300 node scripts/benchmark-ski-r
 Ten-minute public run:
 
 ```bash
-BASE_URL=https://chimpions-ski.onrender.com LONG_RUN_SECONDS=600 node scripts/benchmark-ski-runtime.mjs
+BASE_URL="$PRODUCTION_URL" LONG_RUN_SECONDS=600 node scripts/benchmark-ski-runtime.mjs
 ```
 
 For a lightweight smoke benchmark set `LONG_RUN_SECONDS=0`, lower selector/restart iterations, or shorten the optional future-mode windows. Keep `GAMEPLAY_SECONDS` long enough to represent the requested first gameplay phase.

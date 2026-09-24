@@ -1,119 +1,102 @@
 # Chimpions Ski — Public Release Checklist
 
-Use this after Render finishes deploying the integrated runtime. It is designed to take about 5–10 minutes.
+Use this checklist against the deployment that is intended to be public. The same smoke tooling works with Render or Vercel.
 
-## One-command smoke
+## Production target
 
-Normal mode is safe against the current pre-integration baseline. Future snowboard/trick requirements appear as PENDING:
+Set `PRODUCTION_URL` to the deployment being released. If it is unset, the shared tooling fallback is `https://chimpions-ski.onrender.com`.
 
-    BASE_URL=https://chimpions-ski.onrender.com/ node scripts/smoke-ski-production.mjs
+```sh
+PRODUCTION_URL=https://your-production-host.example node scripts/smoke-ski-production.mjs
+STRICT=1 PRODUCTION_URL=https://your-production-host.example node scripts/smoke-ski-production.mjs
+STRICT=1 PRODUCTION_URL=https://your-production-host.example SMOKE_JSON=/tmp/chimpions-ski-smoke.json SMOKE_SCREENSHOT=/tmp/chimpions-ski-smoke.png node scripts/smoke-ski-production.mjs
+```
 
-For the final integrated release, make future ride/trick requirements mandatory:
+For a local preview, use `BASE_URL=http://127.0.0.1:4173`.
 
-    STRICT=1 BASE_URL=https://chimpions-ski.onrender.com/ node scripts/smoke-ski-production.mjs
+## Deploy
 
-Optional machine report and screenshot:
+- Confirm the intended commit is deployed and `version.json` is reachable.
+- Open the configured production URL in a clean/private browser window.
+- There must be no provider error page, redirect loop, blank screen, or missing JS/CSS.
+- Run the strict smoke command and retain its console/JSON with the release notes.
 
-    STRICT=1 BASE_URL=https://chimpions-ski.onrender.com/ SMOKE_JSON=/tmp/chimpions-ski-smoke.json SMOKE_SCREENSHOT=/tmp/chimpions-ski-smoke.png node scripts/smoke-ski-production.mjs
+## Start screen
 
-Preview/local builds use the same runner, for example BASE_URL=http://localhost:4173/.
+- Artwork loads without broken or stretched presentation.
+- START GAME exists and becomes clickable after boot readiness.
+- Back to the Game selection still points to `https://chimp-jump.onrender.com/`.
+- The legacy START SKIING control is not exposed over the artwork.
+- Starting opens the Chimpion selector and proceeds without a fatal error.
 
-## DEPLOY
+## Selector / roster
 
-- Confirm Render shows the intended integrated commit as deployed and healthy.
-- Open https://chimpions-ski.onrender.com/ once in a clean/private browser window.
-- There should be no Render error page, redirect loop, blank screen, or obvious missing JS/CSS.
-- Run the strict smoke command above and keep its console/JSON with release notes.
+- The built-in roster contains exactly 10 cards, in the canonical order:
+  The Archon, The Heretic, The Commodore, The Pioneer, The Punk,
+  The Street Fighter, The Bosun, The Adolescent, The Angsty, The Apologetic.
+- Exactly one local GLB upload action is available.
+- Search changes results and clearing search restores the roster.
+- Selecting a built-in character requests only that selected character GLB.
+- Fresh boot performs zero character GLB requests.
+- Spectator crowd count/model sources remain zero.
+- Selecting a Chimpion transitions to the SKI / SNOWBOARD step.
 
-## START SCREEN
+## Speed contract
 
-- Artwork fills the start screen and is not broken, stretched, or hidden behind runtime UI.
-- Start Game exists and becomes clickable after the Chimpion is ready.
-- Back to the Game selection points exactly to https://chimp-jump.onrender.com/.
-- Legacy START SKIING is not visibly layered over the artwork.
-- Start Game enters countdown/gameplay without a fatal error.
+### SKI
 
-## SELECTOR
+- Start speed: 160 km/h.
+- Progression: +20 km/h every 30 seconds.
+- Maximum: 300 km/h.
+- `window.chimpionsSki().rideMode` is `ski`.
+- Exposed `baseSpeed` and `maxSpeed` match 160 and 300 km/h.
 
-- Open CHOOSE CHIMPION.
-- Catalog feels complete; automated smoke expects more than 180 entries.
-- A real Chimpion appears; fallback is not used unexpectedly.
-- Search changes results and clearing search restores them.
-- Initial open does not render the entire catalog at once.
-- Scroll briefly: no broken-image flood.
-- Close and reopen once.
-- Integrated release: selecting a Chimpion transitions to SKI / SNOWBOARD instead of immediately finishing.
+### SNOWBOARD
 
-## SKI
+- Start speed: 180 km/h.
+- Progression: +20 km/h every 30 seconds.
+- Maximum: 300 km/h.
+- `window.chimpionsSki().rideMode` is `snowboard`.
+- Exposed `baseSpeed` and `maxSpeed` match 180 and 300 km/h.
 
-- Select SKI and start a run.
-- Starting speed is roughly 160 km/h.
-- window.chimpionsSki().rideMode should be ski when that field is exposed.
-- If max profile is exposed it should be about 210 km/h.
-- Do not wait several minutes just to naturally reach max speed during smoke testing.
+Do not spend several minutes waiting to reach the cap during smoke testing; static invariants validate the 30-second / +20 km/h progression.
 
-## SNOWBOARD
+## Tricks
 
-- Change Chimpion/ride and select SNOWBOARD.
-- Starting speed is roughly 180 km/h.
-- window.chimpionsSki().rideMode should be snowboard.
-- If max profile is exposed it should be about 230 km/h, not the ski max.
-- Character/equipment should visibly remain a snowboard setup after countdown begins.
+- Normal SPACE still performs the ordinary jump.
+- A second airborne SPACE does not add an extra vertical boost.
+- DOWN + SPACE exposes 360 intent/event.
+- UP + SPACE exposes BACKFLIP intent/event.
+- `CLEAN LANDING` legacy text does not return.
 
-## TRICKS
+## Audio
 
-- Tap normal SPACE: ordinary jump still works.
-- While airborne, tap SPACE once again: no extra vertical/double-jump boost.
-- Restart if needed, then press DOWN + SPACE: diagnostics/event should identify 360.
-- Restart if needed, then press UP + SPACE: diagnostics/event should identify BACKFLIP.
-- This is a smoke check; do not require a random course path to produce a successful landing every time.
-- Presentation may show 360, BACKFLIP, TRICK FAILED, or AIR TIME.
-- CLEAN LANDING must not appear.
+- `music-full.mp3` is loaded from the Chimpions Ski origin after user interaction.
+- There is no gameplay request to `https://chimp-jump.onrender.com/audio/music-full.mp3`.
+- There are no repeated MP3 floods or required audio 404s.
 
-## AUDIO
+## Course / environment
 
-- Start gameplay with sound enabled.
-- Network should show music-full.mp3 from the Chimpions Ski origin.
-- There must be no gameplay request to https://chimp-jump.onrender.com/audio/music-full.mp3.
-- No audio 404s and no repeated MP3 request flood.
+- The center horizon stays readable and the playable corridor remains visually clear.
+- Hazards remain inside the intended course corridor.
+- `courseAhead` remains near/ahead of `courseLookaheadTarget`.
+- Course rendering diagnostics are finite/non-negative.
+- `courseBatchOverflow` is not true.
+- Current FOREST and ROCK SLALOM sections around 132 m are valid; the invariant still rejects section lengths outside their section-specific contract.
 
-## ENVIRONMENT
+## Restart / results
 
-- Look straight down the course during an ordinary run.
-- The center horizon remains open/clean.
-- Mountains frame left/right rather than occupying the gameplay corridor.
-- Hazards should not look embedded inside central mountains.
-- Side scenery may continue beyond the flags while gameplay obstacles stay in the intended course corridor.
-- If SMOKE_SCREENSHOT was used, inspect that image before sign-off.
-
-## COURSE
-
-In DevTools console:
-
-    window.chimpionsSki()
-
-Check:
-- courseAhead remains comfortably near/ahead of courseLookaheadTarget.
-- activeCourseObjects is positive; the course is not obviously empty.
-- courseDrawCallsEstimate, courseLegacyDrawCallsEstimate, courseBatchDrawCalls, and batchedCourseInstances are finite/non-negative when exposed.
-- courseBatchOverflow is not true.
-- No sustained blank stretch caused by a streaming failure.
-
-## RESTART
-
-- Pause and choose RESTART RUN once, or restart once from a wipeout screen.
-- Countdown/run starts again without reload or fatal error.
-- Score/trick temporary state is cleared.
-- window.chimpionsSki().activeRamp is not stale after restart.
+- Pause/resume and restart complete without reload.
+- Restart clears score/trick/ramp temporary state.
 - Controls, camera, selector, and audio remain responsive.
 
-## RESULTS
+## Sign-off
 
 Release is ready for human sign-off when:
-- Strict smoke has 0 FAIL results.
-- Integrated release has no unexpected PENDING result for ride/trick features.
-- No uncaught exception, repeated console error, JS/CSS failure, GLB failure, or audio 404 is listed under ACTION REQUIRED.
-- Every WARN has been reviewed with a concrete reason.
-- Environment screenshot/manual horizon check looks correct.
 
-If strict smoke fails, keep the JSON report and fix the failing subsystem. Do not weaken a check merely to obtain a green release result.
+- `npm run check`, `npm run build`, and `node checks/assets.mjs` pass.
+- Strict public smoke has 0 FAIL results.
+- No uncaught exception, repeated console error, JS/CSS failure, required GLB failure, or audio 404 remains.
+- Any WARN has a documented explanation.
+
+Do not weaken a current safety invariant solely to make CI green.

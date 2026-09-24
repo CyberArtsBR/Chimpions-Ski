@@ -323,17 +323,17 @@ export function heapDelta(a,b){
 }
 export function modeComparison(ski,snowboard){
   if(ski?.status!=='PASS'||snowboard?.status!=='PASS')return pending('Both SKI and SNOWBOARD phases must be available for comparison');
-  const ski230=ski.speedBins?.['230'];
-  const board230=snowboard.speedBins?.['230'];
+  const ski300=ski.speedBins?.['300'];
+  const board300=snowboard.speedBins?.['300'];
   return {
     status:'PASS',
     ski:{initialSpeedKmh:ski.initialSpeedKmh,averageFps:ski.frames?.averageFps,p95FrameMs:ski.frames?.p95FrameMs,maxSpeedKmh:ski.maxSpeedKmh},
     snowboard:{initialSpeedKmh:snowboard.initialSpeedKmh,averageFps:snowboard.frames?.averageFps,p95FrameMs:snowboard.frames?.p95FrameMs,maxSpeedKmh:snowboard.maxSpeedKmh},
-    speed230:{
-      status:(ski230||board230)?'PASS':'PENDING',
-      reason:(ski230||board230)?undefined:'230 km/h was not naturally reached during configured mode runs; increase MODE_RUN_SECONDS or LONG_RUN_SECONDS without altering game balance',
-      ski:ski230||null,
-      snowboard:board230||null
+    speed300:{
+      status:(ski300||board300)?'PASS':'PENDING',
+      reason:(ski300||board300)?undefined:'300 km/h cap was not naturally reached during configured mode runs; increase MODE_RUN_SECONDS or LONG_RUN_SECONDS without altering game balance',
+      ski:ski300||null,
+      snowboard:board300||null
     }
   };
 }

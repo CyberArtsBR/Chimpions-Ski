@@ -1,10 +1,10 @@
 import {chromium} from '@playwright/test';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import {resolveProductionUrl} from './production-url.mjs';
 
-const DEFAULT_BASE_URL='https://chimpions-ski.onrender.com/';
 const GAME_SELECTION_URL='https://chimp-jump.onrender.com/';
-const BASE_URL=new URL(process.env.BASE_URL||DEFAULT_BASE_URL).href;
+const BASE_URL=resolveProductionUrl(process.env,{allowBaseUrl:true});
 const STRICT=/^(1|true|yes|on)$/i.test(process.env.STRICT||'');
 const SMOKE_JSON=process.env.SMOKE_JSON||'';
 const SMOKE_SCREENSHOT=process.env.SMOKE_SCREENSHOT||'';
@@ -250,7 +250,7 @@ try{
   if(selector){
     const cards=selector.locator('.chimpion-card');
     const rendered=await cards.count();
-    if(rendered>0&&(!finite(ready?.catalogSize)||rendered<Number(ready.catalogSize)))pass('SELECTOR RENDERING','Rendered '+rendered+' cards instead of full catalog');
+    if(rendered>0&&(!finite(ready?.catalogSize)||rendered<Number(ready.catalogSize)))pass('SELECTOR RENDERING','Rendered '+rendered+' cards instead of all built-in roster cards');
     else if(rendered>0)warn('SELECTOR RENDERING','All '+rendered+' cards appear rendered');
     else fail('SELECTOR RENDERING','No cards rendered');
 
@@ -300,7 +300,7 @@ try{
     if(skiChoice.selected){
       const skiRun=await startRun(page);
       String(skiRun?.rideMode||'').toLowerCase()==='ski'&&near(skiRun?.speed,160)?pass('SKI MODE','rideMode=ski; start '+Math.round(kmh(skiRun.speed))+' km/h',skiRun):fail('SKI MODE','Wrong ski mode/start profile',skiRun);
-      finite(skiRun?.maxSpeed)&&Math.abs(kmh(skiRun.maxSpeed)-210)<=6?pass('SKI MAX PROFILE','Max profile ~210 km/h'):warn('SKI MAX PROFILE','Max profile unavailable/unexpected',skiRun?.maxSpeed);
+      finite(skiRun?.maxSpeed)&&Math.abs(kmh(skiRun.maxSpeed)-300)<=2?pass('SKI MAX PROFILE','Max profile 300 km/h'):fail('SKI MAX PROFILE','SKI max is not 300 km/h',kmh(skiRun?.maxSpeed));
     }else fail('SKI MODE','Could not select SKI',skiChoice);
 
     const boardChoice=await chooseRide(page,'snowboard');
@@ -309,7 +309,7 @@ try{
       const boardMode=String(boardRun?.rideMode||'').toLowerCase()==='snowboard';
       boardMode&&near(boardRun?.speed,180)?pass('SNOWBOARD MODE','rideMode=snowboard; start '+Math.round(kmh(boardRun.speed))+' km/h',boardRun):fail('SNOWBOARD MODE','Wrong snowboard mode/start profile',boardRun);
       if(finite(boardRun?.maxSpeed)){
-        Math.abs(kmh(boardRun.maxSpeed)-230)<=6&&Math.abs(kmh(boardRun.maxSpeed)-210)>8?pass('SNOWBOARD MAX PROFILE','Max profile ~230 km/h and differs from ski max'):fail('SNOWBOARD MAX PROFILE','Snowboard max is not ~230 km/h',kmh(boardRun.maxSpeed));
+        Math.abs(kmh(boardRun.maxSpeed)-300)<=2?pass('SNOWBOARD MAX PROFILE','Max profile 300 km/h shared with SKI'):fail('SNOWBOARD MAX PROFILE','Snowboard max is not 300 km/h',kmh(boardRun.maxSpeed));
       }else warn('SNOWBOARD MAX PROFILE','maxSpeed not exposed');
     }else fail('SNOWBOARD MODE','Could not select SNOWBOARD',boardChoice);
   }else{

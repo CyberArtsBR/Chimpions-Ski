@@ -34,7 +34,7 @@ The integrated runtime has one authoritative ride-mode/profile state and one aut
 
 ## Speed profile contract
 
-SKI remains 160 km/h start, +10 km/h each 30 seconds, maximum 210 km/h. SNOWBOARD uses 180 km/h start, +10 km/h each 30 seconds, maximum 230 km/h. Landing, damping, recovery, and clamping code consume the active mode profile; no snowboard path may fall back to the ski-only 210 km/h cap.
+SKI starts at 160 km/h and SNOWBOARD starts at 180 km/h. Both use +20 km/h tiers every 30 seconds and both cap at 300 km/h. Landing, damping, recovery, and clamping code consume the active mode profile; legacy 210/230 km/h clamps are not part of the current product.
 
 ## Input ownership
 

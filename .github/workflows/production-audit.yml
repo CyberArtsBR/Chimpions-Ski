@@ -25,6 +25,6 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Audit deployed desktop build
         env:
-          CHIMPIONS_SKI_PRODUCTION_URL: https://chimpions-ski.onrender.com
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
           CHIMPIONS_SKI_EXPECTED_COMMIT: ${{ github.event_name == 'workflow_dispatch' && github.sha || github.event.workflow_run.head_sha }}
         run: node checks/production-browser.mjs

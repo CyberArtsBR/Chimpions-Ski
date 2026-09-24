@@ -99,7 +99,7 @@ const concepts={
  input:['keydown','keyup','readPad','navigator.getGamepads','axisY','buttons[0]','edges.pressed'],
  score:['score','combo','clearEvent','trickEvent','trickPoints'],
  visual:['rotation','quaternion','visualPivot','trickPivot','riderPivot'],
- speed:['BASE_SPEED','MAX_SPEED','maxSpeed','180','230','210','58.3333','63.888']
+ speed:['BASE_SPEED','MAX_SPEED','maxSpeed','160','180','300','5.5556','83.3333']
 };
 for(const [concept,terms] of Object.entries(concepts)){
  const active=[];
@@ -115,8 +115,8 @@ const gamepadOwners=branches.filter(function(b){return /readPad|navigator\.getGa
 if(gamepadOwners.length>1)warnings.push('Gamepad handling touched across '+gamepadOwners.join(', '));
 if(/\b(?:player|physicsRoot|collisionRoot|camera)\.(?:rotation|quaternion)\s*[.=]/.test(reports.tricks.joined))
  warnings.push('TRICKS appears to rotate player/physics/collision/camera root; tricks must use a visual pivot only.');
-if(/snowboard/i.test(reports.rider.joined)&&/(?:\b210\b|58\.3333|SKI_TUNING\.MAX_SPEED)/.test(reports.rider.joined))
- warnings.push('RIDER contains snowboard plus ski-max markers; verify snowboard landing/progression never clamps to 210 km/h.');
+if(/snowboard/i.test(reports.rider.joined)&&/(?:\b210\b|\b230\b|58\.3333|63\.8889)/.test(reports.rider.joined))
+ warnings.push('RIDER contains legacy 210/230 km/h markers; verify the current shared 300 km/h cap and +20 km/h tier contract.');
 
 const lines=['# Ski Integration Audit','','Base: '+specs.base,'','- environment: '+specs.environment,'- rider: '+specs.rider,'- tricks: '+specs.tricks,'','## Availability',
  unavailable.length?'PENDING refs/snapshots: '+unavailable.join(', '):'All requested refs/snapshots resolved.','','## Changed files'];
