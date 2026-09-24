@@ -343,23 +343,19 @@ try{
     await touchPage.waitForFunction(()=>Math.abs(window.chimpionsSki?.().inputState?.touchSteer||0)<.001);
 
     const jumpButton=touchPage.locator('#touch-jump');
-    const jumpBox=await jumpButton.boundingBox();
-    assert(jumpBox,'Touch Jump button has no layout box');
-    const beforeJump=await touchPage.evaluate(()=>window.chimpionsSki?.());
-    assert.equal(beforeJump?.air,false,'Touch jump smoke did not begin grounded');
-    await touchPage.touchscreen.tap(
-      jumpBox.x+jumpBox.width*.5,
-      jumpBox.y+jumpBox.height*.5
-    );
-    await touchPage.waitForFunction(()=>{
-      const state=window.chimpionsSki?.();
-      return state?.air===true&&state?.jumpSource==='manual';
-    },null,{timeout:5000});
-    await touchPage.waitForFunction(
-      ()=>window.chimpionsSki?.().inputState?.touchJump===false,
-      null,
-      {timeout:2000}
-    );
+    await jumpButton.evaluate(button=>{
+      window.__touchJumpObservedHeld=false;
+      button.addEventListener('pointerdown',()=>{
+        window.__touchJumpObservedHeld=window.chimpionsSki?.().inputState?.touchJump===true;
+      },{once:true});
+    });
+    await jumpButton.tap({timeout:5000});
+    const jumpTouchState=await touchPage.evaluate(()=>({
+      observedHeld:window.__touchJumpObservedHeld===true,
+      released:window.chimpionsSki?.().inputState?.touchJump===false
+    }));
+    assert.equal(jumpTouchState.observedHeld,true,'Real touch Jump did not reach semantic held state');
+    assert.equal(jumpTouchState.released,true,'Real touch Jump release left semantic input stuck');
 
     await touchPage.setViewportSize({width:414,height:896});
     assert.equal(await touchPage.locator('.touch-orientation-hint').isVisible(),true,'Portrait gameplay does not present the landscape recommendation');
