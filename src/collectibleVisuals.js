@@ -24,12 +24,9 @@ const _tipMaterial=new THREE.MeshStandardMaterial({
   roughness:.82,
   metalness:0
 });
-const _highlightMaterial=new THREE.MeshBasicMaterial({
-  color:0xfff3a8,
-  transparent:true,
-  opacity:.78,
-  depthWrite:false
-});
+const _highlightMaterial=new THREE.MeshBasicMaterial({color:0xfff3a8,transparent:true,opacity:.86,depthWrite:false});
+const _haloGeometry=new THREE.RingGeometry(.38,.48,28);
+const _haloMaterial=new THREE.MeshBasicMaterial({color:0xffd84a,transparent:true,opacity:.20,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
 
 /**
  * Shared, low-cost collectible mesh. The geometry is deliberately asymmetric
@@ -60,11 +57,10 @@ export function createBananaVisual(bodyMaterial){
   stem.castShadow=true;
   root.add(stem);
 
-  const highlight=new THREE.Mesh(_highlightGeometry,_highlightMaterial);
-  highlight.renderOrder=6;
-  root.add(highlight);
+  const highlight=new THREE.Mesh(_highlightGeometry,_highlightMaterial);highlight.renderOrder=6;root.add(highlight);
+  const halo=new THREE.Mesh(_haloGeometry,_haloMaterial);halo.position.z=-.055;halo.renderOrder=5;halo.castShadow=false;root.add(halo);
 
-  root.scale.set(1.17,1.17,1.17);
+  root.scale.set(1.19,1.19,1.19);
   root.rotation.z=-.04;
   return root;
 }

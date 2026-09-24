@@ -30,9 +30,26 @@ const _barkTexture=makeBarkTexture();
 const _barkMaterial=new THREE.MeshStandardMaterial({color:0x87583b,map:_barkTexture,roughness:.78,metalness:0,flatShading:true});
 const _pineMaterial=new THREE.MeshStandardMaterial({color:0x0d594b,roughness:.72,metalness:0,flatShading:true});
 const _rockMaterial=new THREE.MeshStandardMaterial({color:0x455f6c,roughness:.90});
-const _bananaMaterial=new THREE.MeshStandardMaterial({color:0xffd32f,roughness:.36,emissive:0x784500,emissiveIntensity:.19});
+const _bananaMaterial=new THREE.MeshStandardMaterial({color:0xffd32f,roughness:.30,emissive:0x8d5700,emissiveIntensity:.31});
 const _logMaterial=new THREE.MeshStandardMaterial({color:0x77482c,roughness:.76,metalness:0,flatShading:true});
 const _logEndMaterial=new THREE.MeshStandardMaterial({color:0xc08b58,roughness:.80,metalness:0,flatShading:true});
+const _groundPatchGeometry=new THREE.CylinderGeometry(1,1,.018,24);
+const _groundPatchMaterial=new THREE.MeshBasicMaterial({color:0x628094,transparent:true,opacity:.13,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+const _snowBuildupGeometry=new THREE.TorusGeometry(1,.075,5,24);
+const _snowBuildupMaterial=new THREE.MeshStandardMaterial({color:0xf6fbff,roughness:.76,metalness:0,transparent:true,opacity:.82,depthWrite:false});
+
+function addObstacleGrounding(root,kind){
+  if(!root||root.userData.groundingAdded||kind==='banana')return;
+  const scales={tree:[.72,.62],rock:[.77,.66],log:[2.02,.42],wideLog:[2.72,.50],ramp:[1.34,1.72]}[kind];
+  if(!scales)return;
+  root.userData.groundingAdded=true;
+  const patch=new THREE.Mesh(_groundPatchGeometry,_groundPatchMaterial);
+  patch.name='snow-contact-patch';patch.position.y=.006;patch.scale.set(scales[0],1,scales[1]);
+  patch.castShadow=false;patch.receiveShadow=false;patch.renderOrder=2;root.add(patch);
+  const berm=new THREE.Mesh(_snowBuildupGeometry,_snowBuildupMaterial);
+  berm.name='snow-contact-berm';berm.rotation.x=Math.PI/2;berm.position.y=.026;berm.scale.set(scales[0]*.94,scales[1]*.94,1);
+  berm.castShadow=false;berm.receiveShadow=false;berm.renderOrder=3;root.add(berm);
+}
 
 function wave(seed){
   const x=Math.sin(seed*12.9898+78.233)*43758.5453;
@@ -152,7 +169,10 @@ export function decorateCourseObject(root,kind){
   if(!root||root.userData.environmentDecorated)return root;
   root.userData.environmentDecorated=true;
 
-  if(applyPremiumObstacle(root,kind))return root;
+  if(applyPremiumObstacle(root,kind)){
+    addObstacleGrounding(root,kind);
+    return root;
+  }
   if(kind==='ramp'){
     const deck=root.children[0];
     if(deck?.isMesh){
@@ -188,6 +208,7 @@ export function decorateCourseObject(root,kind){
 
     root.userData.visualPrototype='readable-ramp-v2';
   }
+  addObstacleGrounding(root,kind);
   return root;
 }
 
@@ -315,7 +336,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       layer.points.visible=false;
     }
 
-    snowParticles.setDensityMultiplier(0);
+    snowParticles.setDensityMultiplier(environmentQuality.particleDensityMultiplier);
     surfaceDetail.setDetailLevel(environmentQuality.snowDetailLevel);
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
     boundaryMarkers.setDecorativeShadows(false);
@@ -403,6 +424,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     ambientFlybys.reset();
     landscape.reset();
     contactShadow.position.y=-100;
+    contactShadow.visible=false;
     contactShadow.material.opacity=.18;
     contactShadow.scale.set(1.45,.52,1);
     dayCycle.apply(0);
@@ -489,11 +511,15 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
     boundaryMarkers.update(dt,worldSpeed);
 
-    contactShadow.position.set(playerX,Math.max(.006,groundY-.108),playerZ+.02);
-    const groundAlpha=air?0:THREE.MathUtils.clamp(1-landingPulse*.12,.72,1);
-    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,.21*groundAlpha,1-Math.pow(1-(air?.22:.38),dt*60));
-    const contactScale=1+landingPulse*.12;
-    contactShadow.scale.set(1.42*contactScale,.5*contactScale,1);
+    const jumpHeight=Math.max(0,playerY-groundY);
+    const heightFade=THREE.MathUtils.clamp(1-jumpHeight/4.6,0,1);
+    const landingAccent=1+THREE.MathUtils.clamp(landingPulse,0,1)*.13;
+    contactShadow.visible=!!running&&heightFade>.018;
+    contactShadow.position.set(playerX,Math.max(.006,groundY+.012),playerZ+.02);
+    const targetShadowOpacity=.205*heightFade*(air?.84:1)*landingAccent;
+    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,targetShadowOpacity,1-Math.pow(.0009,dt));
+    const airborneSpread=1+THREE.MathUtils.clamp(jumpHeight/4.6,0,1)*.58;
+    contactShadow.scale.set(1.42*airborneSpread*landingAccent,.50*airborneSpread,1);
   }
 
   return {

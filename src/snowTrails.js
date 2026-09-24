@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const TRACK_Y_OFFSET=.010;
-const TRACK_LIFE=5.4;
+const TRACK_LIFE=6.8;
 
 const vertexShader=`
 attribute float aAlpha;
@@ -20,11 +20,13 @@ varying float vAlpha;
 varying float vSide;
 void main(){
   if(vAlpha<=0.001)discard;
-  float edge=pow(clamp(abs(vSide),0.0,1.0),1.7);
-  vec3 groove=vec3(0.31,0.50,0.60);
-  vec3 snowEdge=vec3(0.76,0.88,0.93);
-  vec3 color=mix(groove,snowEdge,edge*.72);
-  float feather=1.0-smoothstep(.78,1.0,abs(vSide))*.42;
+  float side=clamp(abs(vSide),0.0,1.0);
+  float edge=pow(side,1.55);
+  float compressed=1.0-smoothstep(.18,.62,side);
+  float berm=smoothstep(.52,.78,side)*(1.0-smoothstep(.84,1.0,side));
+  vec3 groove=vec3(0.27,0.45,0.56),packed=vec3(0.48,0.66,0.74),snowEdge=vec3(0.80,0.91,0.95);
+  vec3 color=mix(groove,snowEdge,edge*.68);color=mix(color,packed,compressed*.34);color+=snowEdge*berm*.12;
+  float feather=1.0-smoothstep(.80,1.0,side)*.48;
   gl_FragColor=vec4(color,vAlpha*feather);
 }
 `;
@@ -106,13 +108,13 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     const carve=Math.abs(edge);
     const outside=Math.max(0,-sideSign*edge);
     const halfWidth=snowboard
-      ?.18+carve*.055
-      :(.044+carve*.008+outside*.006);
+      ?.205+carve*.075
+      :(.047+carve*.010+outside*.008);
     const px=-dz/length*halfWidth;
     const pz=dx/length*halfWidth;
     const strength=snowboard
-      ?.34+carve*.22
-      :.28+carve*.14+outside*.15;
+      ?.38+carve*.25
+      :.30+carve*.16+outside*.16;
     const v=index*4;
 
     setVertex(v,prevX[skiIndex]-px,prevY[skiIndex],prevZ[skiIndex]-pz,strength);
@@ -188,7 +190,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
       if(!active[i])continue;
       ages[i]+=dt;
       const v=i*4;
-      const fadeStart=1.7;
+      const fadeStart=2.35;
       const fade=ages[i]<=fadeStart?1:Math.max(0,1-(ages[i]-fadeStart)/(TRACK_LIFE-fadeStart));
       const alpha=strengths[i]*fade;
 

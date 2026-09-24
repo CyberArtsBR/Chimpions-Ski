@@ -173,17 +173,22 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     `+shader.fragmentShader;
     shader.fragmentShader=shader.fragmentShader.replace('#include <map_fragment>',`#include <map_fragment>
       vec2 snowP=vec2(vSnowWorld.x,vSnowWorld.z-snowTravel);
-      float snowMacro=snowNoise(snowP*.055)*.67+snowNoise(snowP*.143+17.0)*.33;
+      float snowLarge=snowNoise(snowP*.022+vec2(4.0,-9.0));
+      float snowMacro=snowNoise(snowP*.055)*.58+snowNoise(snowP*.143+17.0)*.27+snowLarge*.15;
       float snowPacked=1.0-smoothstep(7.0,13.0,abs(snowP.x));
       float snowMeso=snowNoise(snowP*vec2(.48,.16));
+      float compressed=smoothstep(.61,.84,snowNoise(snowP*vec2(.22,.055)+vec2(9.0,-14.0)))*snowPacked;
+      float iceField=snowNoise(snowP*.105+31.0)*.68+snowNoise(snowP*.031-11.0)*.32;
+      float iceMask=smoothstep(.77,.91,iceField)*(1.0-snowPacked*.28)*snowDetail;
       float snowPhase=snowP.x*68.0+sin(snowP.y*.16)*.7+snowMeso*1.3;
       float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
       float grooming=sin(snowPhase)*snowAA*snowPacked*.012*snowDetail;
       vec3 snowCold=mix(vec3(.77,.88,.99),vec3(1.0),smoothstep(.15,.85,snowMacro));
-      diffuseColor.rgb*=snowCold*(.97+snowMeso*.035+grooming);
+      diffuseColor.rgb*=snowCold*(.965+snowMeso*.034+snowLarge*.018+grooming-compressed*.012);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.91,.965,1.035),iceMask*.18);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      roughnessFactor=clamp(roughnessFactor+snowMeso*.13-snowPacked*.055,.57,.96);
+      roughnessFactor=clamp(roughnessFactor+snowMeso*.12-snowPacked*.052-compressed*.045-iceMask*.17,.50,.96);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
       float crystalDistance=1.0-smoothstep(8.0,28.0,length(vViewPosition));
@@ -192,10 +197,11 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float crystal=pow(max(0.0,snowHash(floor(crystalGrid))-.965)/.035,5.0);
       float glint=pow(max(0.0,dot(normal,normalize(vViewPosition))),18.0);
       outgoingLight+=vec3(.72,.85,1.0)*crystal*glint*crystalDistance*crystalAA*.18*snowDetail;
+      outgoingLight+=vec3(.45,.64,.82)*iceMask*pow(max(0.0,dot(normalize(normal),normalize(vViewPosition))),10.0)*.10;
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v1';
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v2';
 
   let currentDetailLevel=1;
   function setDetailLevel(value=1){

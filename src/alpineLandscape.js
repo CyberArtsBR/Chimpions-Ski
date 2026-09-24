@@ -5,6 +5,7 @@ import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
 const dummy=new THREE.Object3D();
+const forestTint=new THREE.Color(),forestNear=new THREE.Color(0x31534e),forestFar=new THREE.Color(0x718b94);
 function mountainGeometry(seed){
   const nx=64,nz=28,p=[],uv=[],indices=[],colors=[];
   for(let z=0;z<=nz;z++)for(let x=0;x<=nx;x++){
@@ -88,15 +89,15 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
       const slot=forestChunkCounts[chunkIndex]++;
       dummy.position.set(e.x,terrainHeight(e.x,z-travel)-.05,z);
       dummy.rotation.set(0,e.ry,0);
-      dummy.scale.set(e.s*.72,e.s,e.s*.72);
-      dummy.updateMatrix();
-      forestChunks[chunkIndex].setMatrixAt(slot,dummy.matrix);
+      dummy.scale.set(e.s*.72,e.s,e.s*.72);dummy.updateMatrix();forestChunks[chunkIndex].setMatrixAt(slot,dummy.matrix);
+      const depthFade=THREE.MathUtils.clamp((-z-58)/235,0,1);forestTint.copy(forestNear).lerp(forestFar,depthFade*.58);forestTint.offsetHSL((hash(i+101)-.5)*.015,0,(hash(i+203)-.5)*.045);forestChunks[chunkIndex].setColorAt(slot,forestTint);
     }
     for(let i=0;i<forestChunks.length;i++){
       const mesh=forestChunks[i];
       mesh.count=forestChunkCounts[i];
       mesh.visible=mesh.count>0;
       mesh.instanceMatrix.needsUpdate=true;
+      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
       if(mesh.visible)mesh.computeBoundingSphere();
     }
   }
