@@ -758,6 +758,17 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       options.push('ROCK SLALOM','FOREST','GATE','LOG JUMP');
     }
 
+    // Sustained top-speed pressure must increase actual playable density, not
+    // merely swap the phase label. Bias toward dense non-jump families so the
+    // post-300 sparse-gap pass has room to add fair, route-safe hazards.
+    const postMaxPressure=clamp(Number(runPlan?.postMaxPressure)||0,0,1);
+    if(postMaxPressure>0){
+      const repeats=1+Math.floor(postMaxPressure*3);
+      for(let i=0;i<repeats;i++){
+        options.push('FOREST','ROCK SLALOM','GATE','OPEN CARVE');
+      }
+    }
+
     return options[Math.floor(random()*options.length)]||'OPEN CARVE';
   }
 
