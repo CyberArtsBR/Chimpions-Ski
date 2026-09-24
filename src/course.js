@@ -943,7 +943,34 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       repairs++;
       result=validate();
     }
-    return {...result,repairs};
+
+    // Core authored rows normally preserve their tracked route. If an unusual
+    // combination still eliminates every human-reachable interval, reject only
+    // the blocking member nearest the failure point. This second stage is
+    // bounded and deterministic: no unbounded random regeneration and no
+    // weakening of collision/perception margins.
+    let hardRepairs=0;
+    while(!result.valid&&hardRepairs<6){
+      const failureZ=Number.isFinite(result.failureZ)?result.failureZ:(startZ+endZ)*.5;
+      let candidateIndex=-1;
+      let candidateScore=Infinity;
+      for(let i=0;i<placements.length;i++){
+        const placement=placements[i];
+        if(!PHYSICAL_HAZARDS.has(placement.kind)||placement.jumpTarget||placement.landingProtected)continue;
+        const distance=Math.abs(placement.z-failureZ);
+        const structuralPenalty=placement.commitmentDecision?180:0;
+        const score=distance+structuralPenalty;
+        if(score<candidateScore){
+          candidateScore=score;
+          candidateIndex=i;
+        }
+      }
+      if(candidateIndex<0)break;
+      placements.splice(candidateIndex,1);
+      hardRepairs++;
+      result=validate();
+    }
+    return {...result,repairs,hardRepairs};
   }
 
   function populateFlight(placements,rampZ,safeX,envelope,sectionKind){
