@@ -16,6 +16,23 @@ export function createRiderController({visualRoot,disposeRider=null}={}){
     rider?.userData?.setRideMode?.(mode);
   }
 
+  function updatePose(frame){
+    rider?.userData?.updateSkiPose?.(frame);
+  }
+
+  function snapshot(){
+    return {
+      riderAttached:!!rider,
+      equipmentType:rider?.userData?.equipmentType||'unknown',
+      poseMode:rider?.userData?.poseMode||'unknown',
+      riderVisual:rider?.userData?.riderVisual?.name||'',
+      skierFallback:!!rider?.userData?.fallback,
+      rigReady:!!rider?.userData?.rigReady,
+      localAvatarComplexity:rider?.userData?.localAvatarComplexity||null,
+      modelForwardAxis:rider?.userData?.modelForwardAxis||'procedural'
+    };
+  }
+
   function dispose(){
     replace(null,{disposePrevious:true});
   }
@@ -23,7 +40,11 @@ export function createRiderController({visualRoot,disposeRider=null}={}){
   return {
     replace,
     setRideMode,
+    updatePose,
+    snapshot,
     dispose,
-    get rider(){return rider;}
+    get rider(){return rider;},
+    get trackSpacing(){return rider?.userData?.skiTrackSpacing;},
+    get trailContacts(){return rider?.userData?.trailContacts??rider?.userData?.skis;}
   };
 }
