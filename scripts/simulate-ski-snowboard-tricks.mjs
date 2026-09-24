@@ -13,8 +13,8 @@ const C=Object.freeze({
   manualTakeoffOffset:.045,
   rampJumpBaseVelocity:13.4,
   rampJumpSpeedFactor:.095,
-  ski:{baseKmh:160,maxKmh:210,tierSeconds:30,tierKmh:10},
-  snowboard:{baseKmh:180,maxKmh:230,tierSeconds:30,tierKmh:10},
+  ski:{baseKmh:160,maxKmh:300,tierSeconds:30,tierKmh:20},
+  snowboard:{baseKmh:180,maxKmh:300,tierSeconds:30,tierKmh:20},
   substepHz:180,
   spinDps:620,
   backflipDps:300,
@@ -22,12 +22,12 @@ const C=Object.freeze({
   ramp:{engageMin:.45,engageMax:1.72,lip:-1.42,collisionRadiusZ:1.58,collisionPadZ:.20,pitch:.18,deckBase:.34,deckRise:.11},
   hazards:{rock:.58,oil:.74,log:.48,wideLog:.58,tree:.68},
   clearances:{rock:.78,oil:.10,log:.60,wideLog:.82,tree:3.70},
-  lookahead:{min:560,seconds:11,max:660},
+  lookahead:{min:560,seconds:11,max:720},
   landingCorridorHalfWidth:4.15
 });
 
-const skiSpeeds=[160,170,180,190,200,210];
-const snowboardSpeeds=[180,190,200,210,220,230];
+const skiSpeeds=[160,180,200,220,240,260,280,300];
+const snowboardSpeeds=[180,200,220,240,260,280,300];
 const allSpeeds=[...new Set([...skiSpeeds,...snowboardSpeeds])].sort((a,b)=>a-b);
 const kmhToMps=kmh=>kmh/3.6;
 const r=(n,d=3)=>Number(n.toFixed(d));
@@ -44,7 +44,7 @@ function rampDeckHeight(approachDepth){
 }
 
 function courseEnvelope(kmh){
-  // Mirrors src/rampTrajectory.js on the audited rider head. Important: it clamps to SKI_TUNING.MAX_SPEED (210 km/h).
+  // Mirrors the current rampTrajectory speed ceiling: the shared 300 km/h maximum.
   const speed=kmhToMps(kmh);
   const safe=clamp(speed,kmhToMps(C.ski.baseKmh)*.9,kmhToMps(C.ski.maxKmh));
   const rampVy=C.rampJumpBaseVelocity+safe*C.rampJumpSpeedFactor;
@@ -151,13 +151,13 @@ const landingTolerance={
   frames:[30,60,90,120,144].map(fps=>({fps,spinFrames:(C.completionEpsilonDeg/C.spinDps)*fps,backflipFrames:(C.completionEpsilonDeg/C.backflipDps)*fps}))
 };
 
-const travel230=kmhToMps(230)/C.substepHz;
+const travel300=kmhToMps(300)/C.substepHz;
 const collisionSafety=Object.entries(C.hazards).map(([kind,radiusZ])=>{
   const window=radiusZ+C.ramp.collisionPadZ;
-  return {kind,radiusZ,window,travel230,windowToStep:window/travel230,classification:travel230<window?'SAFE':'UNSAFE'};
+  return {kind,radiusZ,window,travel300,windowToStep:window/travel300,classification:travel300<window?'SAFE':'UNSAFE'};
 });
-collisionSafety.push({kind:'ramp engagement',window:C.ramp.engageMax-C.ramp.engageMin,travel230,windowToStep:(C.ramp.engageMax-C.ramp.engageMin)/travel230,classification:travel230<(C.ramp.engageMax-C.ramp.engageMin)?'SAFE':'UNSAFE'});
-collisionSafety.push({kind:'ramp lip containment',window:(C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip),travel230,windowToStep:((C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip))/travel230,classification:travel230<((C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip))?'MARGINAL':'UNSAFE'});
+collisionSafety.push({kind:'ramp engagement',window:C.ramp.engageMax-C.ramp.engageMin,travel300,windowToStep:(C.ramp.engageMax-C.ramp.engageMin)/travel300,classification:travel300<(C.ramp.engageMax-C.ramp.engageMin)?'SAFE':'UNSAFE'});
+collisionSafety.push({kind:'ramp lip containment',window:(C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip),travel300,windowToStep:((C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip))/travel300,classification:travel300<((C.ramp.collisionRadiusZ+C.ramp.collisionPadZ)-Math.abs(C.ramp.lip))?'MARGINAL':'UNSAFE'});
 
 function lookaheadAt(kmh){
   const speed=kmhToMps(kmh);
@@ -166,10 +166,10 @@ function lookaheadAt(kmh){
 }
 const lookahead=allSpeeds.map(lookaheadAt);
 
-const ramp230=ramp.find(x=>x.kmh===230);
+const ramp300=ramp.find(x=>x.kmh===230);
 const actionRequired=[];
-if(ramp230.courseSafeSpeedKmh<230&&ramp230.rearMargin<1){
-  actionRequired.push(`Ramp course envelope clamps 230 km/h snowboard to ${r(ramp230.courseSafeSpeedKmh,1)} km/h; worst predicted touchdown is only ${r(ramp230.rearMargin,3)} m inside protectedEnd.`);
+if(ramp300.courseSafeSpeedKmh<300&&ramp300.rearMargin<1){
+  actionRequired.push(`Ramp course envelope clamps 300 km/h ride to ${r(ramp300.courseSafeSpeedKmh,1)} km/h; worst predicted touchdown is only ${r(ramp300.rearMargin,3)} m inside protectedEnd.`);
 }
 if(secondPressDelays.find(x=>x.delayMs===100)?.acceptedMargin<1/C.substepHz){
   actionRequired.push('Manual second-press 360 at 100 ms has less than one 180 Hz physics substep of accepted timing margin.');
@@ -201,7 +201,7 @@ function printHuman(){
   printTable('Second-press 360',secondPressDelays.map(x=>({delayMs:x.delayMs,availableS:r(x.available),rotationDeg:r(x.rotationAtTouchdown,1),marginMs:r(x.acceptedMargin*1000,1),classification:x.classification})));
   console.log(`\nBackflip: full=${r(backflipFullTime,4)} s, accepted >=352°=${r(backflipAcceptedTime,4)} s, manual reaches ${r(backflipAnalysis.manual.rotationAtTouchdown,1)}° (intentional fail)`);
   printTable('Ramp backflip margins',backflipAnalysis.ramp.map(x=>({kmh:x.kmh,marginMs:r(x.acceptedMargin*1000,1),classification:x.classification})));
-  printTable('230 km/h collision safety',collisionSafety.map(x=>({kind:x.kind,windowM:r(x.window),stepM:r(x.travel230),ratio:r(x.windowToStep),classification:x.classification})));
+  printTable('300 km/h collision safety',collisionSafety.map(x=>({kind:x.kind,windowM:r(x.window),stepM:r(x.travel300),ratio:r(x.windowToStep),classification:x.classification})));
   printTable('Course lookahead',lookahead.map(x=>({kmh:x.kmh,lookaheadM:r(x.distance),secondsAhead:r(x.secondsAhead)})));
   if(actionRequired.length){console.log('\nACTION REQUIRED');for(const item of actionRequired)console.log(`- ${item}`);}else console.log('\nNo ACTION REQUIRED findings.');
 }

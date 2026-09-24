@@ -6,6 +6,7 @@ import {OBSTACLE_TUNING} from '../src/obstacleTuning.js';
 import {estimateRampFlightEnvelope} from '../src/rampTrajectory.js';
 import {maxReachableLateralDelta} from '../src/courseSafety.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
+import {getCourseSectionLengthBounds} from '../src/courseSectionContract.js';
 
 function rng(seed=0x5f3759df){
   let x=seed>>>0;
@@ -59,9 +60,12 @@ for(const seed of seeds){
     totalMeters+=section.length;
 
     assert(COURSE_TYPES.includes(section.type),'unknown course section type');
-    const maxRampLength=Math.ceil(62+estimateRampFlightEnvelope(T.MAX_SPEED).protectedEndDistance);
-    const maxAllowed=(section.type==='RAMP'||section.type==='LOG JUMP')?maxRampLength:120;
-    assert(section.length>=20&&section.length<=maxAllowed,'implausible section length');
+    const maxJumpLength=Math.ceil(62+estimateRampFlightEnvelope(T.MAX_SPEED).protectedEndDistance);
+    const lengthBounds=getCourseSectionLengthBounds(section.type,{maxJumpLength});
+    assert(
+      section.length>=lengthBounds.min&&section.length<=lengthBounds.max,
+      `implausible section length: ${section.type} ${section.length}m outside ${lengthBounds.min}-${lengthBounds.max}m`
+    );
     assert(section.endZ<z,'section does not advance downhill');
 
     if(previousType==='RAMP'||previousType==='LOG JUMP'){

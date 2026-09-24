@@ -33,7 +33,7 @@ assert(runner.includes("trickState"),'Future trick diagnostics must be feature-d
 assert(runner.includes("ArrowDown")&&runner.includes("Space"),'Future 360 workload must be triggerable without runtime changes');
 
 assert(guide.includes('BASE_URL=http://localhost:4173'),'Guide must document local mode');
-assert(guide.includes('BASE_URL=https://chimpions-ski.onrender.com'),'Guide must document public deployment mode');
+assert(guide.includes('BASE_URL="$PRODUCTION_URL"'),'Guide must document configurable public deployment mode');
 assert(guide.includes('LONG_RUN_SECONDS=300')&&guide.includes('LONG_RUN_SECONDS=600'),'Guide must document 5 and 10 minute full-run targets');
 assert(guide.includes('PENDING'),'Guide must explain optional future-feature status');
 

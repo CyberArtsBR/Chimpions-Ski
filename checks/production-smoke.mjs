@@ -45,6 +45,8 @@ try{
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
   const ski=await page.evaluate(()=>window.chimpionsSki());
   assert.equal(ski.rideMode,'ski');
+  assert.equal(Math.round(ski.baseSpeed*3.6),160,'SKI base speed must be 160 km/h');
+  assert.equal(Math.round(ski.maxSpeed*3.6),300,'SKI max speed must be 300 km/h');
   assert.equal(ski.startCrowdCount,0);
   assert.equal(ski.startCrowdModelSources,0);
   assert.equal(new Set(built.glbs).size,1,'Normal gameplay should request only the selected built-in GLB');
@@ -86,6 +88,8 @@ try{
   await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
   const snowboard=await custom.evaluate(()=>window.chimpionsSki());
   assert.equal(snowboard.rideMode,'snowboard');
+  assert.equal(Math.round(snowboard.baseSpeed*3.6),180,'SNOWBOARD base speed must be 180 km/h');
+  assert.equal(Math.round(snowboard.maxSpeed*3.6),300,'SNOWBOARD max speed must be 300 km/h');
   assert.equal(snowboard.selectedAvatarLocal,true,'Uploaded rider must be marked local-only');
   assert.equal(local.glbs.length,0,'Custom gameplay must create zero server GLB traffic');
   assert.equal(snowboard.startCrowdCount,0);

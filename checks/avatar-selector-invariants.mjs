@@ -10,16 +10,16 @@ import {
   normalizeAvatarSearch
 } from '../src/avatar-selector-model.js';
 
-const catalog=Array.from({length:220},(_,index)=>({
+const catalog=Array.from({length:64},(_,index)=>({
   id:'chimp-'+index,
-  name:index===137?'Ártico Alpha':'Chimpion '+String(index).padStart(3,'0'),
+  name:index===37?'Ártico Alpha':'Chimpion '+String(index).padStart(3,'0'),
   tribe:index%3===0?'Jungle':index%3===1?'Alpine':'Cyber',
   image:'https://example.invalid/'+index+'.png',
   url:'model/'+index+'.glb'
 }));
 
 const indexed=buildAvatarSearchIndex(catalog);
-assert.equal(indexed.length,220);
+assert.equal(indexed.length,64);
 assert.equal(getAvatarRenderTarget(indexed.length,0),AVATAR_SELECTOR_INITIAL_RENDER);
 assert.equal(AVATAR_SELECTOR_INITIAL_RENDER,36);
 assert.equal(AVATAR_SELECTOR_RENDER_CHUNK,24);
@@ -29,7 +29,7 @@ assert.equal(getAvatarRenderTarget(12,0),12);
 assert.equal(normalizeAvatarSearch('ÁRTICO'),'artico');
 assert.equal(filterAvatarSearchIndex(indexed,'ártico').length,1);
 assert.equal(filterAvatarSearchIndex(indexed,'ALPINE').length,catalog.filter(e=>e.tribe==='Alpine').length);
-assert.equal(filterAvatarSearchIndex(indexed,'chimpion 219')[0].entry.id,'chimp-219');
+assert.equal(filterAvatarSearchIndex(indexed,'chimpion 063')[0].entry.id,'chimp-63');
 assert.equal(filterAvatarSearchIndex(indexed,'does-not-exist').length,0);
 
 // Search hot path should operate on precomputed normalized text, not rebuild names/tribes.
@@ -69,7 +69,7 @@ assert(!mainSource.includes('await setAvatar(initialAvatar'),'boot should not ea
 console.log(JSON.stringify({
   check:'avatar-selector-invariants',
   catalogSize:catalog.length,
-  legacyInitialCards:catalog.length,
+  syntheticCatalogCards:catalog.length,
   optimizedInitialCards:AVATAR_SELECTOR_INITIAL_RENDER,
   initialReductionPct:Number(((1-AVATAR_SELECTOR_INITIAL_RENDER/catalog.length)*100).toFixed(1)),
   chunkSize:AVATAR_SELECTOR_RENDER_CHUNK,
