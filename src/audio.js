@@ -377,7 +377,7 @@ export function createSkiAudio(){
       context??=new AudioContextClass();
       ensureGraph();
       if(context.state==='suspended')context.resume().catch(()=>{});
-      if(jumpMusic&&settings.musicEnabled&&!jumpMusic.paused)jumpMusic.play().catch(()=>{});
+      if(jumpMusic&&settings.musicEnabled&&jumpMusic.paused)jumpMusic.play().catch(()=>{});
     }catch{}
   }
   function applyState(state,instant=false){
