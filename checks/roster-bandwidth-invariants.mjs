@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFile,readdir} from 'node:fs/promises';
 import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME} from '../src/avatarRoster.js';
-import {MAX_LOCAL_GLB_BYTES,validateLocalGlbFile} from '../src/localAvatarUpload.js';
+import {MAX_LOCAL_GLB_BYTES,LOCAL_GLB_COMPLEXITY_LIMITS,validateLocalGlbFile,validateParsedLocalGlb} from '../src/localAvatarUpload.js';
 
 const expectedFiles=BUILTIN_AVATAR_NAMES.map(name=>name+'.glb').sort((a,b)=>a.localeCompare(b));
 const dir=new URL('../public/model/characters/',import.meta.url);
@@ -48,5 +48,19 @@ const bad=new Uint8Array(12);bad[0]=1;
 await assert.rejects(()=>validateLocalGlbFile(fakeFile('bad.glb',bad)),/Invalid GLB file header/);
 const tooLarge={name:'huge.glb',size:MAX_LOCAL_GLB_BYTES+1,slice:()=>new Blob()};
 await assert.rejects(()=>validateLocalGlbFile(tooLarge),/too large/i);
+
+const safeGeometry={attributes:{position:{count:24000,array:new Float32Array(24000*3)}},morphAttributes:{}};
+const safeTexture={isTexture:true,source:{data:{width:2048,height:2048}}};
+const safeMaterial={map:safeTexture};
+const safeParsed={
+  scene:{traverse(fn){fn({isBone:true});fn({isMesh:true,geometry:safeGeometry,material:safeMaterial});}},
+  animations:[{tracks:new Array(12).fill({})}]
+};
+assert.doesNotThrow(()=>validateParsedLocalGlb(safeParsed));
+const pathological={
+  scene:{traverse(fn){fn({isMesh:true,geometry:{attributes:{position:{count:LOCAL_GLB_COMPLEXITY_LIMITS.vertices+1,array:new Float32Array(3)}},morphAttributes:{}},material:null});}},
+  animations:[]
+};
+assert.throws(()=>validateParsedLocalGlb(pathological),/too complex/i);
 
 console.log(JSON.stringify({check:'roster-bandwidth-invariants',builtIns:10,crowdGlbRequests:0,bootGlbRequestsExpected:0,customUpload:'local-only'}));
