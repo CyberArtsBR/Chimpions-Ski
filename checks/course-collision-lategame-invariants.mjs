@@ -185,7 +185,11 @@ assert(maxLeftDrySections<=6,'far-left edge stayed safe too long in sustained la
 assert(maxRightDrySections<=6,'far-right edge stayed safe too long in sustained late game');
 assert(minLeftEdgeThreats>=300,'far-left late-game pressure became too sparse');
 assert(minRightEdgeThreats>=300,'far-right late-game pressure became too sparse');
-assert(minSidePressureHazards>=100,'dedicated late-game side pressure became too sparse');
+const minimumSidePressureHazards=Math.ceil(sectionsPerSeed*.25);
+assert(
+  minSidePressureHazards>=minimumSidePressureHazards,
+  `dedicated late-game side pressure became too sparse (${minSidePressureHazards} < ${minimumSidePressureHazards})`
+);
 assert(totalPostMaxFill>5000,'post-max sparse-gap pressure did not meaningfully activate');
 assert(totalRamps>400,'late-game stress run did not exercise enough ramp trajectories');
 assert(minMeaningfulReactionTime>.04,'meaningful safe-route decision provided effectively no reaction time');
