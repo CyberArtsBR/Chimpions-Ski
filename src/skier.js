@@ -7,6 +7,43 @@ import {createSnowboardEquipment} from './snowboardEquipment.js';
 import {AvatarCompatibilityError,assertAvatarPlayable,isCatalogAvatarUrl,resolveAvatarRig} from './avatarCompatibility.js';
 import {validateParsedLocalGlb} from './localAvatarUpload.js';
 
+const riderLoader=new GLTFLoader();
+
+function createAbortError(){
+  const error=new Error('Avatar load aborted');
+  error.name='AbortError';
+  return error;
+}
+function throwIfAborted(signal){
+  if(signal?.aborted)throw createAbortError();
+}
+function resourceBaseUrl(url=''){
+  try{
+    const base=globalThis.location?.href||'http://localhost/';
+    const resolved=new URL(url,base);
+    if(resolved.protocol==='blob:'||resolved.protocol==='data:')return '';
+    resolved.hash='';
+    resolved.search='';
+    const href=resolved.href;
+    return href.slice(0,href.lastIndexOf('/')+1);
+  }catch{
+    return '';
+  }
+}
+async function loadRiderGltf(url,{signal=null}={}){
+  throwIfAborted(signal);
+  const response=await fetch(url,{signal,cache:'force-cache'});
+  if(!response.ok)throw new Error(`Could not load rider asset (${response.status})`);
+  const buffer=await response.arrayBuffer();
+  throwIfAborted(signal);
+  const gltf=await riderLoader.parseAsync(buffer,resourceBaseUrl(url));
+  if(signal?.aborted){
+    disposeAvatarObject(gltf?.scene);
+    throw createAbortError();
+  }
+  return gltf;
+}
+
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
 }
@@ -616,11 +653,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   return update;
 }
 
-export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI,requireGameplayRig=false,compatibilityInput=url}={}){
+export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SKI,requireGameplayRig=false,compatibilityInput=url,signal=null}={}){
   let loadedModel=null,loadedRoot=null;
   const compatibility=assertAvatarPlayable(compatibilityInput);
   try{
-    const gltf=await new GLTFLoader().loadAsync(url);
+    const gltf=await loadRiderGltf(url,{signal});
     const localAvatarComplexity=requireGameplayRig?validateParsedLocalGlb(gltf):null;
     const model=gltf.scene;loadedModel=model;
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
