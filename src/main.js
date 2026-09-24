@@ -43,6 +43,7 @@ import {createBananaPowerSystem} from './bananaPowerSystem.js';
 import {createCollisionRuntime} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
 import {createRiderController} from './riderController.js';
+import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
 
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
@@ -486,6 +487,14 @@ const bananaPower=createBananaPowerSystem({
     specialAura.visible=false;
     document.body.classList.remove('banana-power-active','bullet-time-active');
   }
+});
+const getRuntimeDiagnostics=createRuntimeDiagnostics({
+  state,
+  gameFlow,
+  runSession,
+  bananaPower,
+  collisionRuntime,
+  riderController
 });
 function updateBananaPowerVisual(time=0){
   const active=state.specialActiveTime>0;
@@ -1333,7 +1342,7 @@ runtimeListeners.on(window,'resize',resize);
 window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
   const batch=courseRenderBatches.getDiagnostics();
-  const collisionDiagnostics=collisionRuntime.getDiagnostics();
+  const runtimeDiagnostics=getRuntimeDiagnostics();
   let standaloneCourseObjects=0;
   let standaloneCourseDrawCalls=0;
   let activeHazardCount=0;
@@ -1351,14 +1360,10 @@ window.chimpionsSki=()=>{
   }
   const pooledObjects=Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0);
   return {
-    ...state,
+    ...runtimeDiagnostics,
     ...performanceTelemetry.getFlatSnapshot(),
     ...environment.getQualityDiagnostics?.(),
     ...quality.getDiagnostics(),
-    ...collisionDiagnostics,
-    ...gameFlow.snapshot(),
-    ...bananaPower.snapshot(),
-    runSession:runSession.snapshot(),
     cameraViewMode,
     cameraMotionMode,
     cameraReducedMotion:document.documentElement.dataset.cameraMotion==='reduced',
