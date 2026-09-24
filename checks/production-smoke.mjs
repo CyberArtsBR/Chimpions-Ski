@@ -60,7 +60,11 @@ try{
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
   await domClick(page.locator('#restart-pause'));
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:20000});
+  await page.waitForFunction(()=>{
+    const mode=window.chimpionsSki?.().mode;
+    return mode==='countdown'||mode==='playing';
+  },null,{timeout:10000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
   const restarted=await page.evaluate(()=>window.chimpionsSki());
   assert(restarted.distance<120,'Restart did not reset run distance');
   assert.equal(new Set(built.glbs).size,1,'Restart must reuse the selected rider without downloading additional GLBs');
