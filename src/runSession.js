@@ -54,6 +54,21 @@ const BASE_TRANSIENT_STATE=Object.freeze({
   crashTime:0
 });
 
+export function createRunState({mode='menu',rideMode,rideProfile,best=0}={}){
+  if(!rideProfile)throw new Error('createRunState requires a ride profile');
+  return {
+    mode,
+    rideMode,
+    best,
+    ...BASE_TRANSIENT_STATE,
+    speed:rideProfile.baseSpeed,
+    maxRunSpeed:rideProfile.baseSpeed,
+    baseSpeed:rideProfile.baseSpeed,
+    targetSpeed:rideProfile.baseSpeed,
+    maxSpeed:rideProfile.maxSpeed
+  };
+}
+
 export function createRunSession({state}={}){
   if(!state)throw new Error('createRunSession requires shared state');
 
