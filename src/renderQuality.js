@@ -80,7 +80,7 @@ let lastSwitchAt=0;
 let lastResolutionChangeAt=0;
 
 const downThreshold=Object.freeze({high:20.5,medium:25.0,low:30.0});
-const upThreshold=Object.freeze({high:-Infinity,medium:15.7,low:17.2});
+const upThreshold=Object.freeze({high:16.2,medium:15.7,low:17.2});
 
 function now(){
   return globalThis.performance?.now?.()??Date.now();
