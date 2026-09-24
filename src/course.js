@@ -69,11 +69,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let denseFormationStreak=0;
   const safeRoute=createSafeRouteTracker(0,null);
 
-  // Seven conceptual lanes remain useful for fairness, but formation jitter/stagger
-  // prevents the player from seeing a repeated seven-column grid.
+  // Bands guide macro route choices only. Physical hazards themselves are
+  // placed continuously so the player cannot memorize a seven-column grid.
   const bands=[-1,-.68,-.34,0,.34,.68,1];
-  const obstacleLaneStep=T.CONTENT_BAND_HALF_WIDTH/3;
-  const obstacleLanes=[-3,-2,-1,0,1,2,3].map(index=>index*obstacleLaneStep);
   const opening=[
     'OPEN CARVE','BANANA LINE','GATE','FOREST',
     'RAMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
@@ -166,7 +164,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   });
   const banana=(z,x,safeX=x)=>place('banana',x,z,safeX);
 
-  function desiredSafe(z,base=0,range=3.4){
+  function desiredSafe(z,base=0,range=4.4){
     const band=contentX(z,pickBand(),.86);
     return clamp(
       band*.48+base*.34+Math.sin(sectionIndex*.77-z*.017)*range,
@@ -175,7 +173,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     );
   }
 
-  function safeAt(z,speed,base=0,range=3.4){
+  function safeAt(z,speed,base=0,range=4.4){
     return safeRoute.constrain(desiredSafe(z,base,range),z,speed);
   }
 
@@ -249,87 +247,113 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   function addFormation(placements,type,z,safeX,{kinds=['tree','rock'],intensity=.5,landingProtected=false}={}){
     recordFormation(type);
     const decisionSerial=routeDecisionSerial++;
-    const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(3.15,2.85,intensity);
+    const gap=landingProtected?T.LANDING_CORRIDOR_HALF_WIDTH:lerp(2.82,2.28,intensity);
     const kindAt=i=>kinds[(i+sectionIndex)%kinds.length];
+    const localPhysical=[];
+    const antiAligned=(x,localZ)=>localPhysical.some(p=>
+      (Math.abs(p.z-localZ)<1.65&&Math.abs(p.x-x)>1.8)||
+      (Math.abs(p.x-x)<1.15&&Math.abs(p.z-localZ)<9.5)
+    );
+    const pushPhysical=(kind,x,localZ,extra={})=>{
+      if(!isOutsideSafeCorridor(x,safeX,gap))return false;
+      if(antiAligned(x,localZ))return false;
+      const entry=place(kind,x,localZ,safeX,{
+        formation:type,
+        decisionZ:z,
+        routeDecision:true,
+        landingProtected,
+        decisionSerial,
+        ...extra
+      });
+      placements.push(entry);
+      if(PHYSICAL_HAZARDS.has(kind))localPhysical.push(entry);
+      return true;
+    };
 
     if(type==='STAGGER'){
-      const phaseOffset=rand(-.7,.7);
-      for(let i=0;i<obstacleLanes.length;i++){
-        if(random()<.18)continue;
-        const x=clamp(obstacleLanes[i]+rand(-.78,.78),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        const alternating=(i%2===0?-1:1)*rand(1.25,2.85);
-        // Add a gentle lane-wise longitudinal sweep so a filtered STAGGER can
-        // never collapse into a wide near-horizontal wall across the course.
-        const laneSweep=(i-(obstacleLanes.length-1)*.5)*.55;
-        const localZ=z+phaseOffset+alternating+laneSweep+rand(-.45,.45);
-        placements.push(place(kindAt(i),x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+      const target=6+Math.floor(intensity*3)+Math.floor(random()*2);
+      let added=0;
+      for(let attempt=0;attempt<34&&added<target;attempt++){
+        const kind=kindAt(attempt);
+        const x=rand(-T.COURSE_OBJECT_HALF_WIDTH+.35,T.COURSE_OBJECT_HALF_WIDTH-.35);
+        const localZ=z+rand(-8.8,8.8)+(x/T.COURSE_OBJECT_HALF_WIDTH)*rand(-2.3,2.3);
+        if(pushPhysical(kind,x,localZ,{brokenField:true}))added++;
       }
       return;
     }
 
     if(type==='CLUSTER'){
       const side=safeX>=0?-1:1;
-      const center=side*rand(8.1,11.15);
-      const count=3+Math.floor(random()*3);
+      const center=side*rand(7.2,10.7);
+      const count=5+Math.floor(random()*3);
       for(let i=0;i<count;i++){
-        const x=clamp(center+rand(-1.2,1.2),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kindAt(i),x,z+rand(-2.0,2.0),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+        const kind=kindAt(i);
+        const sweep=(i-(count-1)*.5)*1.35;
+        const x=clamp(center+rand(-2.15,2.15)+sweep*.22,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        const localZ=z+sweep+rand(-2.7,2.7);
+        pushPhysical(kind,x,localZ,{brokenCluster:true});
       }
       return;
     }
 
     if(type==='ISOLATED'){
-      const count=random()<.52?1:2;
-      for(let i=0;i<count;i++){
-        let x=contentX(z+rand(-2,2),pickBand(),.98);
+      const count=2+Math.floor(random()*3);
+      let added=0;
+      for(let attempt=0;attempt<18&&added<count;attempt++){
+        const kind=kindAt(attempt);
+        let x=rand(-T.COURSE_OBJECT_HALF_WIDTH+.3,T.COURSE_OBJECT_HALF_WIDTH-.3);
         if(!isOutsideSafeCorridor(x,safeX,gap)){
-          const side=x>=safeX?1:-1;
-          x=clamp(safeX+side*(gap+rand(.8,2.4)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+          const side=random()<.5?-1:1;
+          x=clamp(safeX+side*(gap+rand(.55,3.15)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
         }
-        placements.push(place(kindAt(i),x,z+rand(-1.2,1.2),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+        const localZ=z+rand(-6.4,6.4);
+        if(pushPhysical(kind,x,localZ,{irregularIsolated:true}))added++;
       }
       return;
     }
 
     if(type==='DIAGONAL'){
-      const count=4+Math.floor(random()*2);
+      const count=6+Math.floor(random()*2);
       const direction=random()<.5?-1:1;
-      const startX=-direction*rand(9.0,11.65);
+      const startX=-direction*rand(9.2,11.8);
       for(let i=0;i<count;i++){
         const kind=kindAt(i);
-        const x=clamp(startX+direction*i*rand(3.4,4.3)+rand(-.45,.45),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-        const localZ=z+(i-(count-1)*.5)*rand(3.0,4.2)+rand(-.9,.9);
-        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        placements.push(place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+        const step=3.0+random()*1.45;
+        const x=clamp(startX+direction*i*step+rand(-1.05,1.05),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+        const curve=Math.sin((i+1)*1.31+sectionIndex*.47)*2.2;
+        const localZ=z+(i-(count-1)*.5)*rand(2.25,3.55)+curve+rand(-1.3,1.3);
+        pushPhysical(kind,x,localZ,{brokenDiagonal:true});
       }
       return;
     }
 
     if(type==='SCATTER'){
-      const count=5+Math.floor(random()*3);
-      const placed=[];
-      for(let attempt=0;attempt<18&&placed.length<count;attempt++){
+      const count=8+Math.floor(intensity*4)+Math.floor(random()*2);
+      let added=0;
+      for(let attempt=0;attempt<46&&added<count;attempt++){
         const kind=kindAt(attempt);
         const x=rand(-T.COURSE_OBJECT_HALF_WIDTH+.25,T.COURSE_OBJECT_HALF_WIDTH-.25);
-        const localZ=z+rand(-7.5,7.5);
-        if(!isOutsideSafeCorridor(x,safeX,gap))continue;
-        if(placed.some(p=>Math.abs(p.x-x)<2.0&&Math.abs(p.z-localZ)<2.9))continue;
-        const entry=place(kind,x,localZ,safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial});
-        placements.push(entry);placed.push(entry);
+        const localZ=z+rand(-10.5,10.5);
+        if(pushPhysical(kind,x,localZ,{denseScatter:true}))added++;
       }
       return;
     }
 
     if(type==='OFFSET_GATE'){
-      const leftX=clamp(safeX-gap-rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      const rightX=clamp(safeX+gap+rand(.9,2.0),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      if(isOutsideSafeCorridor(leftX,safeX,gap))placements.push(place(kindAt(0),leftX,z-rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
-      if(isOutsideSafeCorridor(rightX,safeX,gap))placements.push(place(kindAt(1),rightX,z+rand(.8,1.9),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
-      if(intensity>.62){
-        const outer=lastThreatSide<=0?T.COURSE_OBJECT_HALF_WIDTH-.55:-(T.COURSE_OBJECT_HALF_WIDTH-.55);
-        if(isOutsideSafeCorridor(outer,safeX,gap))placements.push(place(kindAt(2),outer,z+rand(-1.4,1.4),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+      const primarySide=random()<.5?-1:1;
+      const nearX=clamp(safeX+primarySide*(gap+rand(.55,1.55)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      const oppositeX=clamp(safeX-primarySide*(gap+rand(1.0,2.65)),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
+      pushPhysical(kindAt(0),nearX,z-rand(2.0,4.8),{brokenGate:true});
+      pushPhysical(kindAt(1),oppositeX,z+rand(2.1,5.2),{brokenGate:true});
+      const supportCount=intensity>.48?2:1;
+      for(let i=0;i<supportCount;i++){
+        const side=i%2===0?primarySide:-primarySide;
+        const x=clamp(
+          safeX+side*(gap+rand(2.4,5.2)),
+          -T.COURSE_OBJECT_HALF_WIDTH,
+          T.COURSE_OBJECT_HALF_WIDTH
+        );
+        pushPhysical(kindAt(i+2),x,z+rand(-7.2,7.2),{brokenGate:true});
       }
       return;
     }
@@ -349,13 +373,17 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     }
     lastThreatSide=side;
     if(isOutsideSafeCorridor(edgeX,safeX,gap)){
-      placements.push(place(kindAt(0),edgeX,z+rand(-1.1,1.1),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
+      pushPhysical(kindAt(0),edgeX,z+rand(-4.2,4.2),{edgePressure:true});
     }
-    if(random()<.76){
-      const supportX=clamp(side*rand(6.7,9.25),-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH);
-      if(isOutsideSafeCorridor(supportX,safeX,gap)){
-        placements.push(place(kindAt(1),supportX,z+rand(-2.6,2.6),safeX,{formation:type,decisionZ:z,routeDecision:true,landingProtected,decisionSerial}));
-      }
+    const supportCount=random()<.58?2:1;
+    for(let i=0;i<supportCount;i++){
+      const supportSide=i===0?side:-side;
+      const supportX=clamp(
+        supportSide*rand(6.3,10.15),
+        -T.COURSE_OBJECT_HALF_WIDTH,
+        T.COURSE_OBJECT_HALF_WIDTH
+      );
+      pushPhysical(kindAt(i+1),supportX,z+rand(-7.0,7.0),{edgePressure:true});
     }
   }
 
@@ -582,6 +610,67 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return added;
   }
 
+  function addIrregularFieldPressure(placements,startZ,length,progress=0,postMaxPressure=0){
+    const p=clamp(progress,0,1);
+    const post=clamp(postMaxPressure,0,1);
+    const topZ=startZ-10;
+    const bottomZ=startZ-length+10;
+    if(bottomZ>=topZ)return 0;
+
+    const target=4+Math.floor(p*7)+Math.floor(post*3);
+    const physical=()=>placements.filter(item=>PHYSICAL_HAZARDS.has(item.kind));
+    const nearestSafe=z=>{
+      let best=null;
+      let bestDistance=Infinity;
+      for(const item of placements){
+        if(!Number.isFinite(item.safeX))continue;
+        const distance=Math.abs(item.z-z);
+        if(distance<bestDistance){
+          bestDistance=distance;
+          best=item;
+        }
+      }
+      return clamp(best?.safeX??safeRoute.previousSafeX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+    };
+
+    let added=0;
+    for(let attempt=0;attempt<90&&added<target;attempt++){
+      const z=rand(bottomZ,topZ);
+      const safe=nearestSafe(z);
+      const roll=random();
+      const kind=roll<.48?'tree':roll<.78?'rock':roll<.90?'log':'oil';
+      const limit=placementCenterLimit(kind);
+      let x=rand(-limit,limit);
+      const routeGap=collisionHalfWidth(kind)+lerp(.72,.34,p);
+      if(Math.abs(x-safe)<=routeGap){
+        const side=random()<.5?-1:1;
+        x=clamp(safe+side*(routeGap+rand(.45,3.4)),-limit,limit);
+      }
+      if(Math.abs(x-safe)<=routeGap)continue;
+
+      const hazards=physical();
+      if(hazards.some(existing=>{
+        const dx=Math.abs(existing.x-x);
+        const dz=Math.abs(existing.z-z);
+        const collisionGap=collisionHalfWidth(existing.kind)+collisionHalfWidth(kind)+.34;
+        if(dx<collisionGap&&dz<2.25)return true;
+        // Avoid obvious horizontal rows and vertical columns. Nearby hazards
+        // should form broken diagonals / offset pockets rather than a grid.
+        if(dz<1.75&&dx>2.0)return true;
+        if(dx<1.20&&dz<10.0)return true;
+        return false;
+      }))continue;
+
+      placements.push(place(kind,x,z,safe,{
+        formation:'SCATTER',
+        irregularField:true,
+        densityBoost:p
+      }));
+      added++;
+    }
+    return added;
+  }
+
   function addBananaEvent(placements,startZ,length,safeHint=0,chance=.64){
     if(random()>chance)return {type:'none',count:0};
     const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
@@ -735,7 +824,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-20;
       const sequence=['ISOLATED','DIAGONAL','OFFSET_GATE','ISOLATED','DIAGONAL'];
       for(let i=0;i<sequence.length;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.92)*4.6,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+
+          Math.sin(phase+i*.92)*5.2+
+          Math.sin(phase*.53+i*1.71)*1.25,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         addFormation(
           placements,
@@ -757,7 +852,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-18;
       for(let i=0;i<rows;i++){
         const direction=i%2===0?1:-1;
-        const desired=clamp(anchor+direction*(2.5+Math.sin(phase+i*.61)*1.8),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+direction*(3.0+Math.sin(phase+i*.61)*2.35)+Math.sin(i*1.37+phase)*.85,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         const formation=i===3?'DIAGONAL':'OFFSET_GATE';
         addFormation(
@@ -799,7 +898,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const rows=8;
       let z=startZ-18;
       for(let i=0;i<rows;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.86)*4.8,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+Math.sin(phase+i*.86)*5.8+Math.sin(phase*.71+i*1.43)*1.15,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         const formation=i%3===1?'STAGGER':'OFFSET_GATE';
         addFormation(
@@ -822,7 +925,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-18;
       let desired=anchor;
       for(let i=0;i<rows;i++){
-        desired=clamp(desired+(i%2?1:-1)*rand(3.6,5.2),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        desired=clamp(
+          desired+(i%2?1:-1)*rand(4.2,6.1)+rand(-.8,.8),
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         addFormation(
           placements,
@@ -910,8 +1017,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
-      length=92;
-      // Recovery is deliberately hazard-free but shorter. It acts as a visual and input
+      length=78;
+      // Recovery is deliberately hazard-free and brief. It acts as a visual and input
       // reset after jumps/dense sections while still advancing the safe route.
       let z=startZ-24;
       let safeX=safeRoute.constrain(recoveryAnchor,z,currentSpeed);
@@ -927,10 +1034,20 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       pendingLanding=null;
     }
 
-    // Once 300 km/h has been reached, fill otherwise-empty longitudinal
-    // patches gradually. Jump sections keep their existing protected flight /
-    // landing envelopes and are intentionally excluded from this density pass.
+    // Fill the whole section with additional irregular hazards at every speed.
+    // The helper explicitly rejects obvious horizontal rows / vertical columns
+    // and preserves the tracked safe route rather than drawing a visible lane.
     if(type!=='RAMP'&&type!=='LOG JUMP'&&type!=='RECOVERY'){
+      addIrregularFieldPressure(
+        placements,
+        startZ,
+        length,
+        hazardProgress,
+        postMaxPressure
+      );
+
+      // Once 300 km/h has been reached, fill remaining sparse longitudinal
+      // patches gradually on top of the irregular base field.
       addSparseGapPressure(
         placements,
         startZ,
