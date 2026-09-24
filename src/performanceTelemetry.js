@@ -67,11 +67,9 @@ export function createPerformanceTelemetry(){
     for(const name of TIMING_METRICS)timings[name][cursor]=currentTimings[name];
     for(const name of COUNTER_METRICS)counters[name][cursor]=currentCounters[name];
     if(currentTimings.frameTotal>=LONG_FRAME_MS)longFrameCount++;
-    lastFrame={
-      frameTotal:currentTimings.frameTotal,
-      collisionCandidates:currentCounters.collisionCandidates,
-      collisionChecks:currentCounters.collisionChecks
-    };
+    lastFrame.frameTotal=currentTimings.frameTotal;
+    lastFrame.collisionCandidates=currentCounters.collisionCandidates;
+    lastFrame.collisionChecks=currentCounters.collisionChecks;
     cursor=(cursor+1)%WINDOW;
     count=Math.min(WINDOW,count+1);
     frameOpen=false;
