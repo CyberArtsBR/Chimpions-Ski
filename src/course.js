@@ -1169,7 +1169,8 @@ export function createCourseDirector({routeCenter,random=Math.random}){
           T.SAFE_ROUTE_HALF_WIDTH
         );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
-        const formation=i===3?'DIAGONAL':'OFFSET_GATE';
+        const gateRhythm=['OFFSET_GATE','DIAGONAL','OFFSET_GATE','STAGGER','OFFSET_GATE','DIAGONAL','OFFSET_GATE'];
+        const formation=gateRhythm[i];
         addFormation(
           placements,
           formation,
