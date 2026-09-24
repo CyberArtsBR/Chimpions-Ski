@@ -392,7 +392,8 @@ const startCrowd=createStartCrowd({world,terrainHeight});
 const startGate=createStartGateScene({world,terrainHeight});
 const START_COUNTDOWN_DURATION_MS=2700;
 const BANANA_POWER_GOAL=10;
-const BANANA_POWER_DURATION=6;
+const BANANA_POWER_DURATION=3;
+const BANANA_BULLET_TIME_SCALE=.35;
 let startCountdownStarted=false;
 let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectorReady=false;
@@ -459,18 +460,18 @@ function activateBananaPower(){
   state.bananaPowerProgress=0;
   state.specialActiveTime=BANANA_POWER_DURATION;
   specialAura.visible=true;
-  document.body.classList.add('banana-power-active');
-  audio.play('go',.72,1.10);
+  document.body.classList.add('banana-power-active','bullet-time-active');
+  audio.play('go',.72,.82);
   haptics.rampTakeoff?.(1);
   ui.showBananaPowerActivated?.();
   return true;
 }
-function stepBananaPower(dt){
+function stepBananaPower(realDt){
   if(state.specialActiveTime>0){
-    state.specialActiveTime=Math.max(0,state.specialActiveTime-dt);
+    state.specialActiveTime=Math.max(0,state.specialActiveTime-realDt);
     if(state.specialActiveTime===0){
       specialAura.visible=false;
-      document.body.classList.remove('banana-power-active');
+      document.body.classList.remove('banana-power-active','bullet-time-active');
     }
   }
 }
@@ -710,7 +711,7 @@ function resetRunState(mode='countdown'){
   audio.resetRun?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
   specialAura.visible=false;
-  document.body.classList.remove('banana-power-active');
+  document.body.classList.remove('banana-power-active','bullet-time-active');
   startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
@@ -805,7 +806,7 @@ function crash(kind='tree',item=null){
   state.crashTime=0;
   state.specialActiveTime=0;
   specialAura.visible=false;
-  document.body.classList.remove('banana-power-active');
+  document.body.classList.remove('banana-power-active','bullet-time-active');
   breakSkillCombo(state);
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
@@ -847,16 +848,20 @@ function update(dt,frameMs=dt*1000){
   const jumpHeld=actions.jumpHeld;
   const trickIntent=jumpPressed?actions.trickIntent:null;
   let worldDistance=0;
+  let simulationFrameDt=dt;
   if(state.mode==='playing'){
+    stepBananaPower(dt);
+    const bulletTimeActive=state.specialActiveTime>0;
+    simulationFrameDt=dt*(bulletTimeActive?BANANA_BULLET_TIME_SCALE:1);
     // 160–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
     const physicsStarted=performance.now();
-    const steps=Math.ceil(dt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS);
-    const stepDt=dt/steps;
+    const steps=Math.max(1,Math.ceil(simulationFrameDt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS));
+    const stepDt=simulationFrameDt/steps;
     for(let step=0;step<steps&&state.mode==='playing';step++){
     physicsSubsteps++;
     const dt=stepDt;
+    const controlDt=bulletTimeActive?dt/BANANA_BULLET_TIME_SCALE:dt;
     state.time+=dt;
-    stepBananaPower(dt);
     updateAirborneScoring(state);
     state.frame++;
     courseFrame=state.frame;
@@ -874,7 +879,7 @@ function update(dt,frameMs=dt*1000){
 
     state.rampGrace=Math.max(0,state.rampGrace-dt);
 
-    stepCarving(state,steer,dt);
+    stepCarving(state,steer,controlDt);
     const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,skier?.userData?.skiTrackSpacing);
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
@@ -947,9 +952,9 @@ function update(dt,frameMs=dt*1000){
     }
 
     player.position.x=state.x;player.position.y=state.y;
-    updateRidingOrientation(player,state,dt);
+    updateRidingOrientation(player,state,controlDt);
     skier?.userData?.updateSkiPose?.({
-      dt,
+      dt:controlDt,
       steer:state.edge,
       air:state.air,
       landing:state.landingPulse,
@@ -1092,10 +1097,6 @@ function update(dt,frameMs=dt*1000){
       const clearance=state.y-(.12+itemGround);
       if(state.air&&clearance>requiredClearance)continue;
 
-      // Banana Power is a temporary shield: physical hazards and oil cannot
-      // crash or disrupt the rider while the special is active.
-      if(state.specialActiveTime>0)continue;
-
       if(item.userData.kind==='oil'){
         if(!item.userData.triggered){
           item.userData.triggered=true;
@@ -1156,8 +1157,8 @@ function update(dt,frameMs=dt*1000){
   startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
   const environmentUpdateStarted=performance.now();
-  environment.update(state.mode==='paused'?0:dt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode);
-  mountainWeather.update(state.mode==='paused'?0:dt,state);
+  environment.update(state.mode==='paused'?0:simulationFrameDt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode);
+  mountainWeather.update(state.mode==='paused'?0:simulationFrameDt,state);
   performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
   updateBananaPowerVisual(state.time);
 
@@ -1180,9 +1181,10 @@ function update(dt,frameMs=dt*1000){
     trickEvent:state.trickEvent??null
   });
   audio.playClear?.(state.clearEvent??null);
+  const audioTimeScale=state.specialActiveTime>0?BANANA_BULLET_TIME_SCALE:1;
   audio.update({
     mode:state.mode,
-    speed:state.speed,
+    speed:state.speed*audioTimeScale,
     baseSpeed:state.baseSpeed,
     maxSpeed:state.maxSpeed,
     carve:state.edge,
