@@ -30,7 +30,8 @@ function listEnv(name,fallback){
 function qualityProfileEnv(){
   const value=String(process.env.QUALITY_PROFILE||'').trim().toLowerCase();
   if(!value)return null;
-  if(!['high','reduced'].includes(value))throw new Error('QUALITY_PROFILE must be high or reduced');
+  if(value==='reduced')return 'medium';
+  if(!['auto','high','medium','low'].includes(value))throw new Error('QUALITY_PROFILE must be auto, high, medium or low');
   return value;
 }
 function normalizeBaseUrl(value){
@@ -166,7 +167,11 @@ export function analyzeCourse(samples){
     courseLegacyDrawCallsEstimate:analyzeMetric(samples,'courseLegacyDrawCallsEstimate'),
     courseBatchDrawCalls:analyzeMetric(samples,'courseBatchDrawCalls'),
     courseAhead:analyzeMetric(samples,'courseAhead'),
-    physicsSubsteps:analyzeMetric(samples,'physicsSubsteps')
+    physicsSubsteps:analyzeMetric(samples,'physicsSubsteps'),
+    collisionCandidates:analyzeMetric(samples,'collisionCandidates'),
+    collisionChecks:analyzeMetric(samples,'collisionChecks'),
+    broadphaseBuckets:analyzeMetric(samples,'broadphaseBuckets'),
+    visibleHazardCount:analyzeMetric(samples,'visibleHazardCount')
   };
 }
 export function speedBins(samples){
@@ -187,7 +192,10 @@ export function speedBins(samples){
       activeCourseObjects:round(list.reduce((sum,s)=>sum+(s.activeCourseObjects??0),0)/list.length),
       pooledObjects:round(list.reduce((sum,s)=>sum+(s.pooledObjects??0),0)/list.length),
       drawCalls:round(list.reduce((sum,s)=>sum+(s.courseDrawCallsEstimate??0),0)/list.length),
-      physicsSubsteps:round(list.reduce((sum,s)=>sum+(s.physicsSubsteps??0),0)/list.length)
+      physicsSubsteps:round(list.reduce((sum,s)=>sum+(s.physicsSubsteps??0),0)/list.length),
+      collisionCandidates:round(list.reduce((sum,s)=>sum+(s.collisionCandidates??0),0)/list.length),
+      collisionChecks:round(list.reduce((sum,s)=>sum+(s.collisionChecks??0),0)/list.length),
+      visibleHazards:round(list.reduce((sum,s)=>sum+(s.visibleHazardCount??0),0)/list.length)
     }
   ]));
 }
@@ -416,6 +424,12 @@ export async function sampleRuntime(page){
       courseAhead:d?.courseAhead??null,
       courseLookaheadTarget:d?.courseLookaheadTarget??null,
       physicsSubsteps:d?.physicsSubsteps??null,
+      collisionCandidates:d?.collisionCandidates??null,
+      collisionChecks:d?.collisionChecks??null,
+      broadphaseBuckets:d?.broadphaseBuckets??null,
+      nearbyCandidateCount:d?.nearbyCandidateCount??null,
+      visibleHazardCount:d?.visibleHazardCount??null,
+      activeHazardCount:d?.activeHazardCount??null,
       activeRamp:d?.activeRamp??null,
       x:d?.x??null,
       safeRouteX:d?.safeRouteX??null,
@@ -439,6 +453,14 @@ export async function sampleRuntime(page){
       snowParticleChunksActive:d?.snowParticlePool?.chunksActive??null,
       snowSurfaceMoundsActive:d?.snowSurfaceDetail?.activeMounds??null,
       snowSurfaceRidgesActive:d?.snowSurfaceDetail?.activeRidges??null,
+      perfFrameTotalMs:d?.perfFrameTotalMs??null,
+      perfFrameTotalP95Ms:d?.perfFrameTotalP95Ms??null,
+      perfFrameTotalP99Ms:d?.perfFrameTotalP99Ms??null,
+      perfPhysicsMs:d?.perfPhysicsMs??null,
+      perfPhysicsP95Ms:d?.perfPhysicsP95Ms??null,
+      perfCollisionBroadphaseMs:d?.perfCollisionBroadphaseMs??null,
+      perfCollisionBroadphaseP95Ms:d?.perfCollisionBroadphaseP95Ms??null,
+      perfCourseGenerationMs:d?.perfCourseGenerationMs??null,
       perfCourseTraversalMs:d?.perfCourseTraversalMs??null,
       perfCourseTraversalP95Ms:d?.perfCourseTraversalP95Ms??null,
       perfCourseBatchSyncMs:d?.perfCourseBatchSyncMs??null,
