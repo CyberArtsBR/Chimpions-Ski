@@ -105,10 +105,16 @@ export function createExpertRunDirector({random=Math.random}={}){
     if(sectionsSinceRecovery<=1)weights[6]*=.15;
     if(recentPhases.at(-1)==='PRESSURE'||recentPhases.at(-1)==='EXPERT')weights[6]*=1.5;
     if(post01>.45){
-      weights[1]*=1.12;
+      weights[1]*=1.18;
+      weights[2]*=1.18;
       weights[3]*=1.22;
-      weights[5]*=1.36;
-      weights[0]*=.72;
+      weights[5]*=1.42;
+      weights[0]*=.68;
+      // At sustained 300 km/h the course should remain readable but genuinely
+      // dense. Too many TRICK -> forced RECOVERY pairs were cancelling the
+      // intended post-max hazard escalation.
+      weights[4]*=.58;
+      weights[6]*=.48;
     }
 
     const adjusted=antiRepeat(weights,RUN_PHASES,recentPhases,.16,.60);
