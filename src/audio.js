@@ -52,20 +52,29 @@ export function createSkiAudio(){
   function write(key,value){
     try{localStorage.setItem(key,String(value));}catch{}
   }
-  function ensureJumpMusic(){
-    if(jumpMusic||typeof Audio==='undefined')return jumpMusic;
-    try{
-      jumpMusic=new Audio(JUMP_MUSIC_URL);
-      jumpMusic.loop=true;
+  function ensureJumpMusic({load=false}={}){
+    if(typeof Audio==='undefined')return null;
+    if(!jumpMusic){
+      try{
+        jumpMusic=new Audio();
+        jumpMusic.loop=true;
+        jumpMusic.preload='none';
+        jumpMusic.volume=0;
+        jumpMusic.src=JUMP_MUSIC_URL;
+        jumpMusic.addEventListener('canplay',()=>{jumpMusicReady=true;jumpMusicFailed=false;applyState(pendingState,true);},{once:true});
+        jumpMusic.addEventListener('error',()=>{jumpMusicFailed=true;jumpMusicReady=false;applyState(pendingState,true);});
+      }catch{jumpMusicFailed=true;return null;}
+    }
+    if(load&&jumpMusic.preload!=='auto'){
       jumpMusic.preload='auto';
-      jumpMusic.volume=0;
-      jumpMusic.addEventListener('canplay',()=>{jumpMusicReady=true;jumpMusicFailed=false;applyState(pendingState,true);},{once:true});
-      jumpMusic.addEventListener('error',()=>{jumpMusicFailed=true;jumpMusicReady=false;applyState(pendingState,true);});
-    }catch{jumpMusicFailed=true;}
+      try{jumpMusic.load();}catch{}
+    }
     return jumpMusic;
   }
   function syncJumpMusic(mode){
-    const media=ensureJumpMusic();
+    const needsMusic=mode==='playing'||mode==='countdown';
+    if(!jumpMusic&&!needsMusic)return false;
+    const media=ensureJumpMusic({load:needsMusic});
     if(!media)return false;
     const playing=settings.musicEnabled&&jumpMusicReady&&!jumpMusicFailed;
     const level=mode==='playing'?.38:mode==='countdown'?.22:mode==='paused'?.08:mode==='crashed'?.07:.16;
@@ -368,8 +377,7 @@ export function createSkiAudio(){
       context??=new AudioContextClass();
       ensureGraph();
       if(context.state==='suspended')context.resume().catch(()=>{});
-      const media=ensureJumpMusic();
-      if(media&&settings.musicEnabled)media.play().catch(()=>{});
+      if(jumpMusic&&settings.musicEnabled&&!jumpMusic.paused)jumpMusic.play().catch(()=>{});
     }catch{}
   }
   function applyState(state,instant=false){
@@ -539,6 +547,10 @@ export function createSkiAudio(){
       persistentLoopCount:graph?5:0,
       bufferCount:buffers.size,
       recentEventCount:eventLast.size,
+      jumpMusicInitialized:!!jumpMusic,
+      jumpMusicReady,
+      jumpMusicFailed,
+      jumpMusicPreload:jumpMusic?.preload||'none',
       goCue:'procedural-web-audio'
     };
   }
