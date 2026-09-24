@@ -69,11 +69,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   let denseFormationStreak=0;
   const safeRoute=createSafeRouteTracker(0,null);
 
-  // Seven conceptual lanes remain useful for fairness, but formation jitter/stagger
-  // prevents the player from seeing a repeated seven-column grid.
+  // Bands guide macro route choices only. Physical hazards themselves are
+  // placed continuously so the player cannot memorize a seven-column grid.
   const bands=[-1,-.68,-.34,0,.34,.68,1];
-  const obstacleLaneStep=T.CONTENT_BAND_HALF_WIDTH/3;
-  const obstacleLanes=[-3,-2,-1,0,1,2,3].map(index=>index*obstacleLaneStep);
   const opening=[
     'OPEN CARVE','BANANA LINE','GATE','FOREST',
     'RAMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
@@ -166,7 +164,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
   });
   const banana=(z,x,safeX=x)=>place('banana',x,z,safeX);
 
-  function desiredSafe(z,base=0,range=3.4){
+  function desiredSafe(z,base=0,range=4.4){
     const band=contentX(z,pickBand(),.86);
     return clamp(
       band*.48+base*.34+Math.sin(sectionIndex*.77-z*.017)*range,
@@ -175,7 +173,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     );
   }
 
-  function safeAt(z,speed,base=0,range=3.4){
+  function safeAt(z,speed,base=0,range=4.4){
     return safeRoute.constrain(desiredSafe(z,base,range),z,speed);
   }
 
@@ -619,7 +617,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     const bottomZ=startZ-length+10;
     if(bottomZ>=topZ)return 0;
 
-    const target=3+Math.floor(p*6)+Math.floor(post*3);
+    const target=4+Math.floor(p*7)+Math.floor(post*3);
     const physical=()=>placements.filter(item=>PHYSICAL_HAZARDS.has(item.kind));
     const nearestSafe=z=>{
       let best=null;
@@ -826,7 +824,13 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-20;
       const sequence=['ISOLATED','DIAGONAL','OFFSET_GATE','ISOLATED','DIAGONAL'];
       for(let i=0;i<sequence.length;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.92)*4.6,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+
+          Math.sin(phase+i*.92)*5.2+
+          Math.sin(phase*.53+i*1.71)*1.25,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         addFormation(
           placements,
@@ -848,7 +852,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-18;
       for(let i=0;i<rows;i++){
         const direction=i%2===0?1:-1;
-        const desired=clamp(anchor+direction*(2.5+Math.sin(phase+i*.61)*1.8),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+direction*(3.0+Math.sin(phase+i*.61)*2.35)+Math.sin(i*1.37+phase)*.85,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         const formation=i===3?'DIAGONAL':'OFFSET_GATE';
         addFormation(
@@ -890,7 +898,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const rows=8;
       let z=startZ-18;
       for(let i=0;i<rows;i++){
-        const desired=clamp(anchor+Math.sin(phase+i*.86)*4.8,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        const desired=clamp(
+          anchor+Math.sin(phase+i*.86)*5.8+Math.sin(phase*.71+i*1.43)*1.15,
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         const formation=i%3===1?'STAGGER':'OFFSET_GATE';
         addFormation(
@@ -913,7 +925,11 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       let z=startZ-18;
       let desired=anchor;
       for(let i=0;i<rows;i++){
-        desired=clamp(desired+(i%2?1:-1)*rand(3.6,5.2),-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
+        desired=clamp(
+          desired+(i%2?1:-1)*rand(4.2,6.1)+rand(-.8,.8),
+          -T.SAFE_ROUTE_HALF_WIDTH,
+          T.SAFE_ROUTE_HALF_WIDTH
+        );
         const safeX=safeRoute.constrain(desired,z,currentSpeed);
         addFormation(
           placements,
