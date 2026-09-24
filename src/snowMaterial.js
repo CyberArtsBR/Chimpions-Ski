@@ -43,10 +43,11 @@ function makeSnowTextures(renderer){
         222,
         255
       );
-      const cool=THREE.MathUtils.clamp((wind+drift)*2.0+crust*1.15,-4.4,4.8);
-      albedoData[i]=THREE.MathUtils.clamp(tone-8-cool*.35,0,255);
-      albedoData[i+1]=THREE.MathUtils.clamp(tone-1+cool*.25,0,255);
-      albedoData[i+2]=THREE.MathUtils.clamp(tone+7+cool*.82,0,255);
+      const cool=THREE.MathUtils.clamp((wind+drift)*1.1+crust*.65,-2.4,2.8);
+      // Keep procedural grain while staying optically white instead of cyan-blue.
+      albedoData[i]=THREE.MathUtils.clamp(tone-1-cool*.12,0,255);
+      albedoData[i+1]=THREE.MathUtils.clamp(tone+cool*.04,0,255);
+      albedoData[i+2]=THREE.MathUtils.clamp(tone+1+cool*.18,0,255);
       albedoData[i+3]=255;
 
       const micro=THREE.MathUtils.clamp(
@@ -119,7 +120,7 @@ function makeSnowTextures(renderer){
 export function createSnowMaterials(renderer,{detailLevel=1}={}){
   const textures=makeSnowTextures(renderer);
   const terrain=new THREE.MeshPhysicalMaterial({
-    color:0xf7fbff,
+    color:0xffffff,
     map:textures.albedo,
     roughness:.78,
     roughnessMap:textures.roughness,
@@ -131,13 +132,13 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     clearcoat:.16,
     clearcoatRoughness:.36,
     sheen:.68,
-    sheenColor:new THREE.Color(0xbfe8ff),
+    sheenColor:new THREE.Color(0xf7f9ff),
     sheenRoughness:.52,
     ior:1.31
   });
 
   const bank=new THREE.MeshPhysicalMaterial({
-    color:0xfbfeff,
+    color:0xffffff,
     map:textures.albedo,
     roughness:.76,
     roughnessMap:textures.roughness,
@@ -149,13 +150,13 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     clearcoat:.14,
     clearcoatRoughness:.46,
     sheen:.34,
-    sheenColor:new THREE.Color(0xcaf0ff),
+    sheenColor:new THREE.Color(0xf7f9ff),
     sheenRoughness:.58,
     ior:1.31
   });
 
   const shadowBank=new THREE.MeshStandardMaterial({
-    color:0xcfe3f0,
+    color:0xe8ecef,
     roughness:.92,
     metalness:0,
     bumpMap:textures.micro,
@@ -189,10 +190,10 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
       float grooming=sin(snowPhase)*snowAA*snowPacked*.034*snowDetail;
       float trough=smoothstep(.58,.82,1.0-snowMeso)*(.45+.55*snowLarge);
-      vec3 snowCold=mix(vec3(.66,.80,.95),vec3(1.025,1.035,1.045),smoothstep(.10,.88,snowMacro));
+      vec3 snowCold=mix(vec3(.91,.925,.945),vec3(1.02),smoothstep(.10,.88,snowMacro));
       float snowShade=.89+snowMeso*.075+snowLarge*.055+snowFine*.025+grooming-compressed*.048-trough*.028;
       diffuseColor.rgb*=snowCold*snowShade;
-      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.88,.96,1.075),iceMask*.26);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.965,.99,1.025),iceMask*.22);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       float driftPhase=snowP.x*2.3+snowP.y*.32+sin(snowP.y*.17)*1.1;
@@ -216,13 +217,13 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float facing=max(0.0,dot(normalize(normal),snowView));
       float glint=pow(facing,28.0);
       float grazing=pow(1.0-facing,3.0);
-      outgoingLight+=vec3(.78,.92,1.16)*(crystal*.30+crystalFine*.18)*(.38+.62*glint)*crystalDistance*crystalAA*snowDetail;
-      outgoingLight+=vec3(.38,.68,1.0)*iceMask*pow(facing,12.0)*.18;
-      outgoingLight+=vec3(.12,.27,.48)*grazing*(.035+.065*iceMask)*crystalDistance*snowDetail;
+      outgoingLight+=vec3(.94,.98,1.04)*(crystal*.30+crystalFine*.18)*(.38+.62*glint)*crystalDistance*crystalAA*snowDetail;
+      outgoingLight+=vec3(.72,.84,1.0)*iceMask*pow(facing,12.0)*.13;
+      outgoingLight+=vec3(.24,.29,.36)*grazing*(.028+.050*iceMask)*crystalDistance*snowDetail;
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v4';
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v5-white';
 
   let currentDetailLevel=1;
   function setDetailLevel(value=1){

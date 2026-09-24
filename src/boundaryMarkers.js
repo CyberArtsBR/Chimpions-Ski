@@ -9,9 +9,8 @@ const capGeometry=new THREE.CylinderGeometry(.17,.165,.085,16);
 const snowCapGeometry=new THREE.CylinderGeometry(.19,.18,.052,16);
 const footGeometry=new THREE.CylinderGeometry(.23,.20,.18,16);
 const railGeometry=new RoundedBoxGeometry(.30,.25,1,2,.042);
-const ledRailGeometry=new RoundedBoxGeometry(.055,.082,1,2,.018);
-const ledGlowGeometry=new RoundedBoxGeometry(.16,.18,1,2,.038);
-const ledNodeGeometry=new THREE.SphereGeometry(.062,10,7);
+const ledRailGeometry=new RoundedBoxGeometry(.070,.095,1,2,.020);
+const ledGlowGeometry=new RoundedBoxGeometry(.20,.22,1,2,.045);
 const boltGeometry=new THREE.SphereGeometry(.042,10,6);
 const plateGeometry=new RoundedBoxGeometry(.028,.32,.20,2,.012);
 const hash=n=>{const x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x);};
@@ -29,7 +28,7 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const ledGlowMaterial=new THREE.MeshBasicMaterial({
     color:0xffffff,
     transparent:true,
-    opacity:.28,
+    opacity:.34,
     depthWrite:false,
     toneMapped:false,
     blending:THREE.AdditiveBlending
@@ -42,12 +41,11 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2);
   const ledRails=new THREE.InstancedMesh(ledRailGeometry,ledCoreMaterial,n*2);
   const ledGlows=new THREE.InstancedMesh(ledGlowGeometry,ledGlowMaterial,n*2);
-  const ledNodes=new THREE.InstancedMesh(ledNodeGeometry,ledCoreMaterial,n*2);
   const plates=new THREE.InstancedMesh(plateGeometry,iron,n*2);
   const bolts=new THREE.InstancedMesh(boltGeometry,iron,n*4);
-  const meshes=[posts,caps,snowCaps,feet,rails,ledRails,ledGlows,ledNodes,plates,bolts];
+  const meshes=[posts,caps,snowCaps,feet,rails,ledRails,ledGlows,plates,bolts];
   for(const mesh of meshes){mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);}
-  ledRails.receiveShadow=ledGlows.receiveShadow=ledNodes.receiveShadow=false;
+  ledRails.receiveShadow=ledGlows.receiveShadow=false;
   ledGlows.renderOrder=5;
   function setDecorativeShadows(enabled=true){for(const m of [posts,caps,feet,rails])m.castShadow=!!enabled;return !!enabled;}
   setDecorativeShadows(decorativeShadows);
@@ -57,12 +55,11 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
     rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);
 
     const sideIndex=i<countPerSide?0:1;
-    ledTint.setHex(sideIndex===0?0x43eaff:0xff55d6);
+    ledTint.setHex(sideIndex===0?0x2fb7ff:0xff4fd8);
     ledRails.setColorAt(i*2,ledTint);ledRails.setColorAt(i*2+1,ledTint);
     ledGlows.setColorAt(i*2,ledTint);ledGlows.setColorAt(i*2+1,ledTint);
-    ledNodes.setColorAt(i*2,ledTint);ledNodes.setColorAt(i*2+1,ledTint);
   }
-  for(const mesh of [posts,caps,feet,rails,ledRails,ledGlows,ledNodes])if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+  for(const mesh of [posts,caps,feet,rails,ledRails,ledGlows])if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
 
   const positions=new Float32Array(countPerSide);
   let travel=0,pulseTime=0;
@@ -84,7 +81,6 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
         const innerX=x-side*.168;
         put(ledGlows,railIndex,innerX,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.985);
         put(ledRails,railIndex,innerX-side*.008,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.98);
-        put(ledNodes,railIndex,x-side*.19,ground+h,z,0,0,0,1.12,1.12,1.12);
         put(plates,railIndex,x-side*.153,ground+h,z);
         for(let b=0;b<2;b++)put(bolts,idx*4+level*2+b,x-side*.175,ground+h+(b?1:-1)*.085,z,0,0,0,.4,1,1);
       }
@@ -94,7 +90,7 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   function reset(){travel=0;pulseTime=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
   function update(dt,speed){
     pulseTime+=Math.max(0,Number(dt)||0);
-    ledGlowMaterial.opacity=.235+Math.sin(pulseTime*2.35)*.045;
+    ledGlowMaterial.opacity=.30+Math.sin(pulseTime*2.35)*.055;
     if(!speed)return;
     const dz=speed*dt;travel+=dz;
     for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}

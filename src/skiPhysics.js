@@ -76,7 +76,7 @@ function stepAirControl(state,steer,neutralizing,speed01,dt,rideProfile){
 
   // Air reversal targets the new lateral velocity directly. It does not hard-zero vx.
   state.vx=THREE.MathUtils.damp(state.vx,targetVx,response,dt);
-  state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
+  state.x=clamp(state.x+state.vx*dt,-T.PLAYER_BOUNDARY_HALF_WIDTH,T.PLAYER_BOUNDARY_HALF_WIDTH);
 
   const edgeScrape=resolveCourseEdgeContact(state,dt,{profile:rideProfile});
 
@@ -174,7 +174,7 @@ export function stepCarving(state,input,dt){
     state.vx*=Math.max(.984,plantedScrub);
   }
 
-  state.x=clamp(state.x+state.vx*dt,-T.PLAYER_HALF_WIDTH,T.PLAYER_HALF_WIDTH);
+  state.x=clamp(state.x+state.vx*dt,-T.PLAYER_BOUNDARY_HALF_WIDTH,T.PLAYER_BOUNDARY_HALF_WIDTH);
   const edgeScrape=resolveCourseEdgeContact(state,dt,{profile:rideProfile});
 
   state.counterSteer=neutralizing;

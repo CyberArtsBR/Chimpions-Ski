@@ -32,44 +32,67 @@ function oilSurface(){
 export function createOilVisual(){return (oilPrototype??=oilSurface()).clone();}
 
 function rampSurface(){
-  const root=new THREE.Group(),boards=[],frame=[],snow=[],markings=[];
+  const root=new THREE.Group(),deck=[],chassis=[],leds=[],glows=[],markings=[];
   const slope=.18,angle=Math.atan(slope),height=z=>.45-z*slope;
   const box=(parts,w,h,d,x,y,z,tilt=0)=>{
     const g=new THREE.BoxGeometry(w,h,d);g.rotateX(tilt);g.translate(x,y,z);parts.push(g);
   };
-  // Top matches the existing ramp deck and takeoff envelope.
-  for(let i=0;i<12;i++){
-    const z=1.46-i*.266;
-    box(boards,2.32,.075,.252,0,height(z)-.038,z,angle);
+  const addMerged=(parts,material,{cast=false,renderOrder=0}={})=>{
+    const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());
+    const mesh=new THREE.Mesh(geometry,material);
+    mesh.castShadow=cast;mesh.receiveShadow=true;mesh.renderOrder=renderOrder;root.add(mesh);
+  };
+
+  // Preserve the original 2.3m x 3.2m gameplay/readability envelope while
+  // upgrading the prop to a rigid premium competition kicker.
+  box(deck,2.30,.105,3.04,0,height(0)-.055,0,angle);
+  for(let i=0;i<10;i++){
+    const z=1.34-i*.295;
+    box(deck,2.18,.018,.045,0,height(z)+.012,z,angle);
   }
   for(const side of [-1,1]){
-    box(frame,.10,.13,3.22,side*1.15,.365,0,angle);
-    for(const z of [-1.35,-.45,.50]){
-      const h=Math.max(.06,height(z)-.12);
-      box(frame,.11,h,.13,side*1.08,h*.5,z);
+    box(chassis,.13,.19,3.24,side*1.15,.35,0,angle);
+    box(chassis,.075,.11,3.05,side*1.06,height(0)-.13,0,angle);
+    for(const z of [-1.30,-.42,.46,1.24]){
+      const h=Math.max(.10,height(z)-.10);
+      box(chassis,.12,h,.15,side*1.08,h*.5,z);
     }
-    box(snow,.105,.028,2.85,side*1.07,.473,0,angle);
+    box(glows,.18,.09,2.94,side*1.19,height(0)+.035,0,angle);
+    box(leds,.052,.038,2.96,side*1.20,height(0)+.038,0,angle);
   }
-  box(frame,2.22,.09,.11,0,.12,-1.32);
-  box(markings,2.30,.022,.13,0,height(-1.45)+.016,-1.45,angle);
-  box(markings,2.30,.018,.10,0,height(1.50)+.012,1.50,angle);
-  // Two restrained directional chevrons on the wooden deck.
-  for(const z of [.6,-.2])for(const side of [-1,1]){
-    const g=new THREE.BoxGeometry(.62,.016,.07);
-    g.rotateY(side*-.52);g.rotateX(angle);g.translate(side*.26,height(z)+.015,z);markings.push(g);
+  // Bright takeoff and entry lips make the ramp readable at 300 km/h.
+  box(glows,2.22,.075,.16,0,height(-1.47)+.04,-1.47,angle);
+  box(leds,2.18,.032,.075,0,height(-1.47)+.045,-1.47,angle);
+  box(leds,2.18,.026,.060,0,height(1.48)+.035,1.48,angle);
+  box(chassis,2.24,.10,.12,0,.13,-1.35);
+
+  // Three luminous forward chevrons are flush to the deck so they do not alter collision.
+  for(const z of [.72,.08,-.56])for(const side of [-1,1]){
+    const g=new THREE.BoxGeometry(.58,.018,.075);
+    g.rotateY(side*-.54);g.rotateX(angle);
+    g.translate(side*.24,height(z)+.022,z);
+    markings.push(g);
   }
-  const bark=makeBarkTexture(256);
-  const materials=[
-    new THREE.MeshStandardMaterial({color:0x9c805d,map:bark,bumpMap:bark,bumpScale:.014,roughness:.83}),
-    new THREE.MeshStandardMaterial({color:0x294b58,roughness:.66,metalness:.28}),
-    new THREE.MeshStandardMaterial({color:0xf0f7fa,roughness:.92}),
-    new THREE.MeshStandardMaterial({color:0xf1bc49,roughness:.60})
-  ];
-  [boards,frame,snow,markings].forEach((parts,i)=>{
-    const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());
-    const mesh=new THREE.Mesh(geometry,materials[i]);mesh.receiveShadow=true;root.add(mesh);
+
+  const deckMaterial=new THREE.MeshPhysicalMaterial({
+    color:0x172630,roughness:.34,metalness:.68,clearcoat:.28,clearcoatRoughness:.24
   });
-  root.userData.visualPrototype='timber-kicker-v3';
+  const chassisMaterial=new THREE.MeshStandardMaterial({
+    color:0x08151d,roughness:.26,metalness:.88,emissive:0x031018,emissiveIntensity:.42
+  });
+  const ledMaterial=new THREE.MeshBasicMaterial({color:0x66efff,toneMapped:false});
+  const glowMaterial=new THREE.MeshBasicMaterial({
+    color:0x36cfff,transparent:true,opacity:.30,depthWrite:false,
+    toneMapped:false,blending:THREE.AdditiveBlending
+  });
+  const markingMaterial=new THREE.MeshBasicMaterial({color:0xe8fdff,toneMapped:false});
+
+  addMerged(deck,deckMaterial,{cast:true});
+  addMerged(chassis,chassisMaterial,{cast:true});
+  addMerged(glows,glowMaterial,{renderOrder:5});
+  addMerged(leds,ledMaterial,{renderOrder:6});
+  addMerged(markings,markingMaterial,{renderOrder:6});
+  root.userData.visualPrototype='competition-tech-kicker-v4';
   return root;
 }
 export function createRampVisual(){return (rampPrototype??=rampSurface()).clone();}

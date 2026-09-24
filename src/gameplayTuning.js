@@ -1,7 +1,8 @@
 export const SKI_TUNING=Object.freeze({
-  // Wider gameplay corridor. Keep the guaranteed route more central than the
-  // full carve envelope so the outer shoulders can carry tactical risk.
+  // Keep the fence/course corridor wide, but stop the rider center well inside
+  // that visual line so the character cannot clip through the fence geometry.
   PLAYER_HALF_WIDTH:13.8,
+  PLAYER_BOUNDARY_HALF_WIDTH:13.10,
   COURSE_OBJECT_HALF_WIDTH:13.45,
   SAFE_ROUTE_HALF_WIDTH:10.35,
   CONTENT_BAND_HALF_WIDTH:13.0,

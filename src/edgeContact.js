@@ -2,7 +2,7 @@ import {SKI_TUNING as T} from './gameplayTuning.js';
 
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
-export function resolveCourseEdgeContact(state,dt,{limit=T.PLAYER_HALF_WIDTH,profile=null}={}){
+export function resolveCourseEdgeContact(state,dt,{limit=T.PLAYER_BOUNDARY_HALF_WIDTH,profile=null}={}){
   state.edgeContactCooldown=Math.max(0,(state.edgeContactCooldown||0)-Math.max(0,dt||0));
   const side=Math.sign(state.x)||Math.sign(state.vx)||1;
   const atEdge=Math.abs(state.x)>=limit-1e-6;
