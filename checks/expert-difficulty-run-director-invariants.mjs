@@ -161,6 +161,12 @@ for(let seedIndex=0;seedIndex<8;seedIndex++){
         banana.riskReward>=1&&banana.riskReward<=3,
         'risk banana escaped the supported risk tiers'
       );
+      if(banana.rewardRoute){
+        assert(
+          Math.abs(banana.x-banana.rewardRouteFromX)<=banana.rewardRouteReach*.92+1e-6,
+          'reward-route banana demanded more lateral movement than the human-reaction envelope'
+        );
+      }
     }
 
     const hazards=section.placements.filter(
