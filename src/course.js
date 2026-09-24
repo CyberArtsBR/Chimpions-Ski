@@ -785,6 +785,9 @@ export function createCourseDirector({routeCenter,random=Math.random}){
         placements[i].expertPattern=pattern;
         placements[i].runPhase=phase;
         placements[i].safetyOptional=true;
+        // Legacy routeDecision metadata describes the single tracked fallback
+        // route. Expert overlays are validated by reachable intervals instead.
+        placements[i].routeDecision=false;
         Object.assign(placements[i],extra);
       }
     };
