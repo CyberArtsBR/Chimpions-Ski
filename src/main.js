@@ -37,6 +37,11 @@ import {quality,QUALITY_PROFILE_NAMES} from './renderQuality.js';
 import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from './avatarRoster.js';
 import {createPerformanceTelemetry} from './performanceTelemetry.js';
 import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveCameraMotionPreference,saveCameraViewPreference,saveHapticsPreference,saveQualityPreference,saveRideModePreference} from './userPreferences.js';
+import {GAME_FLOW,createGameFlow} from './gameFlow.js';
+import {createRunSession} from './runSession.js';
+import {createBananaPowerSystem} from './bananaPowerSystem.js';
+import {createCollisionRuntime} from './collisionRuntime.js';
+import {createGlobalListenerScope} from './globalListeners.js';
 
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
@@ -223,11 +228,13 @@ const courseBatchComponentCounts=courseRenderBatches.getComponentCounts();
 
 const course=[];
 const collisionBroadphase=createCollisionBroadphase({bucketSize:8});
-const collisionQueryScratch=[];
-const COLLISION_QUERY_HALF_Z=3.5;
+const collisionRuntime=createCollisionRuntime({
+  broadphase:collisionBroadphase,
+  telemetry:performanceTelemetry,
+  queryHalfZ:3.5
+});
 let courseDirector=null;
 let courseFrame=0;
-let activeRamp=null;
 const OPENING_CLEAR_DISTANCE=245;
 // Keep the authored section frontier, including empty recovery/landing space.
 // The first generated hazards begin near the far edge of the initial camera
@@ -238,10 +245,6 @@ function routeCenter(z){
   return Math.sin((-z)*.035)*2.9+Math.sin((-z)*.011)*1.1;
 }
 const coursePool={tree:[],rock:[],log:[],wideLog:[],oil:[],banana:[],ramp:[]};
-function clearActiveRamp(){
-  if(activeRamp)activeRamp.userData.activated=false;
-  activeRamp=null;
-}
 function countCourseMeshes(item){
   let count=0;
   item.traverse?.(child=>{if(child.isMesh)count++;});
@@ -267,9 +270,7 @@ function acquireCourseItem(kind){
   return item;
 }
 function releaseCourseItem(item){
-  if(item===activeRamp)clearActiveRamp();
-  else item.userData.activated=false;
-  collisionBroadphase.remove(item);
+  collisionRuntime.remove(item);
   item.userData.consumed=false;
   item.visible=false;
   courseRenderBatches.deactivate(item);
@@ -303,7 +304,7 @@ function addCoursePlacement(placement){
   item.userData.jumpTarget=!!placement.jumpTarget;
   item.userData.courseLocalZ=placement.z;
   course.push(item);
-  collisionBroadphase.add(item,placement.z);
+  collisionRuntime.add(item,placement.z);
 }
 function fillCourse(difficulty=0){
   const generationStarted=performance.now();
@@ -324,9 +325,8 @@ function fillCourse(difficulty=0){
   performanceTelemetry.record('courseGeneration',performance.now()-generationStarted);
 }
 function resetCourse(difficulty=0){
-  clearActiveRamp();
   while(course.length)releaseCourseItem(course.pop());
-  collisionBroadphase.clear();
+  collisionRuntime.reset();
   courseDirector.reset();
   courseEndZ=-OPENING_CLEAR_DISTANCE;courseTravel=0;
   fillCourse(difficulty);
@@ -408,6 +408,9 @@ let selectedRideMode=normalizeRideMode(userPreferences.rideMode||RIDE_MODE.SKI);
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
 const state={mode:'menu',rideMode:selectedRideMode,distance:0,travel:0,time:0,bananas:0,bananaPowerProgress:0,specialReady:false,specialActiveTime:0,speed:initialRideProfile.baseSpeed,maxRunSpeed:initialRideProfile.baseSpeed,bestCombo:0,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const runSession=createRunSession({state});
+const gameFlow=createGameFlow({state,initial:GAME_FLOW.START});
+const runtimeListeners=createGlobalListenerScope();
 
 const audio=createSkiAudio();
 const mountainWeather=createMountainWeather({app,scene,camera,renderer,environment,audio});
@@ -422,7 +425,7 @@ const ui=createGameUI({
   onRestart:()=>beginRun(),
   onChoose:()=>{
     if(!ready)return;
-    state.mode='menu';
+    gameFlow.enter(GAME_FLOW.SELECT_RIDER,{reason:'choose-rider'});
     gameplayInput?.resetTransient?.();
     ui.showMenu();
     selector?.open();
@@ -463,37 +466,25 @@ function cycleCameraMotion(){
   return setCameraMotion(CAMERA_MOTION_ORDER[(current+1)%CAMERA_MOTION_ORDER.length],{persist:true,announce:true});
 }
 
-function collectBananaPower(){
-  if(state.specialReady)return false;
-  state.bananaPowerProgress=Math.min(BANANA_POWER_GOAL,(Number(state.bananaPowerProgress)||0)+1);
-  if(state.bananaPowerProgress>=BANANA_POWER_GOAL){
-    state.bananaPowerProgress=BANANA_POWER_GOAL;
-    state.specialReady=true;
-    return true;
+const bananaPower=createBananaPowerSystem({
+  state,
+  goal:BANANA_POWER_GOAL,
+  duration:BANANA_POWER_DURATION,
+  bulletTimeScale:BANANA_BULLET_TIME_SCALE,
+  canActivate:()=>state.mode==='playing',
+  onReady:()=>ui.showBananaPowerActivated?.(),
+  onActivated:()=>{
+    specialAura.visible=true;
+    document.body.classList.add('banana-power-active','bullet-time-active');
+    audio.play('go',.72,.82);
+    haptics.rampTakeoff?.(1);
+    ui.showBananaPowerActivated?.();
+  },
+  onDeactivated:()=>{
+    specialAura.visible=false;
+    document.body.classList.remove('banana-power-active','bullet-time-active');
   }
-  return false;
-}
-function activateBananaPower(){
-  if(state.mode!=='playing'||!state.specialReady)return false;
-  state.specialReady=false;
-  state.bananaPowerProgress=0;
-  state.specialActiveTime=BANANA_POWER_DURATION;
-  specialAura.visible=true;
-  document.body.classList.add('banana-power-active','bullet-time-active');
-  audio.play('go',.72,.82);
-  haptics.rampTakeoff?.(1);
-  ui.showBananaPowerActivated?.();
-  return true;
-}
-function stepBananaPower(realDt){
-  if(state.specialActiveTime>0){
-    state.specialActiveTime=Math.max(0,state.specialActiveTime-realDt);
-    if(state.specialActiveTime===0){
-      specialAura.visible=false;
-      document.body.classList.remove('banana-power-active','bullet-time-active');
-    }
-  }
-}
+});
 function updateBananaPowerVisual(time=0){
   const active=state.specialActiveTime>0;
   specialAura.visible=active;
@@ -591,6 +582,7 @@ function dismissSessionTutorial(){
 }
 function showSessionTutorialOnce(){
   if(hasSeenSessionTutorial())return Promise.resolve(false);
+  if(!gameFlow.enter(GAME_FLOW.TUTORIAL,{reason:'session-tutorial'}))return Promise.resolve(false);
   sessionTutorialVisible=true;
   sessionTutorialRoot.hidden=false;
   document.body.classList.add('session-tutorial-active');
@@ -611,13 +603,13 @@ function updateSessionTutorialController(pad={}){
   if(pressed)dismissSessionTutorial();
   return true;
 }
-addEventListener('keydown',event=>{
+runtimeListeners.on(window,'keydown',event=>{
   if(!sessionTutorialVisible||event.repeat)return;
   event.preventDefault();
   event.stopImmediatePropagation();
   dismissSessionTutorial();
 },{capture:true});
-addEventListener('pointerdown',event=>{
+runtimeListeners.on(window,'pointerdown',event=>{
   if(!sessionTutorialVisible)return;
   event.preventDefault();
   event.stopImmediatePropagation();
@@ -629,7 +621,7 @@ const startScreen=createStartScreen({
   onStart:()=>{
     if(!ready||!selector)return false;
     initialSelectionFlow=true;
-    state.mode='menu';
+    if(!gameFlow.enter(GAME_FLOW.SELECT_RIDER,{reason:'start-screen'}))return false;
     ui.showMenu();
     selector.open();
     // Keep spectator GLB work idle while the player is choosing a rider.
@@ -804,10 +796,11 @@ let last=performance.now();
 let physicsSubsteps=0;
 let runPreparing=false;
 
-function resetRunState(mode='countdown'){
+function resetRunState(){
   if(state.rideMode!==selectedRideMode)applyRideProfileToState(selectedRideMode);
   const rideProfile=getRideProfile(state.rideMode);
-  Object.assign(state,{mode,distance:0,travel:0,time:0,bananas:0,bananaPowerProgress:0,specialReady:false,specialActiveTime:0,speed:rideProfile.baseSpeed,maxRunSpeed:rideProfile.baseSpeed,bestCombo:0,baseSpeed:rideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:rideProfile.baseSpeed,maxSpeed:rideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0});
+  runSession.reset({rideProfile});
+  bananaPower.reset();
   skier?.userData?.setRideMode?.(state.rideMode);
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
@@ -815,8 +808,6 @@ function resetRunState(mode='countdown'){
   tricks.reset();
   audio.resetRun?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
-  specialAura.visible=false;
-  document.body.classList.remove('banana-power-active','bullet-time-active');
   startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
@@ -848,7 +839,7 @@ function startRaceCountdown(){
     durationMs:START_COUNTDOWN_DURATION_MS,
     onGo:()=>{
       if(state.mode!=='countdown')return;
-      state.mode='playing';
+      if(!gameFlow.enter(GAME_FLOW.PLAYING,{reason:'countdown-complete'}))return;
       gameplayInput.resetTransient();
       touchControls.reset();
       ui.setMode('playing');
@@ -871,7 +862,8 @@ async function beginRun(){
     ui.showRunLoading?.();
     audio.unlock();
     audio.play('menu',.38);
-    resetRunState('countdown');
+    if(!gameFlow.enter(GAME_FLOW.COUNTDOWN,{reason:'begin-run'}))return false;
+    resetRunState();
     ui.prepareRun({best:state.best,speed:state.speed});
     startCamera.begin(state,performance.now());
     return true;
@@ -881,23 +873,21 @@ async function beginRun(){
   }
 }
 function pauseGame(){
-  if(state.mode!=='playing')return;
-  state.mode='paused';
+  if(state.mode!=='playing'||!gameFlow.enter(GAME_FLOW.PAUSED,{reason:'pause'}))return;
   gameplayInput.resetTransient();
   touchControls.reset();
   ui.showPause();
   audio.play('menu',.24);
 }
 function resumeGame(){
-  if(state.mode!=='paused')return;
-  state.mode='playing';
+  if(state.mode!=='paused'||!gameFlow.enter(GAME_FLOW.PLAYING,{reason:'resume'}))return;
   ui.hidePause();
   audio.play('menu',.22);
   last=performance.now();
 }
 function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
-  clearActiveRamp();
+  collisionRuntime.clearRamp();
   const interruptedTrick=kind==='trick'?null:tricks.abort({reason:'collision'});
   if(interruptedTrick)resolveTrickAudio(scoreTrickFailure(state,interruptedTrick));
   tricks.reset();
@@ -911,29 +901,28 @@ function crash(kind='tree',item=null){
   state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
   state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
   state.crashTime=0;
-  state.specialActiveTime=0;
-  specialAura.visible=false;
-  document.body.classList.remove('banana-power-active','bullet-time-active');
+  bananaPower.deactivate();
   breakSkillCombo(state);
-  state.mode='crashed';
+  if(!gameFlow.enter(GAME_FLOW.CRASHED,{reason:kind}))return;
   state.best=Math.max(state.best,runDistance);
   ui.setMode('crashed');
   const crashFeedback=feedback.onCrash({kind:state.crashType,velocity:state.crashVelocity});
   if(!isTrickCrash)haptics.crash(state.crashType,crashFeedback?.hapticStrength);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
   ui.showResults({distance:runDistance,score:state.score,bananas:state.bananas,best:state.best,newBest,crashType:state.crashType,time:state.time,maxSpeedKmh:speedToKmh(state.maxRunSpeed||state.speed),bestCombo:state.bestCombo||0,rideMode:state.rideMode},650);
+  gameFlow.enter(GAME_FLOW.RESULTS,{reason:'results'});
 }
 function suspendInput(){
   gameplayInput.resetTransient();
   touchControls.reset();
   if(state.mode==='playing')pauseGame();
   else if(state.mode==='countdown'){
-    state.mode='menu';startCountdownStarted=false;startCamera.reset();ui.showMenu();
+    gameFlow.enter(GAME_FLOW.START,{reason:'countdown-suspended'});startCountdownStarted=false;startCamera.reset();ui.showMenu();
   }
   audio.update({mode:state.mode});
 }
-addEventListener('blur',suspendInput);
-document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInput();});
+runtimeListeners.on(window,'blur',suspendInput);
+runtimeListeners.on(document,'visibilitychange',()=>{if(document.hidden)suspendInput();});
 
 function update(dt,frameMs=dt*1000){
   physicsSubsteps=0;
@@ -954,17 +943,18 @@ function update(dt,frameMs=dt*1000){
   if(actions.pausePressed&&state.mode==='playing')pauseGame();
   if(actions.cameraPressed&&state.mode==='playing')cycleCameraView();
   if(actions.cameraMotionPressed&&state.mode==='playing')cycleCameraMotion();
-  if(actions.specialPressed&&state.mode==='playing')activateBananaPower();
+  if(actions.specialPressed&&state.mode==='playing')bananaPower.activate();
   const steer=actions.steer;
   const jumpPressed=wasPlaying&&state.mode==='playing'&&actions.jumpPressed;
   const jumpHeld=actions.jumpHeld;
   const trickIntent=jumpPressed?actions.trickIntent:null;
   let worldDistance=0;
-  let simulationFrameDt=dt;
+  const realFrameDt=dt;
+  let simulationFrameDt=realFrameDt;
   if(state.mode==='playing'){
-    stepBananaPower(dt);
-    const bulletTimeActive=state.specialActiveTime>0;
-    simulationFrameDt=dt*(bulletTimeActive?BANANA_BULLET_TIME_SCALE:1);
+    bananaPower.step(realFrameDt);
+    const bulletTimeActive=bananaPower.active;
+    simulationFrameDt=realFrameDt*bananaPower.simulationScale;
     // 150–300 km/h ride profiles use tight collision sampling so fast hazards cannot be skipped.
     const physicsStarted=performance.now();
     const steps=Math.max(1,Math.ceil(simulationFrameDt/SKI_TUNING.PHYSICS_SUBSTEP_SECONDS));
@@ -998,6 +988,7 @@ function update(dt,frameMs=dt*1000){
 
     const pressedThisStep=step===0&&jumpPressed;
     updateJumpAssist(state,pressedThisStep,dt,jumpHeld);
+    const activeRamp=collisionRuntime.activeRamp;
     if(activeRamp?.visible&&Number.isFinite(activeRamp.userData.courseLocalZ)){
       activeRamp.position.z=activeRamp.userData.courseLocalZ+courseTravel;
       activeRamp.position.y=terrainHeight(activeRamp.position.x,activeRamp.userData.courseLocalZ)+(activeRamp.userData.yOffset||0);
@@ -1102,14 +1093,7 @@ function update(dt,frameMs=dt*1000){
       skiTrails.breakTrail();
     }
 
-    const broadphaseStarted=performance.now();
-    const collisionCandidates=collisionBroadphase.query(
-      player.position.z-courseTravel,
-      COLLISION_QUERY_HALF_Z,
-      collisionQueryScratch
-    );
-    performanceTelemetry.record('collisionBroadphase',performance.now()-broadphaseStarted);
-    performanceTelemetry.increment('collisionCandidates',collisionCandidates.length);
+    const collisionCandidates=collisionRuntime.query(player.position.z-courseTravel);
 
     for(let i=collisionCandidates.length-1;i>=0;i--){
       const item=collisionCandidates[i];
@@ -1152,10 +1136,9 @@ function update(dt,frameMs=dt*1000){
         scoreRiskBanana(state,item);
         removeCourseItem(item);
         state.bananas++;
-        const powerBecameReady=collectBananaPower();
+        const powerBecameReady=bananaPower.collect();
         audio.play('banana',powerBecameReady ? .52 : 1,powerBecameReady ? 1.24 : 1);
         haptics.banana?.(powerBecameReady?1.45:1);
-        if(powerBecameReady)ui.showBananaPowerActivated?.();
         continue;
       }
 
@@ -1168,12 +1151,10 @@ function update(dt,frameMs=dt*1000){
         // If the skier leaves the deck before the lip, cancel the engagement instead
         // of carrying stale ramp state into an off-ramp launch.
         if(item.userData.activated&&!aligned){
-          item.userData.activated=false;
-          if(activeRamp===item)activeRamp=null;
+          collisionRuntime.clearRamp(item);
         }
-        if(!activeRamp&&!item.userData.activated&&!item.userData.consumed&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
-          item.userData.activated=true;
-          activeRamp=item;
+        if(!collisionRuntime.activeRamp&&!item.userData.activated&&!item.userData.consumed&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
+          collisionRuntime.engageRamp(item);
         }
 
         // Crossing-based lip detection is robust at 300 km/h while preserving the
@@ -1184,9 +1165,8 @@ function update(dt,frameMs=dt*1000){
           player.position.y=state.y;
         }
         if(crossedLip&&!state.air){
-          item.userData.activated=false;
           item.userData.consumed=true;
-          if(activeRamp===item)activeRamp=null;
+          collisionRuntime.clearRamp(item);
           if(launchRamp(state,itemGround)){
             feedback.onRampTakeoff();
             haptics.rampTakeoff();
@@ -1293,7 +1273,7 @@ function update(dt,frameMs=dt*1000){
     trickEvent:state.trickEvent??null
   });
   audio.playClear?.(state.clearEvent??null);
-  const audioTimeScale=state.specialActiveTime>0?BANANA_BULLET_TIME_SCALE:1;
+  const audioTimeScale=bananaPower.simulationScale;
   audio.update({
     mode:state.mode,
     speed:state.speed*audioTimeScale,
@@ -1350,12 +1330,12 @@ function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 }
-addEventListener('resize',resize);
+runtimeListeners.on(window,'resize',resize);
 
 window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
   const batch=courseRenderBatches.getDiagnostics();
-  const broadphase=collisionBroadphase.getDiagnostics();
+  const collisionDiagnostics=collisionRuntime.getDiagnostics();
   let standaloneCourseObjects=0;
   let standaloneCourseDrawCalls=0;
   let activeHazardCount=0;
@@ -1377,7 +1357,10 @@ window.chimpionsSki=()=>{
     ...performanceTelemetry.getFlatSnapshot(),
     ...environment.getQualityDiagnostics?.(),
     ...quality.getDiagnostics(),
-    ...broadphase,
+    ...collisionDiagnostics,
+    ...gameFlow.snapshot(),
+    ...bananaPower.snapshot(),
+    runSession:runSession.snapshot(),
     cameraViewMode,
     cameraMotionMode,
     cameraReducedMotion:document.documentElement.dataset.cameraMotion==='reduced',
@@ -1391,8 +1374,6 @@ window.chimpionsSki=()=>{
     visibleHazardCount,
     rendererPixelRatio:renderer.getPixelRatio(),
     physicsSubsteps,
-    activeRamp:!!activeRamp,
-    activeRampState:activeRamp?(activeRamp.userData.consumed?'consumed':'engaged'):'none',
     activeCourseObjects:course.length,
     pooledObjects,
     standaloneCourseObjects,
