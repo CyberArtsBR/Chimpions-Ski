@@ -29,7 +29,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
 
   const hudMeta=document.createElement('div');
   hudMeta.className='hud-meta';
-  hudMeta.innerHTML=`<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">${CONTROL_COPY.jump} · JUMP</span><span class="hud-run-state" id="hud-run-state">READY</span>`;
+  hudMeta.innerHTML=`<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">${CONTROL_COPY.jump} · JUMP</span><span class="hud-camera-hint">${CONTROL_COPY.camera} · CAMERA</span><span class="hud-run-state" id="hud-run-state">READY</span>`;
   hud?.append(hudMeta);
   const hudBestReadout=byId('hud-best-readout');
   const hudJumpHint=byId('hud-jump-hint');
