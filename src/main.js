@@ -690,7 +690,7 @@ function suspendInput(){
 addEventListener('blur',suspendInput);
 document.addEventListener('visibilitychange',()=>{if(document.hidden)suspendInput();});
 
-function update(dt){
+function update(dt,frameMs=dt*1000){
   physicsSubsteps=0;
   const pad=readPad(navigator.getGamepads?.()||[]);
   haptics.setActiveGamepad?.(pad.activeGamepad);
@@ -699,7 +699,7 @@ function update(dt){
     lastPadJump=!!pad.jump;
     return;
   }
-  performanceTelemetry.beginFrame(dt*1000);
+  performanceTelemetry.beginFrame(frameMs);
   const wasPlaying=state.mode==='playing'&&!selector?.dialog?.open;
   ui.updateController(pad,selector);
   const steer=control(pad);
@@ -742,6 +742,10 @@ function update(dt){
 
     const pressedThisStep=step===0&&jumpPressed;
     updateJumpAssist(state,pressedThisStep,dt,jumpHeld);
+    if(activeRamp?.visible&&Number.isFinite(activeRamp.userData.courseLocalZ)){
+      activeRamp.position.z=activeRamp.userData.courseLocalZ+courseTravel;
+      activeRamp.position.y=terrainHeight(activeRamp.position.x,activeRamp.userData.courseLocalZ)+(activeRamp.userData.yOffset||0);
+    }
     const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&!activeRamp)tricks.clearRampArm();
     tricks.updateTiming(state,{landingHeight:groundY,gravity:SKI_TUNING.GRAVITY});
@@ -960,7 +964,8 @@ function update(dt){
       }
 
       crash(item.userData.kind,item);
-    }    }
+    }
+    }
     performanceTelemetry.record('physics',performance.now()-physicsStarted);
     syncCourseVisuals();
     if(state.mode==='playing')fillCourse(state.difficulty);
@@ -1044,9 +1049,10 @@ function update(dt){
 }
 
 function render(now){
-  const dt=Math.min(.05,(now-last)/1000||.016);last=now;
-  quality.observeFrame(dt*1000,now);
-  update(dt);
+  const frameMs=Math.max(0,now-last)||16;
+  const dt=Math.min(.05,frameMs/1000||.016);last=now;
+  quality.observeFrame(frameMs,now);
+  update(dt,frameMs);
   if(startScreen.isActive){
     // Hold the 3D presentation completely still behind the artwork/fade.
   }else if(state.mode==='countdown'){
