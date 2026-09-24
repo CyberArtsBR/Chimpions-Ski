@@ -36,7 +36,7 @@ import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} f
 import {quality,QUALITY_PROFILE_NAMES} from './renderQuality.js';
 import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from './avatarRoster.js';
 import {createPerformanceTelemetry} from './performanceTelemetry.js';
-import {CAMERA_MOTION,loadUserPreferences,saveAvatarPreference,saveCameraMotionPreference,saveHapticsPreference,saveQualityPreference,saveRideModePreference} from './userPreferences.js';
+import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveCameraMotionPreference,saveCameraViewPreference,saveHapticsPreference,saveQualityPreference,saveRideModePreference} from './userPreferences.js';
 
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
@@ -76,6 +76,9 @@ camera.position.set(0,6.1,10.5);
 camera.lookAt(0,1,-12);
 const skiCamera=createSkiCamera(camera);
 const reducedMotionMedia=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')||null;
+let cameraViewMode=Object.values(CAMERA_VIEW).includes(userPreferences.cameraView)?userPreferences.cameraView:CAMERA_VIEW.CHASE;
+skiCamera.setViewMode(cameraViewMode);
+document.documentElement.dataset.cameraView=cameraViewMode;
 let cameraMotionMode=userPreferences.cameraMotion;
 function applyCameraMotionPreference(mode=cameraMotionMode){
   cameraMotionMode=[CAMERA_MOTION.AUTO,CAMERA_MOTION.FULL,CAMERA_MOTION.REDUCED].includes(mode)?mode:CAMERA_MOTION.AUTO;
@@ -417,6 +420,13 @@ ui.configureQuality?.({
   }
 });
 ui.configureSettings?.({
+  cameraView:cameraViewMode,
+  onCameraViewChange:mode=>{
+    cameraViewMode=Object.values(CAMERA_VIEW).includes(mode)?mode:CAMERA_VIEW.CHASE;
+    skiCamera.setViewMode(cameraViewMode);
+    document.documentElement.dataset.cameraView=cameraViewMode;
+    saveCameraViewPreference(cameraViewMode);
+  },
   cameraMotion:cameraMotionMode,
   onCameraMotionChange:mode=>{
     cameraMotionMode=mode;
@@ -1156,6 +1166,7 @@ window.chimpionsSki=()=>{
     ...environment.getQualityDiagnostics?.(),
     ...quality.getDiagnostics(),
     ...broadphase,
+    cameraViewMode,
     cameraMotionMode,
     cameraReducedMotion:document.documentElement.dataset.cameraMotion==='reduced',
     hapticsEnabled:haptics.isEnabled?.()!==false,

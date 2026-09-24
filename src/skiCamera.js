@@ -1,6 +1,13 @@
 import * as THREE from 'three';
 import {getSpeedFeel,SKI_TUNING as T} from './gameplayTuning.js';
 
+export const SKI_CAMERA_VIEW=Object.freeze({
+  CHASE:'chase',
+  FIXED:'fixed',
+  HIGH_FAR:'high-far',
+  FIRST_PERSON:'first-person'
+});
+
 export const SKI_CAMERA_LIMITS=Object.freeze({
   MIN_FOV:54.5,
   MAX_FOV:64.2,
@@ -67,6 +74,7 @@ export function createSkiCamera(camera){
   let previewLookDown=0;
   let predictedLandingTime=0;
   let motionScale=1;
+  let viewMode=SKI_CAMERA_VIEW.CHASE;
 
   function reset(){
     roll=0;
@@ -86,6 +94,50 @@ export function createSkiCamera(camera){
   function setReducedMotion(enabled=false){
     motionScale=enabled?SKI_CAMERA_LIMITS.REDUCED_MOTION_SCALE:1;
     return motionScale;
+  }
+
+  function normalizeViewMode(mode){
+    return Object.values(SKI_CAMERA_VIEW).includes(mode)?mode:SKI_CAMERA_VIEW.CHASE;
+  }
+
+  function setViewMode(mode=SKI_CAMERA_VIEW.CHASE){
+    const next=normalizeViewMode(mode);
+    if(next!==viewMode){
+      viewMode=next;
+      reset();
+    }
+    return viewMode;
+  }
+
+  function applyFixedView(){
+    camera.position.set(0,7.25,13.15);
+    camera.fov=58;
+    camera.updateProjectionMatrix();
+    camera.up.set(0,1,0);
+    camera.lookAt(0,.15,-18.75);
+    roll=0;
+  }
+
+  function applyFirstPersonView(state){
+    const heading=THREE.MathUtils.clamp(finite(state.heading,0),-.48,.48);
+    const groundRoll=THREE.MathUtils.clamp(finite(state.groundRoll,0),-.4,.4);
+    const eyeY=finite(state.y,.12)+1.62;
+    const forwardX=Math.sin(heading);
+    const forwardZ=-Math.cos(heading);
+    camera.position.set(
+      finite(state.x,0)+forwardX*.42,
+      eyeY,
+      1.58+forwardZ*.50
+    );
+    camera.fov=68;
+    camera.updateProjectionMatrix();
+    camera.up.set(0,1,0);
+    camera.lookAt(
+      finite(state.x,0)+forwardX*22,
+      eyeY-.34-finite(state.groundPitch,0)*4.2-groundRoll*.18,
+      1.58+forwardZ*22
+    );
+    roll=0;
   }
 
   function lateralTarget(state){
@@ -171,8 +223,22 @@ export function createSkiCamera(camera){
     const safeDt=THREE.MathUtils.clamp(finite(dt,1/60),0,0.1);
     const crash=state.mode==='crashed';
     const air=!!state.air;
-    const landingEdge=!air&&previousAir;
     const landingPulse=finite(state.landingPulse,0);
+
+    if(viewMode===SKI_CAMERA_VIEW.FIXED){
+      previousAir=air;
+      previousLanding=landingPulse;
+      applyFixedView();
+      return;
+    }
+    if(viewMode===SKI_CAMERA_VIEW.FIRST_PERSON){
+      previousAir=air;
+      previousLanding=landingPulse;
+      applyFirstPersonView(state);
+      return;
+    }
+
+    const landingEdge=!air&&previousAir;
     if(landingEdge||(!air&&landingPulse>previousLanding+.10)){
       const hard=state.landingQuality==='hard';
       const rough=state.landingQuality==='rough';
@@ -190,7 +256,15 @@ export function createSkiCamera(camera){
     lateralFollow=THREE.MathUtils.damp(lateralFollow,desiredLateral,returning?4.25:5.15,safeDt);
 
     updatePrediction(state,safeDt);
-    const baseFov=getChaseFrame(state,chasePosition,lookTarget);
+    let baseFov=getChaseFrame(state,chasePosition,lookTarget);
+    if(viewMode===SKI_CAMERA_VIEW.HIGH_FAR){
+      chasePosition.y+=2.45;
+      chasePosition.z+=4.15;
+      chasePosition.x*=.82;
+      lookTarget.y-=.42;
+      lookTarget.z-=2.85;
+      baseFov+=1.15;
+    }
     const crashTime=Math.max(0,finite(state.crashTime,0));
     const crashDir=THREE.MathUtils.clamp(finite(state.crashDirection,0),-1,1);
     crashSettle=THREE.MathUtils.damp(crashSettle,crash?1:0,crash?3.8:7.0,safeDt);
@@ -259,9 +333,10 @@ export function createSkiCamera(camera){
       previewLateralLead,
       previewLookDown,
       predictedLandingTime,
-      motionScale
+      motionScale,
+      viewMode
     };
   }
 
-  return {update,reset,getChaseFrame,setReducedMotion,getDiagnostics};
+  return {update,reset,getChaseFrame,setReducedMotion,setViewMode,getViewMode:()=>viewMode,getDiagnostics};
 }

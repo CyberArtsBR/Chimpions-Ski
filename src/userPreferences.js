@@ -4,11 +4,19 @@ export const CAMERA_MOTION=Object.freeze({
   REDUCED:'reduced'
 });
 
+export const CAMERA_VIEW=Object.freeze({
+  CHASE:'chase',
+  FIXED:'fixed',
+  HIGH_FAR:'high-far',
+  FIRST_PERSON:'first-person'
+});
+
 const KEYS=Object.freeze({
   avatar:'chimpions-ski-avatar',
   rideMode:'chimpions-ski-ride-mode',
   quality:'chimpions-ski-quality',
   cameraMotion:'chimpions-ski-camera-motion',
+  cameraView:'chimpions-ski-camera-view',
   haptics:'chimpions-ski-haptics-enabled'
 });
 
@@ -39,6 +47,7 @@ export function loadUserPreferences(){
     rideMode:normalizedChoice(read(KEYS.rideMode,'ski'),['ski','snowboard'],'ski'),
     quality:normalizedChoice(read(KEYS.quality,'auto'),['auto','high','max','medium','low'],'auto'),
     cameraMotion:normalizedChoice(read(KEYS.cameraMotion,CAMERA_MOTION.AUTO),Object.values(CAMERA_MOTION),CAMERA_MOTION.AUTO),
+    cameraView:normalizedChoice(read(KEYS.cameraView,CAMERA_VIEW.CHASE),Object.values(CAMERA_VIEW),CAMERA_VIEW.CHASE),
     haptics:read(KEYS.haptics,'1')!=='0'
   };
 }
@@ -55,6 +64,9 @@ export function saveQualityPreference(mode){
 }
 export function saveCameraMotionPreference(mode){
   return write(KEYS.cameraMotion,normalizedChoice(mode,Object.values(CAMERA_MOTION),CAMERA_MOTION.AUTO));
+}
+export function saveCameraViewPreference(mode){
+  return write(KEYS.cameraView,normalizedChoice(mode,Object.values(CAMERA_VIEW),CAMERA_VIEW.CHASE));
 }
 export function saveHapticsPreference(enabled){
   return write(KEYS.haptics,enabled?1:0);
