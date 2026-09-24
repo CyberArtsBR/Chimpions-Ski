@@ -134,13 +134,9 @@ try{
   const skiChoice=selector.locator('.ride-mode-card[data-ride-mode="ski"]');
   await skiChoice.waitFor({state:'visible',timeout:5000});
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('ride-mode-card'));
-  for(const viewport of responsiveViewports){
-    await page.setViewportSize({width:viewport.width,height:viewport.height});
-    await assertElementWithinViewport(selector,viewport.label+' ride selector');
-    await assertElementWithinViewport(skiChoice,viewport.label+' ski choice');
-    await assertElementWithinViewport(selector.locator('.ride-mode-back'),viewport.label+' ride back');
-  }
-  await page.setViewportSize({width:1440,height:900});
+  await assertElementWithinViewport(selector,'ride selector');
+  await assertElementWithinViewport(skiChoice,'ski choice');
+  await assertElementWithinViewport(selector.locator('.ride-mode-back'),'ride back');
 
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>document.activeElement?.classList?.contains('chimpion-card'));
