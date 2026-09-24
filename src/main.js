@@ -391,13 +391,13 @@ const ui=createGameUI({
   onChoose:()=>{
     if(!ready)return;
     state.mode='menu';
-    keys.clear();
+    gameplayInput?.resetTransient?.();
     ui.showMenu();
     selector?.open();
   },
   onGiveUp:()=>{
-    keys.clear();
-    jumpKeyPressed=false;
+    gameplayInput?.resetTransient?.();
+    touchControls?.reset?.();
     audio.update({mode:'menu'});
     window.location.assign(startScreen.gameSelectionUrl);
   }
