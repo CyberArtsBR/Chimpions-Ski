@@ -190,7 +190,7 @@ assert(
   minSidePressureHazards>=minimumSidePressureHazards,
   `dedicated late-game side pressure became too sparse (${minSidePressureHazards} < ${minimumSidePressureHazards})`
 );
-const minimumPostMaxFill=Math.ceil(totalSections*.25);
+const minimumPostMaxFill=seeds.length*3;
 assert(
   totalPostMaxFill>=minimumPostMaxFill,
   `post-max sparse-gap pressure did not meaningfully activate (${totalPostMaxFill} < ${minimumPostMaxFill})`
