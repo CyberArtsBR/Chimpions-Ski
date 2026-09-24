@@ -144,15 +144,16 @@
 
 /* Banana Power: single stored charge, 10-banana meter and explicit keyboard/gamepad affordances. */
 .banana-power{
-  position:fixed;z-index:6;top:118px;left:50%;transform:translateX(-50%);
-  width:min(430px,calc(100vw - 28px));pointer-events:none;color:#fff5b2;
+  position:fixed;z-index:6;left:max(16px,env(safe-area-inset-left));bottom:max(18px,calc(env(safe-area-inset-bottom) + 8px));
+  width:min(255px,calc(48vw - 16px));pointer-events:none;color:#fff5b2;
   font-family:var(--ui-display);font-style:italic;text-shadow:var(--ui-outline);
-  filter:drop-shadow(0 8px 16px rgba(4,24,38,.22));
+  filter:drop-shadow(0 6px 12px rgba(4,24,38,.22));
 }
-.banana-power-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:800;letter-spacing:.06em}
-.banana-power-head strong{font-size:14px;color:#fff}
+.banana-power-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;font-weight:800;letter-spacing:.055em}
+.banana-power-head span::first-letter{font-size:16px}
+.banana-power-head strong{font-size:12px;color:#fff}
 .banana-power-track{
-  height:12px;margin-top:5px;border:1px solid rgba(255,246,177,.72);border-radius:999px;overflow:hidden;
+  height:9px;margin-top:4px;border:1px solid rgba(255,246,177,.72);border-radius:999px;overflow:hidden;
   background:rgba(5,29,46,.62);backdrop-filter:blur(8px);
 }
 .banana-power-track>span{
@@ -161,10 +162,10 @@
   box-shadow:0 0 16px rgba(255,222,74,.56);transition:width .22s ease;
 }
 .banana-power-ready,.banana-power-active{
-  margin-top:6px;display:flex;justify-content:center;align-items:center;gap:9px;flex-wrap:wrap;
-  font-size:12px;font-weight:800;letter-spacing:.07em;color:#fff3a1;
+  margin-top:5px;display:flex;justify-content:flex-start;align-items:center;gap:6px;flex-wrap:wrap;
+  font-size:10px;font-weight:800;letter-spacing:.055em;color:#fff3a1;
 }
-.banana-power-ready strong{color:#ffe45c;font-size:15px}
+.banana-power-ready strong{color:#ffe45c;font-size:12px}
 .keycap-q{
   display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:5px;
   background:#eef7ff;color:#102b43;border:1px solid #fff;box-shadow:0 2px 0 #91aabb;
@@ -175,7 +176,20 @@
   background:#2684ff;color:#fff;border:2px solid #a9d3ff;box-shadow:0 0 10px rgba(38,132,255,.55);
   font:800 normal 14px/1 var(--ui-display);text-shadow:none;
 }
-.banana-power.is-ready .banana-power-track{box-shadow:0 0 18px rgba(255,220,58,.46)}
+.banana-power.is-ready{
+  animation:bananaReadyGlow .68s ease-in-out infinite alternate;
+}
+.banana-power.is-ready .banana-power-track{
+  box-shadow:0 0 8px rgba(255,238,113,.95),0 0 22px rgba(255,203,44,.78);
+  border-color:#fff5a6;
+}
+.banana-power.is-ready .banana-power-track>span{
+  filter:brightness(1.32);
+}
+@keyframes bananaReadyGlow{
+  from{filter:drop-shadow(0 4px 8px rgba(255,191,30,.24))}
+  to{filter:drop-shadow(0 0 13px rgba(255,228,77,.95)) brightness(1.14)}
+}
 .banana-power.is-active .banana-power-track>span{background:linear-gradient(90deg,#ffd22f,#fff2a0)}
 .banana-power-active{color:#dff8ff;animation:bananaBulletPulse .62s ease-in-out infinite alternate}
 .banana-power.power-burst{animation:bananaPowerBurst .72s ease-out}
@@ -199,10 +213,10 @@ body.bullet-time-active::after{
 .camera-mode-callout.pulse{animation:cameraModePulse .32s ease-out}
 @keyframes cameraModePulse{from{opacity:0;transform:translate(-50%,8px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
 @media(max-width:600px){
-  .banana-power{top:104px;width:calc(100vw - 24px)}
-  .banana-power-head{font-size:11px}.banana-power-head strong{font-size:12px}
-  .banana-power-ready{font-size:10px}.banana-power-ready strong{font-size:13px}
+  .banana-power{left:10px;bottom:max(12px,env(safe-area-inset-bottom));width:min(220px,58vw)}
+  .banana-power-head{font-size:10px}.banana-power-head strong{font-size:11px}
+  .banana-power-ready{font-size:9px}.banana-power-ready strong{font-size:11px}
 }
 @media(prefers-reduced-motion:reduce){
-  .banana-power-track>span,.banana-power-active,.banana-power.power-burst,.camera-mode-callout.pulse,body.bullet-time-active::after{animation:none!important;transition:none!important}
+  .banana-power-track>span,.banana-power-active,.banana-power.power-burst,.banana-power.is-ready,.camera-mode-callout.pulse,body.bullet-time-active::after{animation:none!important;transition:none!important}
 }
