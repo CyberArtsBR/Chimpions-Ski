@@ -61,7 +61,7 @@ assert(touch.includes('pointercancel'),'touch controls do not clear cancelled po
 assert(touch.includes('setPointerCapture'),'touch controls do not own active pointers');
 assert(css.includes('env(safe-area-inset-left)')&&css.includes('env(safe-area-inset-bottom)'),'touch controls ignore mobile safe areas');
 assert(css.includes('orientation:portrait'),'portrait orientation recommendation is missing');
-assert(ui.includes('id="settings-overlay"'),'coherent settings dialog is missing');
+assert(ui.includes("settings.id='settings-overlay'")||ui.includes('id="settings-overlay"'),'coherent settings dialog is missing');
 assert(ui.includes('MUSIC VOLUME')&&ui.includes('SFX VOLUME'),'real audio volume settings are missing');
 assert(ui.includes('CAMERA MOTION')&&ui.includes('HAPTICS'),'camera motion / haptics settings are missing');
 assert(main.includes('saveAvatarPreference')&&main.includes('saveRideModePreference'),'avatar/ride preferences are not persisted');
