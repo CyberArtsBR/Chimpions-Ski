@@ -13,12 +13,13 @@ const PROFILES=Object.freeze({
     tierSeconds:SKI_TUNING.SPEED_TIER_SECONDS,
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
     maxSpeed:SKI_TUNING.MAX_SPEED,
-    edgeResponseScale:1.05,
-    reversalResponseScale:1.08,
-    turnRateScale:.99,
-    lateralScale:.98,
-    lateralResponseScale:1.06,
-    landingReengageScale:.92
+    // SKI: quick edge set, fast reversal and precise slalom corrections.
+    edgeResponseScale:1.10,
+    reversalResponseScale:1.16,
+    turnRateScale:1.03,
+    lateralScale:.99,
+    lateralResponseScale:1.12,
+    landingReengageScale:.90
   }),
   [RIDE_MODE.SNOWBOARD]:Object.freeze({
     mode:RIDE_MODE.SNOWBOARD,
@@ -27,12 +28,13 @@ const PROFILES=Object.freeze({
     tierSeconds:SKI_TUNING.SPEED_TIER_SECONDS,
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
     maxSpeed:SKI_TUNING.MAX_SPEED,
-    edgeResponseScale:.95,
-    reversalResponseScale:.90,
-    turnRateScale:1.05,
-    lateralScale:1.05,
-    lateralResponseScale:.93,
-    landingReengageScale:1.07
+    // SNOWBOARD: wider carve and stronger momentum, but deliberate reversals.
+    edgeResponseScale:.90,
+    reversalResponseScale:.82,
+    turnRateScale:1.07,
+    lateralScale:1.08,
+    lateralResponseScale:.87,
+    landingReengageScale:1.10
   })
 });
 
