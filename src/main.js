@@ -538,12 +538,10 @@ const feedback=createGameFeedback({audio,ui});
 const scorePresentation=createScorePresentation({hud:document.querySelector('.hud')});
 
 const SESSION_TUTORIAL_KEY='chimpions-ski-tutorial-seen-v2';
-const TUTORIAL_PART_COUNT=8;
 let sessionTutorialVisible=false;
 let sessionTutorialResolve=null;
 let tutorialPreviousButtons=[];
 let tutorialAwaitNeutral=true;
-let tutorialArtObjectUrl='';
 
 const sessionTutorialRoot=document.createElement('section');
 sessionTutorialRoot.className='session-tutorial';
@@ -553,48 +551,29 @@ sessionTutorialRoot.setAttribute('aria-modal','true');
 sessionTutorialRoot.setAttribute('aria-label','Chimpions Ski how to play tutorial');
 sessionTutorialRoot.innerHTML=`
   <div class="session-tutorial-stage">
-    <img class="session-tutorial-art" alt="Chimpions Ski How to Play tutorial: movement, jump and tricks, Banana Power, cameras, goal and pause controls" />
-    <div class="session-tutorial-motion-hint"><b>R</b> / <b>B</b> · CAMERA MOTION · FULL / FIXED / REDUCED</div>
-    <div class="session-tutorial-fallback" hidden>
-      <strong>CHIMPIONS SKI · HOW TO PLAY</strong>
-      <span>A / D · CARVE &nbsp; SPACE / A · JUMP &nbsp; Q / X · BULLET TIME</span>
-      <span>E / Y · CAMERA &nbsp; R / B · CAMERA MOTION</span>
-      <em>PRESS ANY KEY OR BUTTON TO START</em>
+    <div class="session-tutorial-bg" aria-hidden="true"></div>
+    <header class="session-tutorial-title">
+      <strong>CHIMPIONS <span>SKI</span></strong>
+      <em>HOW TO PLAY</em>
+    </header>
+    <div class="session-tutorial-grid">
+      <section><h3><b>1</b> MOVEMENT</h3><div class="tutorial-controls"><kbd>A</kbd><kbd>D</kbd><span>or</span><i>LEFT STICK / D-PAD</i></div><p>Carve left and right to avoid obstacles.</p></section>
+      <section><h3><b>2</b> JUMP + TRICKS</h3><div class="tutorial-controls"><kbd>SPACE</kbd><span>or</span><i class="pad-a">A</i></div><p>Jump ramps and clear hazards.</p><strong class="tutorial-highlight">↑ + JUMP · 360° SPIN &nbsp; ↓ + JUMP · BACKFLIP</strong></section>
+      <section><h3><b>3</b> 🍌 BANANA POWER</h3><p>Collect 10 bananas to charge 1 Special.</p><div class="tutorial-controls"><kbd>Q</kbd><span>or</span><i class="pad-x">X</i><strong>= BULLET TIME</strong></div><p>Bullet Time lasts 3 seconds.</p></section>
+      <section><h3><b>4</b> CAMERA</h3><div class="tutorial-controls"><kbd>E</kbd><span>or</span><i class="pad-y">Y</i><strong>CHANGE VIEW</strong></div><p>Chase · Fixed · High + Far · First Person</p><div class="tutorial-controls tutorial-motion-row"><kbd>R</kbd><span>or</span><i class="pad-b">B</i><strong>CAMERA MOTION</strong></div><p>Full · Fixed · Reduced</p></section>
+      <section><h3><b>5</b> GOAL</h3><p>🏔️ Ski as far as possible.</p><p>🌲 Avoid trees, rocks, logs and oil.</p><p>🍌 Grab bananas and survive the increasing speed.</p></section>
+      <section><h3><b>6</b> PAUSE</h3><div class="tutorial-controls"><kbd>ESC</kbd><span>or</span><i>START</i></div><p>Pause or resume the run.</p></section>
     </div>
+    <footer class="session-tutorial-start">PRESS ANY KEY OR BUTTON TO START</footer>
   </div>
 `;
 document.body.append(sessionTutorialRoot);
-const sessionTutorialArt=sessionTutorialRoot.querySelector('.session-tutorial-art');
-const sessionTutorialFallback=sessionTutorialRoot.querySelector('.session-tutorial-fallback');
 
 function hasSeenSessionTutorial(){
   try{return sessionStorage.getItem(SESSION_TUTORIAL_KEY)==='1';}catch{return false;}
 }
 function markSessionTutorialSeen(){
   try{sessionStorage.setItem(SESSION_TUTORIAL_KEY,'1');}catch{}
-}
-async function loadSessionTutorialArt(){
-  if(tutorialArtObjectUrl||sessionTutorialArt.src)return true;
-  try{
-    const parts=[];
-    for(let index=0;index<TUTORIAL_PART_COUNT;index++){
-      const response=await fetch('/tutorial/chimpions-ski-tutorial-'+String(index).padStart(2,'0')+'.b64',{cache:'force-cache'});
-      if(!response.ok)throw new Error('tutorial asset part '+index+' unavailable');
-      parts.push((await response.text()).trim());
-    }
-    const binary=atob(parts.join(''));
-    const bytes=new Uint8Array(binary.length);
-    for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
-    tutorialArtObjectUrl=URL.createObjectURL(new Blob([bytes],{type:'image/webp'}));
-    sessionTutorialArt.src=tutorialArtObjectUrl;
-    sessionTutorialFallback.hidden=true;
-    return true;
-  }catch(error){
-    console.warn('Tutorial artwork fallback:',error);
-    sessionTutorialArt.hidden=true;
-    sessionTutorialFallback.hidden=false;
-    return false;
-  }
 }
 function dismissSessionTutorial(){
   if(!sessionTutorialVisible)return false;
@@ -617,7 +596,6 @@ function showSessionTutorialOnce(){
   document.body.classList.add('session-tutorial-active');
   tutorialPreviousButtons=[];
   tutorialAwaitNeutral=true;
-  void loadSessionTutorialArt();
   return new Promise(resolve=>{sessionTutorialResolve=resolve;});
 }
 function updateSessionTutorialController(pad={}){
