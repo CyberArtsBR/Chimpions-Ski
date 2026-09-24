@@ -14,53 +14,24 @@ const _highlightCurve=new THREE.CatmullRomCurve3([
   new THREE.Vector3(.13,-.07,.08),
   new THREE.Vector3(.28,.07,.073)
 ]);
+const _bodyGeometry=new THREE.TubeGeometry(_curve,32,.108,10,false);
+const _highlightGeometry=new THREE.TubeGeometry(_highlightCurve,22,.016,6,false);
+const _tipGeometry=new THREE.SphereGeometry(.095,10,8);
+const _stemGeometry=new THREE.CylinderGeometry(.038,.052,.17,8);
+const _tipMaterial=new THREE.MeshStandardMaterial({color:0x62401f,roughness:.80,metalness:0});
+const _highlightMaterial=new THREE.MeshBasicMaterial({color:0xfff0a1,transparent:true,opacity:.74,depthWrite:false,toneMapped:true});
 
-const _bodyGeometry=new THREE.TubeGeometry(_curve,28,.105,9,false);
-const _highlightGeometry=new THREE.TubeGeometry(_highlightCurve,20,.018,5,false);
-const _tipGeometry=new THREE.SphereGeometry(.095,9,7);
-const _stemGeometry=new THREE.CylinderGeometry(.038,.052,.17,7);
-const _tipMaterial=new THREE.MeshStandardMaterial({
-  color:0x6d441f,
-  roughness:.82,
-  metalness:0
-});
-const _highlightMaterial=new THREE.MeshBasicMaterial({color:0xfff3a8,transparent:true,opacity:.86,depthWrite:false});
-const _haloGeometry=new THREE.RingGeometry(.38,.48,28);
-const _haloMaterial=new THREE.MeshBasicMaterial({color:0xffd84a,transparent:true,opacity:.20,depthWrite:false,blending:THREE.AdditiveBlending,side:THREE.DoubleSide});
-
-/**
- * Shared, low-cost collectible mesh. The geometry is deliberately asymmetric
- * and broad in screen space so the pickup reads as a banana instead of a ring.
- */
 export function createBananaVisual(bodyMaterial){
   const root=new THREE.Group();
-
-  const body=new THREE.Mesh(_bodyGeometry,bodyMaterial);
-  body.castShadow=true;
-  root.add(body);
-
-  const leftTip=new THREE.Mesh(_tipGeometry,_tipMaterial);
-  leftTip.position.set(-.39,.115,0);
-  leftTip.scale.set(.72,.72,.78);
-  leftTip.castShadow=true;
-  root.add(leftTip);
-
-  const rightTip=new THREE.Mesh(_tipGeometry,_tipMaterial);
-  rightTip.position.set(.365,.09,0);
-  rightTip.scale.set(.70,.70,.78);
-  rightTip.castShadow=true;
-  root.add(rightTip);
-
-  const stem=new THREE.Mesh(_stemGeometry,_tipMaterial);
-  stem.position.set(.414,.175,0);
-  stem.rotation.z=-.48;
-  stem.castShadow=true;
-  root.add(stem);
-
-  const highlight=new THREE.Mesh(_highlightGeometry,_highlightMaterial);highlight.renderOrder=6;root.add(highlight);
-  const halo=new THREE.Mesh(_haloGeometry,_haloMaterial);halo.position.z=-.055;halo.renderOrder=5;halo.castShadow=false;root.add(halo);
-
-  root.scale.set(1.19,1.19,1.19);
-  root.rotation.z=-.04;
+  const visual=new THREE.Group();
+  visual.name='banana-visual-pivot';
+  root.add(visual);
+  const body=new THREE.Mesh(_bodyGeometry,bodyMaterial);body.castShadow=true;visual.add(body);
+  const leftTip=new THREE.Mesh(_tipGeometry,_tipMaterial);leftTip.position.set(-.39,.115,0);leftTip.scale.set(.72,.72,.78);leftTip.castShadow=true;visual.add(leftTip);
+  const rightTip=new THREE.Mesh(_tipGeometry,_tipMaterial);rightTip.position.set(.365,.09,0);rightTip.scale.set(.70,.70,.78);rightTip.castShadow=true;visual.add(rightTip);
+  const stem=new THREE.Mesh(_stemGeometry,_tipMaterial);stem.position.set(.414,.175,0);stem.rotation.z=-.48;stem.castShadow=true;visual.add(stem);
+  const highlight=new THREE.Mesh(_highlightGeometry,_highlightMaterial);highlight.renderOrder=6;visual.add(highlight);
+  visual.scale.set(1.19,1.19,1.19);visual.rotation.z=-.04;
+  root.userData.collectibleVisual=visual;
   return root;
 }

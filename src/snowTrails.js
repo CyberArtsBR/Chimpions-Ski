@@ -24,7 +24,7 @@ void main(){
   float edge=pow(side,1.55);
   float compressed=1.0-smoothstep(.18,.62,side);
   float berm=smoothstep(.52,.78,side)*(1.0-smoothstep(.84,1.0,side));
-  vec3 groove=vec3(0.27,0.45,0.56),packed=vec3(0.48,0.66,0.74),snowEdge=vec3(0.80,0.91,0.95);
+  vec3 groove=vec3(.39,.42,.44),packed=vec3(.66,.69,.70),snowEdge=vec3(.94,.96,.97);
   vec3 color=mix(groove,snowEdge,edge*.68);color=mix(color,packed,compressed*.34);color+=snowEdge*berm*.12;
   float feather=1.0-smoothstep(.80,1.0,side)*.48;
   gl_FragColor=vec4(color,vAlpha*feather);

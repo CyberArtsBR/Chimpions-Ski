@@ -32,67 +32,22 @@ function oilSurface(){
 export function createOilVisual(){return (oilPrototype??=oilSurface()).clone();}
 
 function rampSurface(){
-  const root=new THREE.Group(),deck=[],chassis=[],leds=[],glows=[],markings=[];
+  const root=new THREE.Group(),deck=[],chassis=[],cores=[],glows=[],markings=[],underglow=[];
   const slope=.18,angle=Math.atan(slope),height=z=>.45-z*slope;
-  const box=(parts,w,h,d,x,y,z,tilt=0)=>{
-    const g=new THREE.BoxGeometry(w,h,d);g.rotateX(tilt);g.translate(x,y,z);parts.push(g);
-  };
-  const addMerged=(parts,material,{cast=false,renderOrder=0}={})=>{
-    const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());
-    const mesh=new THREE.Mesh(geometry,material);
-    mesh.castShadow=cast;mesh.receiveShadow=true;mesh.renderOrder=renderOrder;root.add(mesh);
-  };
-
-  // Preserve the original 2.3m x 3.2m gameplay/readability envelope while
-  // upgrading the prop to a rigid premium competition kicker.
-  box(deck,2.30,.105,3.04,0,height(0)-.055,0,angle);
-  for(let i=0;i<10;i++){
-    const z=1.34-i*.295;
-    box(deck,2.18,.018,.045,0,height(z)+.012,z,angle);
-  }
-  for(const side of [-1,1]){
-    box(chassis,.13,.19,3.24,side*1.15,.35,0,angle);
-    box(chassis,.075,.11,3.05,side*1.06,height(0)-.13,0,angle);
-    for(const z of [-1.30,-.42,.46,1.24]){
-      const h=Math.max(.10,height(z)-.10);
-      box(chassis,.12,h,.15,side*1.08,h*.5,z);
-    }
-    box(glows,.18,.09,2.94,side*1.19,height(0)+.035,0,angle);
-    box(leds,.052,.038,2.96,side*1.20,height(0)+.038,0,angle);
-  }
-  // Bright takeoff and entry lips make the ramp readable at 300 km/h.
-  box(glows,2.22,.075,.16,0,height(-1.47)+.04,-1.47,angle);
-  box(leds,2.18,.032,.075,0,height(-1.47)+.045,-1.47,angle);
-  box(leds,2.18,.026,.060,0,height(1.48)+.035,1.48,angle);
-  box(chassis,2.24,.10,.12,0,.13,-1.35);
-
-  // Three luminous forward chevrons are flush to the deck so they do not alter collision.
-  for(const z of [.72,.08,-.56])for(const side of [-1,1]){
-    const g=new THREE.BoxGeometry(.58,.018,.075);
-    g.rotateY(side*-.54);g.rotateX(angle);
-    g.translate(side*.24,height(z)+.022,z);
-    markings.push(g);
-  }
-
-  const deckMaterial=new THREE.MeshPhysicalMaterial({
-    color:0x172630,roughness:.34,metalness:.68,clearcoat:.28,clearcoatRoughness:.24
-  });
-  const chassisMaterial=new THREE.MeshStandardMaterial({
-    color:0x08151d,roughness:.26,metalness:.88,emissive:0x031018,emissiveIntensity:.42
-  });
-  const ledMaterial=new THREE.MeshBasicMaterial({color:0x66efff,toneMapped:false});
-  const glowMaterial=new THREE.MeshBasicMaterial({
-    color:0x36cfff,transparent:true,opacity:.30,depthWrite:false,
-    toneMapped:false,blending:THREE.AdditiveBlending
-  });
-  const markingMaterial=new THREE.MeshBasicMaterial({color:0xe8fdff,toneMapped:false});
-
-  addMerged(deck,deckMaterial,{cast:true});
-  addMerged(chassis,chassisMaterial,{cast:true});
-  addMerged(glows,glowMaterial,{renderOrder:5});
-  addMerged(leds,ledMaterial,{renderOrder:6});
-  addMerged(markings,markingMaterial,{renderOrder:6});
-  root.userData.visualPrototype='competition-tech-kicker-v4';
-  return root;
+  const box=(parts,w,h,d,x,y,z,tilt=0,ry=0)=>{const g=new THREE.BoxGeometry(w,h,d);if(ry)g.rotateY(ry);if(tilt)g.rotateX(tilt);g.translate(x,y,z);parts.push(g);};
+  const addMerged=(parts,material,{cast=false,renderOrder=0}={})=>{const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=cast;mesh.receiveShadow=true;mesh.renderOrder=renderOrder;root.add(mesh);};
+  box(deck,2.30,.11,3.04,0,height(0)-.055,0,angle);
+  for(let i=0;i<13;i++){const z=1.42-i*.228;box(deck,2.16,.016,.032,0,height(z)+.012,z,angle);}
+  for(const side of [-1,1]){box(chassis,.14,.20,3.24,side*1.15,.35,0,angle);box(chassis,.085,.115,3.05,side*1.055,height(0)-.13,0,angle);for(const z of [-1.30,-.66,.02,.70,1.25]){const h=Math.max(.10,height(z)-.10);box(chassis,.12,h,.15,side*1.08,h*.5,z);box(glows,.075,Math.max(.08,h*.62),.055,side*1.115,h*.55,z);box(cores,.025,Math.max(.06,h*.58),.026,side*1.124,h*.55,z);}box(glows,.20,.10,2.96,side*1.19,height(0)+.038,0,angle);box(cores,.052,.040,2.98,side*1.20,height(0)+.041,0,angle);}
+  box(glows,2.24,.085,.17,0,height(-1.47)+.043,-1.47,angle);box(cores,2.19,.034,.078,0,height(-1.47)+.048,-1.47,angle);box(glows,2.22,.070,.14,0,height(1.48)+.038,1.48,angle);box(cores,2.18,.028,.064,0,height(1.48)+.042,1.48,angle);box(chassis,2.24,.105,.12,0,.13,-1.35);box(underglow,1.72,.035,2.46,0,.16,-.04,angle);
+  for(const z of [.78,.18,-.42,-1.02])for(const side of [-1,1]){const g=new THREE.BoxGeometry(.56,.018,.070);g.rotateY(side*-.54);g.rotateX(angle);g.translate(side*.23,height(z)+.024,z);markings.push(g);}
+  const deckMaterial=new THREE.MeshPhysicalMaterial({color:0x12232d,roughness:.31,metalness:.72,clearcoat:.32,clearcoatRoughness:.22});
+  const chassisMaterial=new THREE.MeshStandardMaterial({color:0x06141d,roughness:.23,metalness:.92,emissive:0x020b10,emissiveIntensity:.46});
+  const ledMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.48,6.6),toneMapped:false});
+  const glowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.58,2.95),transparent:true,opacity:.30,depthWrite:false,toneMapped:false,blending:THREE.AdditiveBlending});
+  const underglowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.035,.28,1.50),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,blending:THREE.AdditiveBlending});
+  const markingMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.78,2.0,5.4),toneMapped:false});
+  addMerged(deck,deckMaterial,{cast:true});addMerged(chassis,chassisMaterial,{cast:true});addMerged(underglow,underglowMaterial,{renderOrder:4});addMerged(glows,glowMaterial,{renderOrder:5});addMerged(cores,ledMaterial,{renderOrder:6});addMerged(markings,markingMaterial,{renderOrder:6});
+  root.userData.visualPrototype='competition-tech-kicker-v5-hdr';return root;
 }
 export function createRampVisual(){return (rampPrototype??=rampSurface()).clone();}

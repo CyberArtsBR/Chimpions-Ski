@@ -188,7 +188,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
   const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
-  const ambient=new THREE.HemisphereLight(0xe8f8ff,0x6d879a,1.36);
+  const ambient=new THREE.HemisphereLight(0xf8fcff,0x777f86,1.32);
   scene.add(ambient);
 
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
@@ -196,13 +196,13 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   sun.castShadow=false;
   scene.add(sun);
 
-  const rim=new THREE.DirectionalLight(0xb8e5fb,.48);
+  const rim=new THREE.DirectionalLight(0xddefff,.44);
   rim.position.set(11,8,-10);
   scene.add(rim);
 
   // One purposeful fill keeps dark Chimpions readable without paying for four
   // additional scene-wide realtime directional lights.
-  const fill=new THREE.DirectionalLight(0xe7f6ff,.56);
+  const fill=new THREE.DirectionalLight(0xf3f8ff,.52);
   fill.position.set(0,7,-9);
   scene.add(fill);
 
@@ -388,7 +388,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     dayCycle.apply(0);
     snowMaterials.setTravel(0);
   }
-  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time,rideMode='ski'){
+  function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time,rideMode='ski',rideContacts=null){
     time+=dt;
     visualTravel+=worldSpeed*dt;
     sky.position.copy(camera.position);
@@ -463,7 +463,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       }
     }
 
-    snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running,rideMode);
+    snowParticles.spray(dt,playerX,playerY,playerZ,speed,edge,air,landingPulse,running,rideMode,rideContacts);
     snowParticles.update(dt,worldSpeed);
     surfaceDetail.update(dt,worldSpeed);
 

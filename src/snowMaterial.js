@@ -122,41 +122,41 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
   const terrain=new THREE.MeshPhysicalMaterial({
     color:0xffffff,
     map:textures.albedo,
-    roughness:.78,
+    roughness:.87,
     roughnessMap:textures.roughness,
     metalness:0,
     normalMap:textures.normal,
     normalScale:new THREE.Vector2(.56,.76),
     bumpMap:textures.micro,
-    bumpScale:.041,
-    clearcoat:.16,
-    clearcoatRoughness:.36,
-    sheen:.68,
+    bumpScale:.052,
+    clearcoat:.065,
+    clearcoatRoughness:.62,
+    sheen:.50,
     sheenColor:new THREE.Color(0xf7f9ff),
-    sheenRoughness:.52,
+    sheenRoughness:.70,
     ior:1.31
   });
 
   const bank=new THREE.MeshPhysicalMaterial({
     color:0xffffff,
     map:textures.albedo,
-    roughness:.76,
+    roughness:.85,
     roughnessMap:textures.roughness,
     metalness:0,
     normalMap:textures.normal,
     normalScale:new THREE.Vector2(.38,.54),
     bumpMap:textures.micro,
-    bumpScale:.026,
-    clearcoat:.14,
-    clearcoatRoughness:.46,
-    sheen:.34,
+    bumpScale:.034,
+    clearcoat:.05,
+    clearcoatRoughness:.66,
+    sheen:.28,
     sheenColor:new THREE.Color(0xf7f9ff),
     sheenRoughness:.58,
     ior:1.31
   });
 
   const shadowBank=new THREE.MeshStandardMaterial({
-    color:0xe8ecef,
+    color:0xeff1f2,
     roughness:.92,
     metalness:0,
     bumpMap:textures.micro,
@@ -190,10 +190,12 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
       float grooming=sin(snowPhase)*snowAA*snowPacked*.034*snowDetail;
       float trough=smoothstep(.58,.82,1.0-snowMeso)*(.45+.55*snowLarge);
-      vec3 snowCold=mix(vec3(.91,.925,.945),vec3(1.02),smoothstep(.10,.88,snowMacro));
+      vec3 snowCold=mix(vec3(.955,.958,.962),vec3(1.015),smoothstep(.10,.88,snowMacro));
       float snowShade=.89+snowMeso*.075+snowLarge*.055+snowFine*.025+grooming-compressed*.048-trough*.028;
       diffuseColor.rgb*=snowCold*snowShade;
-      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.965,.99,1.025),iceMask*.22);
+      float powderLift=(.010+.014*snowFine)*(1.0-iceMask)*snowDetail;
+      diffuseColor.rgb+=vec3(powderLift);
+      diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.992,1.0,1.014),iceMask*.14);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       float driftPhase=snowP.x*2.3+snowP.y*.32+sin(snowP.y*.17)*1.1;
@@ -204,7 +206,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      roughnessFactor=clamp(roughnessFactor+snowMeso*.13-snowPacked*.07-compressed*.065-iceMask*.24-snowFine*.025,.36,.95);
+      roughnessFactor=clamp(roughnessFactor+snowMeso*.15-snowPacked*.035-compressed*.040-iceMask*.16-snowFine*.018,.48,.98);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
       float crystalDistance=1.0-smoothstep(7.0,34.0,length(vViewPosition));
@@ -217,13 +219,13 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float facing=max(0.0,dot(normalize(normal),snowView));
       float glint=pow(facing,28.0);
       float grazing=pow(1.0-facing,3.0);
-      outgoingLight+=vec3(.94,.98,1.04)*(crystal*.30+crystalFine*.18)*(.38+.62*glint)*crystalDistance*crystalAA*snowDetail;
-      outgoingLight+=vec3(.72,.84,1.0)*iceMask*pow(facing,12.0)*.13;
-      outgoingLight+=vec3(.24,.29,.36)*grazing*(.028+.050*iceMask)*crystalDistance*snowDetail;
+      outgoingLight+=vec3(1.0,1.0,1.018)*(crystal*.24+crystalFine*.14)*(.38+.62*glint)*crystalDistance*crystalAA*snowDetail;
+      outgoingLight+=vec3(.86,.91,1.0)*iceMask*pow(facing,12.0)*.075;
+      outgoingLight+=vec3(.30,.31,.33)*grazing*(.020+.034*iceMask)*crystalDistance*snowDetail;
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v5-white';
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v6-powder';
 
   let currentDetailLevel=1;
   function setDetailLevel(value=1){
@@ -231,16 +233,16 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     currentDetailLevel=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1);
     const t=currentDetailLevel;
     snowDetail.value=t;
-    terrain.normalScale.set(.20+.36*t,.28+.48*t);
-    terrain.bumpScale=.010+.031*t;
-    terrain.clearcoat=.055+.105*t;
-    terrain.clearcoatRoughness=.52-.16*t;
-    terrain.sheen=.28+.40*t;
-    bank.normalScale.set(.14+.24*t,.20+.34*t);
-    bank.bumpScale=.007+.019*t;
-    bank.clearcoat=.045+.095*t;
-    bank.clearcoatRoughness=.58-.12*t;
-    shadowBank.bumpScale=.005+.014*t;
+    terrain.normalScale.set(.24+.40*t,.34+.54*t);
+    terrain.bumpScale=.016+.036*t;
+    terrain.clearcoat=.025+.040*t;
+    terrain.clearcoatRoughness=.72-.10*t;
+    terrain.sheen=.30+.20*t;
+    bank.normalScale.set(.18+.26*t,.24+.38*t);
+    bank.bumpScale=.010+.024*t;
+    bank.clearcoat=.020+.030*t;
+    bank.clearcoatRoughness=.74-.08*t;
+    shadowBank.bumpScale=.006+.016*t;
     return currentDetailLevel;
   }
   setDetailLevel(detailLevel);

@@ -1,18 +1,5 @@
 import * as THREE from 'three';
 import {SKI_TUNING as T} from './gameplayTuning.js';
-
-export function resetPlayerOrientation(root){
-  root.rotation.set(0,0,0);
-}
-
-export function updateRidingOrientation(root,state,dt){
-  const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68;
-  const terrainRoll=state.air?0:state.groundRoll*.70;
-  root.rotation.x=THREE.MathUtils.damp(root.rotation.x,terrainPitch,7.2,dt);
-  root.rotation.z=THREE.MathUtils.damp(root.rotation.z,-state.edge*.29+terrainRoll,T.PLAYER_BANK_RESPONSE,dt);
-  root.rotation.y=THREE.MathUtils.damp(root.rotation.y,-state.heading*.58,T.PLAYER_YAW_RESPONSE,dt);
-}
-
-export function updateCrashOrientation(root,state,dt){
-  root.rotation.z=THREE.MathUtils.damp(root.rotation.z,(state.crashDirection||1)*.92,4.6,dt);
-}
+export function resetPlayerOrientation(root){root.rotation.set(0,0,0);}
+export function updateRidingOrientation(root,state,dt){const terrainPitch=state.air?THREE.MathUtils.clamp(-state.vy*.012,-.09,.09):state.groundPitch*.68,terrainRoll=state.air?0:state.groundRoll*.70;root.rotation.x=THREE.MathUtils.damp(root.rotation.x,terrainPitch,7.2,dt);root.rotation.z=THREE.MathUtils.damp(root.rotation.z,-state.edge*.29+terrainRoll,T.PLAYER_BANK_RESPONSE,dt);root.rotation.y=THREE.MathUtils.damp(root.rotation.y,-state.heading*.58,T.PLAYER_YAW_RESPONSE,dt);}
+export function updateCrashOrientation(root,state,dt,groundY=.12){const m=state.crashMotion;if(!m?.active)return false;m.age+=dt;m.vy-=18.8*dt;root.position.x+=m.vx*dt;root.position.y+=m.vy*dt;root.position.z+=m.vz*dt;root.rotation.x+=m.wx*dt;root.rotation.y+=m.wy*dt;root.rotation.z+=m.wz*dt;m.vx*=Math.pow(.68,dt);m.vz*=Math.pow(.78,dt);m.wx*=Math.pow(.74,dt);m.wy*=Math.pow(.82,dt);m.wz*=Math.pow(.74,dt);if(root.position.y<=groundY&&m.vy<0){root.position.y=groundY;const impact=Math.abs(m.vy);if(m.bounces<2&&impact>3.2){m.vy=impact*(m.bounces===0?.31:.18);m.vx*=.70;m.vz*=.68;m.wx*=.78;m.wy*=.76;m.wz*=.82;m.bounces++;}else{m.vy=0;m.vx*=Math.pow(.08,dt);m.vz*=Math.pow(.06,dt);m.wx*=Math.pow(.05,dt);m.wy*=Math.pow(.08,dt);m.wz*=Math.pow(.05,dt);}}if(m.age>=m.duration){m.active=false;state.crashActive=false;}return true;}
