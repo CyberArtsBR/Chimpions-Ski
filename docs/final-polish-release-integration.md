@@ -31,3 +31,5 @@ The existing remote integration (`ce57d80a963e9babe708a6ce331ec8ac44c57337`) was
 No source front was excluded. Existing mobile-specific code was not expanded. No new features, tests, benchmarks, Playwright work, or QA infrastructure were added. Verification is limited to source inspection, merge-marker/whitespace checks, JavaScript syntax, and the existing production build. Manual desktop gameplay, visual quality, real controller haptics, and performance remain for the user to validate. The existing bundle-size warning remains; no speculative splitting or dependency upgrades are included.
 
 The local and remote `main` branch are not modified by this integration.
+
+Before publication, remote integration advanced to 8a7f3bcfdb6eddd2b7e6c64122184b5674514e57 with the same architecture refinements. Its history was merged and retained. The overlapping Banana Power feedback guard now requires both a non-silent event and active gameplay; duplicate transient defaults from the concurrent merges were consolidated.

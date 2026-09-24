@@ -530,7 +530,7 @@ const bananaPower=createBananaPowerSystem({
   onDeactivated:({silent=false}={})=>{
     specialAura.visible=false;
     document.body.classList.remove('banana-power-active','bullet-time-active');
-    if(!silent){
+    if(!silent&&state.mode==='playing'){
       audio.playBananaPowerEnd?.();
       haptics.bananaPowerEnd?.(.72);
     }
