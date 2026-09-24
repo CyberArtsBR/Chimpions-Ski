@@ -1,7 +1,7 @@
 import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {OBSTACLE_TUNING,obstacleCollisionHalfWidth,obstacleHalfDepth} from './obstacleTuning.js';
 import {estimateRampFlightEnvelope} from './rampTrajectory.js';
-import {createSafeRouteTracker,validateReachableCorridor} from './courseSafety.js';
+import {createSafeRouteTracker,maxHumanReachableLateralDelta,validateReachableCorridor} from './courseSafety.js';
 import {createExpertRunDirector} from './courseRunDirector.js';
 import {
   COURSE_OBJECT_COLLISION_HALF_WIDTH,
@@ -772,6 +772,7 @@ export function createCourseDirector({routeCenter,random=Math.random}){
 
     const before=placements.length;
     let bananaCount=0;
+    let rewardCursor={x:startSafeX,z:startZ};
     const patternRoute=createSafeRouteTracker(startSafeX,startZ);
     const gap=lerp(26,22,plan.intensity);
     const shift=plan.routeShift;
@@ -804,20 +805,38 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       return safeX;
     };
 
-    const addRiskBanana=(z,x,safeX,tier=2)=>{
+    const addRiskBanana=(z,x,safeX,tier=2,extra={})=>{
       const rewardTier=clamp(Math.round(tier),1,3);
+      const reach=maxHumanReachableLateralDelta(z-rewardCursor.z,currentSpeed);
+      const reachableX=clamp(
+        x,
+        rewardCursor.x-reach*.92,
+        rewardCursor.x+reach*.92
+      );
+      const clampedX=clamp(
+        reachableX,
+        -T.COURSE_OBJECT_HALF_WIDTH,
+        T.COURSE_OBJECT_HALF_WIDTH
+      );
       placements.push(banana(
         z,
-        clamp(x,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
+        clampedX,
         safeX,
         {
           riskReward:rewardTier,
           rewardPoints:55+rewardTier*35,
+          rewardRoute:true,
+          rewardRouteStep:bananaCount,
+          rewardRouteFromX:rewardCursor.x,
+          rewardRouteReach:reach,
           expertPattern:pattern,
-          runPhase:phase
+          runPhase:phase,
+          ...extra
         }
       ));
+      rewardCursor={x:clampedX,z};
       bananaCount++;
+      return clampedX;
     };
 
     const pushExpertHazard=(kind,x,z,safeX,extra={})=>{
@@ -867,8 +886,10 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       pushExpertHazard('tree',side*.7,z0,easy,{forkDivider:true});
       pushExpertHazard('rock',-side*.8,z0-gap*.28,easy,{forkDivider:true});
       decision(easy,z0-gap,'ISOLATED',['tree','rock'],.42);
-      addRiskBanana(z0-gap*.48,hard,hard,2);
-      addRiskBanana(z0-gap*1.16,hard+side*.75,hard,plan.intensity>.72?3:2);
+      addRiskBanana(z0-gap*.48,hard,hard,2,{forkRoute:true});
+      addRiskBanana(z0-gap*1.16,hard+side*.75,hard,plan.intensity>.72?3:2,{forkRoute:true});
+      const rejoinX=addRiskBanana(z0-gap*1.78,easy,easy,1,{rewardRejoin:true});
+      decision(rejoinX,z0-gap*2.12,'OFFSET_GATE',['rock','tree'],.44);
     }
 
     if(pattern==='COMMITMENT'){
@@ -891,17 +912,25 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       const edgeX=side*(T.COURSE_OBJECT_HALF_WIDTH-1.05);
       pushExpertHazard('log',side*(T.SIDE_HAZARD_ZONE_START-.65),z0-gap*.25,inner,{edgeRisk:true});
       decision(inner,z0-gap,'DIAGONAL',['rock','tree'],.46);
-      addRiskBanana(z0-gap*.62,edgeX,inner,2);
-      addRiskBanana(z0-gap*1.26,edgeX-side*.65,inner,plan.intensity>.68?3:2);
+      addRiskBanana(z0-gap*.62,edgeX,inner,2,{edgeRisk:true});
+      addRiskBanana(z0-gap*1.26,edgeX-side*.65,inner,plan.intensity>.68?3:2,{edgeRisk:true});
+      const rejoinX=addRiskBanana(z0-gap*1.82,inner+side*1.1,inner,1,{rewardRejoin:true});
+      decision(rejoinX,z0-gap*2.14,'ISOLATED',['tree','rock'],.40);
     }
 
     if(pattern==='BAIT_LINE'){
       const bait1=clamp(startSafeX+side*shift*.34,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
       const bait2=clamp(startSafeX+side*shift*.68,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      addRiskBanana(z0,bait1,startSafeX,1);
-      addRiskBanana(z0-gap*.52,bait2,startSafeX,2);
-      const correction=decision(-side*shift*.42,z0-gap*1.28,'DIAGONAL',['rock','rock','tree'],.62);
-      if(plan.intensity>.72)addRiskBanana(z0-gap*1.82,correction,correction,2);
+      addRiskBanana(z0,bait1,startSafeX,1,{baitLine:true});
+      addRiskBanana(z0-gap*.52,bait2,startSafeX,2,{baitLine:true});
+      const rejoinTarget=clamp(
+        rewardCursor.x-side*shift*.38,
+        -T.SAFE_ROUTE_HALF_WIDTH,
+        T.SAFE_ROUTE_HALF_WIDTH
+      );
+      const rejoinX=addRiskBanana(z0-gap*1.22,rejoinTarget,startSafeX,1,{baitLine:true,rewardRejoin:true});
+      const correction=decision(rejoinX,z0-gap*1.62,'DIAGONAL',['rock','rock','tree'],.62);
+      if(plan.intensity>.72)addRiskBanana(z0-gap*2.02,correction,correction,2,{baitLine:true});
     }
 
     return {added:placements.length-before,bananas:bananaCount};
