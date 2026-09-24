@@ -8,7 +8,7 @@ const DEADZONE_HYSTERESIS=.03;
 const DEADZONE_ENTER=Math.min(.55,DEADZONE+DEADZONE_HYSTERESIS);
 const SWITCH_AXIS_THRESHOLD=Math.max(.28,DEADZONE_ENTER+.08);
 const BUTTON_PRESS_THRESHOLD=.5;
-const STANDARD_BUTTON={confirm:0,cancel:1,menu:9,up:12,down:13,left:14,right:15};
+const STANDARD_BUTTON={confirm:0,cancel:1,special:2,camera:3,menu:9,up:12,down:13,left:14,right:15};
 
 let activeKey=null;
 let activeAxisState=makeAxisPair();
@@ -18,7 +18,7 @@ const reconnectGuards=new Map();
 
 function makeAxisState(){return {engaged:false,sign:0};}
 function makeAxisPair(){return {x:makeAxisState(),y:makeAxisState()};}
-function emptySemantic(){return {confirm:false,jump:false,cancel:false,menu:false};}
+function emptySemantic(){return {confirm:false,jump:false,cancel:false,special:false,camera:false,menu:false};}
 function clampAxis(value=0){return Math.max(-1,Math.min(1,Number(value)||0));}
 function buttonPressed(button){
   if(typeof button==='boolean')return button;
@@ -116,12 +116,16 @@ function edgeData(current){
       confirm:current.confirm&&!previousSemantic.confirm,
       jump:current.jump&&!previousSemantic.jump,
       cancel:current.cancel&&!previousSemantic.cancel,
+      special:current.special&&!previousSemantic.special,
+      camera:current.camera&&!previousSemantic.camera,
       menu:current.menu&&!previousSemantic.menu
     },
     released:{
       confirm:!current.confirm&&previousSemantic.confirm,
       jump:!current.jump&&previousSemantic.jump,
       cancel:!current.cancel&&previousSemantic.cancel,
+      special:!current.special&&previousSemantic.special,
+      camera:!current.camera&&previousSemantic.camera,
       menu:!current.menu&&previousSemantic.menu
     }
   };
@@ -138,6 +142,8 @@ function disconnectedState(){
     confirm:false,
     jump:false,
     cancel:false,
+    special:false,
+    camera:false,
     menu:false,
     edges,
     activeIndex:null,
@@ -202,6 +208,8 @@ export function readPad(pads){
     confirm:!!buttons[STANDARD_BUTTON.confirm],
     jump:!!buttons[STANDARD_BUTTON.confirm],
     cancel:!!buttons[STANDARD_BUTTON.cancel],
+    special:!!buttons[STANDARD_BUTTON.special],
+    camera:!!buttons[STANDARD_BUTTON.camera],
     menu:!!buttons[STANDARD_BUTTON.menu]
   };
   const edges=edgeData(semantic);
