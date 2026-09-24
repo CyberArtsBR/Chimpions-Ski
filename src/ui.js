@@ -29,11 +29,35 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
 
   const hudMeta=document.createElement('div');
   hudMeta.className='hud-meta';
-  hudMeta.innerHTML=`<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">${CONTROL_COPY.jump} · JUMP</span><span class="hud-run-state" id="hud-run-state">READY</span>`;
+  hudMeta.innerHTML=`<span class="hud-best-readout" id="hud-best-readout">BEST 0 m</span><span class="hud-jump-hint" id="hud-jump-hint">${CONTROL_COPY.jump} · JUMP</span><span class="hud-camera-hint">${CONTROL_COPY.camera} · CAMERA</span><span class="hud-run-state" id="hud-run-state">READY</span>`;
   hud?.append(hudMeta);
   const hudBestReadout=byId('hud-best-readout');
   const hudJumpHint=byId('hud-jump-hint');
   const hudRunState=byId('hud-run-state');
+
+  const bananaPower=document.createElement('section');
+  bananaPower.className='banana-power';
+  bananaPower.setAttribute('aria-label','Banana Power meter');
+  bananaPower.innerHTML=`
+    <div class="banana-power-head"><span>🍌 BANANA POWER</span><strong id="banana-power-count">0 / 10</strong></div>
+    <div class="banana-power-track" aria-hidden="true"><span id="banana-power-fill"></span></div>
+    <div class="banana-power-ready" id="banana-power-ready" hidden>
+      <strong>SPECIAL READY</strong>
+      <span>PRESS <kbd class="keycap-q">Q</kbd> OR <b class="gamepad-x-icon" aria-label="controller X button">X</b></span>
+    </div>
+    <div class="banana-power-active" id="banana-power-active" hidden>SHIELD ACTIVE</div>
+  `;
+  document.body.append(bananaPower);
+  const bananaPowerCount=byId('banana-power-count');
+  const bananaPowerFill=byId('banana-power-fill');
+  const bananaPowerReady=byId('banana-power-ready');
+  const bananaPowerActive=byId('banana-power-active');
+
+  const cameraCallout=document.createElement('div');
+  cameraCallout.className='camera-mode-callout';
+  cameraCallout.hidden=true;
+  document.body.append(cameraCallout);
+  let cameraCalloutTimer=0;
 
   const landingCallout=document.createElement('div');
   landingCallout.className='landing-callout';
@@ -405,6 +429,18 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     if(speed)speed.textContent=kmh+' km/h';
     if(hudBestReadout)hudBestReadout.textContent='BEST '+Math.floor(Math.max(bestDistance,Number(values.best)||0))+' m';
     if(hudRunState&&mode==='playing')hudRunState.textContent=values.air?'AIR':'RUN';
+    const powerProgress=Math.max(0,Math.min(10,Math.floor(Number(values.bananaPowerProgress)||0)));
+    const specialReady=!!values.specialReady;
+    const specialActiveTime=Math.max(0,Number(values.specialActiveTime)||0);
+    if(bananaPowerCount)bananaPowerCount.textContent=(specialReady?'10':powerProgress)+' / 10';
+    if(bananaPowerFill)bananaPowerFill.style.width=((specialReady?10:powerProgress)*10)+'%';
+    if(bananaPowerReady)bananaPowerReady.hidden=!specialReady;
+    if(bananaPowerActive){
+      bananaPowerActive.hidden=specialActiveTime<=0;
+      if(specialActiveTime>0)bananaPowerActive.textContent='SHIELD ACTIVE · '+specialActiveTime.toFixed(1)+'s';
+    }
+    bananaPower.classList.toggle('is-ready',specialReady);
+    bananaPower.classList.toggle('is-active',specialActiveTime>0);
     hud?.style.setProperty('--speed-intensity',String(speedFeel));
     hud?.classList.toggle('is-fast',speedFeel>.62);
 
@@ -443,6 +479,22 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     void speedUpCallout.offsetWidth;
     speedUpCallout.classList.add('pulse');
     speedUpTimer=setTimeout(()=>{speedUpCallout.hidden=true;speedUpCallout.classList.remove('pulse');},900);
+  }
+  function showCameraMode(cameraMode='chase'){
+    const labels={chase:'CHASE',fixed:'FIXED','high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
+    clearTimeout(cameraCalloutTimer);
+    cameraCallout.textContent='CAMERA · '+(labels[cameraMode]||String(cameraMode).toUpperCase())+' · E / Y';
+    cameraCallout.hidden=false;
+    cameraCallout.classList.remove('pulse');
+    void cameraCallout.offsetWidth;
+    cameraCallout.classList.add('pulse');
+    cameraCalloutTimer=setTimeout(()=>{cameraCallout.hidden=true;cameraCallout.classList.remove('pulse');},1300);
+  }
+  function showBananaPowerActivated(){
+    bananaPower.classList.remove('power-burst');
+    void bananaPower.offsetWidth;
+    bananaPower.classList.add('power-burst');
+    setTimeout(()=>bananaPower.classList.remove('power-burst'),720);
   }
   function showJumpFeedback(source='JUMP'){
     if(hudJumpHint){
@@ -492,6 +544,13 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     cameraMotionCallback=typeof onCameraMotionChange==='function'?onCameraMotionChange:null;
     hapticsCallback=typeof onHapticsChange==='function'?onHapticsChange:null;
     syncSettingsButtons();
+  }
+  function setCameraViewMode(mode='chase'){
+    cameraViewMode=['chase','fixed','high-far','first-person'].includes(String(mode).toLowerCase())
+      ?String(mode).toLowerCase()
+      :'chase';
+    syncSettingsButtons();
+    return cameraViewMode;
   }
   function cycleCameraView(){
     const options=['chase','fixed','high-far','first-person'];
@@ -629,5 +688,5 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   syncAudioButtons();
   setMode('menu');
 
-  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp};
+  return {setMode,setAvatar,setAvatarLoading,showRunLoading,hideRunLoading,prepareRun,startCountdown,cancelCountdown,showPause,hidePause,showResults,showMenu,showSettings,hideSettings,updateHud,handleMenuAction,updateController,configureQuality,configureSettings,syncAudioButtons,showLandingFeedback,showJumpFeedback,showTrickHint,showSpeedUp,showCameraMode,showBananaPowerActivated,setCameraViewMode};
 }

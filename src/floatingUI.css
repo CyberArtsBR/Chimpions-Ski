@@ -140,3 +140,61 @@
 }
 @media(max-height:580px){.countdown-avatar{top:105px}.run-countdown .countdown-number{font-size:150px}.countdown-control{bottom:5%}}
 @media(prefers-reduced-motion:reduce){.trick-pop,.hud .stat,.hud-best,.landing-callout{animation:none!important;transition:none!important}}
+
+
+/* Banana Power: single stored charge, 10-banana meter and explicit keyboard/gamepad affordances. */
+.banana-power{
+  position:fixed;z-index:6;top:118px;left:50%;transform:translateX(-50%);
+  width:min(430px,calc(100vw - 28px));pointer-events:none;color:#fff5b2;
+  font-family:var(--ui-display);font-style:italic;text-shadow:var(--ui-outline);
+  filter:drop-shadow(0 8px 16px rgba(4,24,38,.22));
+}
+.banana-power-head{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:800;letter-spacing:.06em}
+.banana-power-head strong{font-size:14px;color:#fff}
+.banana-power-track{
+  height:12px;margin-top:5px;border:1px solid rgba(255,246,177,.72);border-radius:999px;overflow:hidden;
+  background:rgba(5,29,46,.62);backdrop-filter:blur(8px);
+}
+.banana-power-track>span{
+  display:block;width:0;height:100%;border-radius:inherit;
+  background:linear-gradient(90deg,#f2b82d,#ffe86b,#fff3a1);
+  box-shadow:0 0 16px rgba(255,222,74,.56);transition:width .22s ease;
+}
+.banana-power-ready,.banana-power-active{
+  margin-top:6px;display:flex;justify-content:center;align-items:center;gap:9px;flex-wrap:wrap;
+  font-size:12px;font-weight:800;letter-spacing:.07em;color:#fff3a1;
+}
+.banana-power-ready strong{color:#ffe45c;font-size:15px}
+.keycap-q{
+  display:inline-grid;place-items:center;min-width:24px;height:24px;padding:0 6px;border-radius:5px;
+  background:#eef7ff;color:#102b43;border:1px solid #fff;box-shadow:0 2px 0 #91aabb;
+  font:800 normal 14px/1 var(--ui-display);text-shadow:none;
+}
+.gamepad-x-icon{
+  display:inline-grid;place-items:center;width:25px;height:25px;border-radius:50%;
+  background:#2684ff;color:#fff;border:2px solid #a9d3ff;box-shadow:0 0 10px rgba(38,132,255,.55);
+  font:800 normal 14px/1 var(--ui-display);text-shadow:none;
+}
+.banana-power.is-ready .banana-power-track{box-shadow:0 0 18px rgba(255,220,58,.46)}
+.banana-power.is-active .banana-power-track>span{background:linear-gradient(90deg,#ffd22f,#fff2a0)}
+.banana-power-active{color:#fff7c8;animation:bananaShieldPulse .72s ease-in-out infinite alternate}
+.banana-power.power-burst{animation:bananaPowerBurst .72s ease-out}
+@keyframes bananaShieldPulse{to{filter:brightness(1.28);transform:scale(1.025)}}
+@keyframes bananaPowerBurst{35%{filter:brightness(1.55) drop-shadow(0 0 16px rgba(255,218,54,.7));transform:translateX(-50%) scale(1.04)}}
+.camera-mode-callout{
+  position:fixed;z-index:7;left:50%;bottom:8%;transform:translateX(-50%);
+  padding:7px 14px;border-radius:999px;border:1px solid rgba(211,245,255,.52);
+  background:rgba(5,29,46,.70);backdrop-filter:blur(9px);color:#dff7ff;
+  font:800 italic 13px/1 var(--ui-display);letter-spacing:.08em;text-shadow:var(--ui-outline);
+  pointer-events:none;
+}
+.camera-mode-callout.pulse{animation:cameraModePulse .32s ease-out}
+@keyframes cameraModePulse{from{opacity:0;transform:translate(-50%,8px) scale(.94)}to{opacity:1;transform:translate(-50%,0) scale(1)}}
+@media(max-width:600px){
+  .banana-power{top:104px;width:calc(100vw - 24px)}
+  .banana-power-head{font-size:11px}.banana-power-head strong{font-size:12px}
+  .banana-power-ready{font-size:10px}.banana-power-ready strong{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  .banana-power-track>span,.banana-power-active,.banana-power.power-burst,.camera-mode-callout.pulse{animation:none!important;transition:none!important}
+}
