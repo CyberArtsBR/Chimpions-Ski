@@ -42,7 +42,7 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
     const material=new THREE.MeshStandardMaterial({color:[0xc7dce9,0xa4bfd0,0x8ca9bd][layer],vertexColors:true,roughness:1});
     material.userData.atmosphereRole='mountain';
     const mesh=new THREE.InstancedMesh(geometries[layer],material,8);
-    mesh.castShadow=mesh.receiveShadow=false;mesh.frustumCulled=false;mesh.name='premium-alpine-band-'+layer;atmosphere.add(mesh);bands.push(mesh);
+    mesh.castShadow=mesh.receiveShadow=false;mesh.frustumCulled=true;mesh.name='premium-alpine-band-'+layer;atmosphere.add(mesh);bands.push(mesh);
     for(let i=0;i<8;i++){
       const side=i%2?-1:1,rank=Math.floor(i/2),seed=layer*31+i*17;
       const width=45+hash(seed+1)*28,depth=38+hash(seed+2)*28;
@@ -52,24 +52,69 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
     }
   }
   const forestMaterial=new THREE.MeshStandardMaterial({color:0x31534e,roughness:1});
-  const forest=new THREE.InstancedMesh(forestGeometry(),forestMaterial,280);
-  forest.castShadow=false;forest.receiveShadow=false;forest.frustumCulled=false;forest.name='premium-distant-forest';world.add(forest);
-  const forestEntries=Array.from({length:280},(_,i)=>({x:(i%2?-1:1)*(COURSE_FLAG_X+20+hash(i+19)*65),z:-55-hash(i+23)*240,s:.8+hash(i+45)*2.1,ry:hash(i+77)*Math.PI*2}));
+  const forestGeo=forestGeometry();
+  const forestCapacity=280;
+  const forestChunkCount=6;
+  const forestChunks=Array.from({length:forestChunkCount},(_,index)=>{
+    const mesh=new THREE.InstancedMesh(forestGeo,forestMaterial,forestCapacity);
+    mesh.castShadow=false;
+    mesh.receiveShadow=false;
+    mesh.frustumCulled=true;
+    mesh.count=0;
+    mesh.name='premium-distant-forest-chunk-'+index;
+    world.add(mesh);
+    return mesh;
+  });
+  const forestChunkCounts=new Uint16Array(forestChunkCount);
+  const forestEntries=Array.from({length:forestCapacity},(_,i)=>({x:(i%2?-1:1)*(COURSE_FLAG_X+20+hash(i+19)*65),z:-55-hash(i+23)*240,s:.8+hash(i+45)*2.1,ry:hash(i+77)*Math.PI*2}));
+  let activeForestCount=forestCapacity;
   let travel=0,detail=1;
   function refresh(){
     for(const e of entries){
       const z=((e.z+travel*(.26+e.layer*.17)+310)%330+330)%330-310;
       dummy.position.set(e.x,-5,z);dummy.rotation.set(0,0,0);dummy.scale.set(e.width,e.height,e.depth);dummy.updateMatrix();bands[e.layer].setMatrixAt(e.index,dummy.matrix);
     }
-    for(const mesh of bands)mesh.instanceMatrix.needsUpdate=true;
-    for(let i=0;i<forest.count;i++){
-      const e=forestEntries[i],z=((e.z+travel+305)%325+325)%325-305;
-      dummy.position.set(e.x,terrainHeight(e.x,z-travel)-.05,z);dummy.rotation.set(0,e.ry,0);dummy.scale.set(e.s*.72,e.s,e.s*.72);dummy.updateMatrix();forest.setMatrixAt(i,dummy.matrix);
+    for(const mesh of bands){
+      mesh.instanceMatrix.needsUpdate=true;
+      mesh.computeBoundingSphere();
     }
-    forest.instanceMatrix.needsUpdate=true;
+
+    forestChunkCounts.fill(0);
+    for(let i=0;i<activeForestCount;i++){
+      const e=forestEntries[i],z=((e.z+travel+305)%325+325)%325-305;
+      const sideIndex=e.x<0?0:1;
+      const depthIndex=z>-105?0:z>-205?1:2;
+      const chunkIndex=sideIndex*3+depthIndex;
+      const slot=forestChunkCounts[chunkIndex]++;
+      dummy.position.set(e.x,terrainHeight(e.x,z-travel)-.05,z);
+      dummy.rotation.set(0,e.ry,0);
+      dummy.scale.set(e.s*.72,e.s,e.s*.72);
+      dummy.updateMatrix();
+      forestChunks[chunkIndex].setMatrixAt(slot,dummy.matrix);
+    }
+    for(let i=0;i<forestChunks.length;i++){
+      const mesh=forestChunks[i];
+      mesh.count=forestChunkCounts[i];
+      mesh.visible=mesh.count>0;
+      mesh.instanceMatrix.needsUpdate=true;
+      if(mesh.visible)mesh.computeBoundingSphere();
+    }
   }
-  function setDetail(value){detail=THREE.MathUtils.clamp(value,0,1);forest.count=Math.round(80+200*detail);bands[2].visible=detail>.75;refresh();}
+  function setDetail(value){
+    detail=THREE.MathUtils.clamp(value,0,1);
+    activeForestCount=Math.round(80+200*detail);
+    bands[2].visible=detail>.75;
+    refresh();
+  }
   function reset(){travel=0;refresh();}
   function update(dt,speed){if(!speed)return;travel+=dt*speed;refresh();}
-  reset();return {update,reset,setDetail};
+  reset();return {
+    update,reset,setDetail,
+    getDiagnostics:()=>({
+      forestActive:activeForestCount,
+      forestChunks:forestChunks.length,
+      forestVisibleChunks:forestChunks.reduce((sum,mesh)=>sum+Number(mesh.visible),0),
+      mountainBandsVisible:bands.reduce((sum,mesh)=>sum+Number(mesh.visible),0)
+    })
+  };
 }
