@@ -85,6 +85,8 @@ for(const [index,id,mapping] of [
   p=pad({index,id,mapping,pressed:[1,9]});
   state=read([p]);
   assert.equal(state.cancel,true,`${id}: cancel mapping`);
+  assert.equal(state.cameraMotion,true,`${id}: B camera-motion mapping`);
+  assert.equal(state.edges.pressed.cameraMotion,true,`${id}: B camera-motion press edge`);
   assert.equal(state.menu,true,`${id}: menu mapping`);
   assert.equal(state.edges.released.jump,true,`${id}: jump release edge`);
 }
@@ -170,5 +172,5 @@ clear();
 
 console.log(JSON.stringify({
   check:'input-invariants',
-  cases:['neutral','drift','deadzone+hysteresis','full-range','dpad','A/B/Start','multiple controllers','disconnect/reconnect','replacement takeover']
+  cases:['neutral','drift','deadzone+hysteresis','full-range','dpad','A jump + B camera motion + Start','multiple controllers','disconnect/reconnect','replacement takeover']
 }));
