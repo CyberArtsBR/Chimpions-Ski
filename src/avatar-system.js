@@ -537,11 +537,20 @@ export function createAvatarSelector({catalog,onSelect,onValidateLocalAvatar=asy
     search.focus();
   }
 
-  window.addEventListener('pagehide',()=>{if(customObjectUrl)URL.revokeObjectURL(customObjectUrl);},{once:true});
+  function dispose(){
+    if(customObjectUrl){
+      URL.revokeObjectURL(customObjectUrl);
+      customObjectUrl='';
+    }
+    window.removeEventListener('pagehide',dispose);
+    dialog.remove();
+  }
+  window.addEventListener('pagehide',dispose,{once:true});
 
   return {
     open,
     close:()=>dialog.close(),
+    dispose,
     dialog,
     handleMenuAction,
     setSelected,
