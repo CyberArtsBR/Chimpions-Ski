@@ -1415,6 +1415,20 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     // same legal X. Re-prune only those final physical overlaps.
     pruneExcessiveOverlap(placements);
 
+    // Keep reset/high-speed warmup bounded. These first generated sections can
+    // otherwise combine authored content + expert overlays + irregular pressure
+    // into a large one-frame allocation burst. Remove optional pressure first,
+    // then surplus collectibles; structural hazards and jump geometry remain.
+    if(sectionIndex<8&&placements.length>26){
+      for(let i=placements.length-1;i>=0&&placements.length>26;i--){
+        const placement=placements[i];
+        if(placement.safetyOptional&&!placement.jumpTarget)placements.splice(i,1);
+      }
+      for(let i=placements.length-1;i>=0&&placements.length>26;i--){
+        if(placements[i].kind==='banana')placements.splice(i,1);
+      }
+    }
+
     const corridorValidation=validateAndRepairCorridor(placements,{
       startZ,
       endZ:startZ-length,
