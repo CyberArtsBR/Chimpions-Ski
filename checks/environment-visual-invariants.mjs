@@ -59,6 +59,10 @@ assert(
   'distant alpine scenery is not quality-scaled'
 );
 assert(!env.includes("import {createMountainBands} from './mountainBands.js'"),'heavy mountain runtime import returned');
+assert(env.includes('realtimeDirectionalLights:3'),'lighting rig should remain limited to sun, rim and one useful fill');
+assert(landscape.includes('forestChunkCount=6'),'distant forest must stay coarsely chunked for frustum culling');
+assert(landscape.includes('mesh.frustumCulled=true'),'distant scenery frustum culling is not enabled');
+assert(landscape.includes('computeBoundingSphere()'),'dynamic scenery chunks must refresh their culling bounds');
 
 assert(snow.includes('setDetailLevel'),'snow material detail hook missing');
 assert(particles.includes('setDensityMultiplier'),'snow particle density hook missing');
