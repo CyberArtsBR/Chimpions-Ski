@@ -919,7 +919,10 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     if(pattern==='OFFSET_CHICANE'){
       const amplitude=shift*.62;
       decision(side*amplitude,z0,'OFFSET_GATE',['rock','tree'],.62);
-      const middle=decision(-side*amplitude*.88,z0-gap,'OFFSET_GATE',['tree','rock'],.66);
+      // Break the visual/decision rhythm through the center of the chicane.
+      // This keeps the same pressure and obstacle count without producing a
+      // memorisable stack of identical gate formations across section seams.
+      const middle=decision(-side*amplitude*.88,z0-gap,'DIAGONAL',['tree','rock'],.66);
       decision(side*amplitude*.78,z0-gap*2,'OFFSET_GATE',['rock','tree'],.68);
       if(plan.intensity>.64)addRiskBanana(z0-gap-4,middle-side*.7,middle,2);
     }
