@@ -92,7 +92,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   settings.id='settings-overlay';
   settings.className='presentation-overlay settings-overlay';
   settings.hidden=true;
-  settings.innerHTML=`<section class="presentation-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><small class="eyebrow">PREFERENCES</small><h2 id="settings-title">SETTINGS</h2><div class="presentation-actions vertical settings-actions"><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="music-volume">MUSIC VOLUME · 70%</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="sfx-volume">SFX VOLUME · 80%</button><button class="toggle-button" id="quality-profile">QUALITY · AUTO</button><button class="toggle-button" id="camera-motion">CAMERA MOTION · AUTO</button><button class="toggle-button" id="toggle-haptics" aria-pressed="true">HAPTICS · ON</button><button class="primary" id="settings-close" data-menu-default="true">DONE</button></div><p class="controller-hint">Settings are saved on this device · ${CONTROL_COPY.cancel} · Back</p></section>`;
+  settings.innerHTML=`<section class="presentation-card settings-card" role="dialog" aria-modal="true" aria-labelledby="settings-title"><small class="eyebrow">PREFERENCES</small><h2 id="settings-title">SETTINGS</h2><div class="presentation-actions vertical settings-actions"><button class="toggle-button" id="toggle-music" aria-pressed="true">MUSIC · ON</button><button class="toggle-button" id="music-volume">MUSIC VOLUME · 70%</button><button class="toggle-button" id="toggle-sfx" aria-pressed="true">SFX · ON</button><button class="toggle-button" id="sfx-volume">SFX VOLUME · 80%</button><button class="toggle-button" id="quality-profile">QUALITY · AUTO</button><button class="toggle-button" id="camera-view">CAMERA VIEW · CHASE</button><button class="toggle-button" id="camera-motion">CAMERA MOTION · AUTO</button><button class="toggle-button" id="toggle-haptics" aria-pressed="true">HAPTICS · ON</button><button class="primary" id="settings-close" data-menu-default="true">DONE</button></div><p class="controller-hint">Settings are saved on this device · ${CONTROL_COPY.cancel} · Back</p></section>`;
   document.body.append(settings);
 
   const settingsMenuButton=document.createElement('button');
@@ -121,6 +121,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   const sfxVolumeButton=byId('sfx-volume');
   const musicVolumeButton=byId('music-volume');
   const qualityButton=byId('quality-profile');
+  const cameraViewButton=byId('camera-view');
   const cameraMotionButton=byId('camera-motion');
   const hapticsButton=byId('toggle-haptics');
   const giveUpPause=byId('give-up-pause');
@@ -139,6 +140,8 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   let qualityMode='auto';
   let qualityOptions=[];
   let qualityCallback=null;
+  let cameraViewMode='chase';
+  let cameraViewCallback=null;
   let cameraMotionMode='auto';
   let cameraMotionCallback=null;
   let hapticsCallback=null;
@@ -219,6 +222,11 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   }
   function syncSettingsButtons(){
     syncAudioButtons();
+    if(cameraViewButton){
+      const labels={chase:'CHASE',fixed:'FIXED', 'high-far':'HIGH + FAR','first-person':'FIRST PERSON'};
+      cameraViewButton.textContent='CAMERA VIEW · '+(labels[cameraViewMode]||cameraViewMode.toUpperCase());
+      cameraViewButton.setAttribute('aria-label','Camera view '+(labels[cameraViewMode]||cameraViewMode));
+    }
     if(cameraMotionButton){
       cameraMotionButton.textContent='CAMERA MOTION · '+cameraMotionMode.toUpperCase();
       cameraMotionButton.setAttribute('aria-label','Camera motion '+cameraMotionMode);
@@ -473,13 +481,24 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
     qualityCallback(qualityMode);
     return true;
   }
-  function configureSettings({cameraMotion='auto',onCameraMotionChange=null,onHapticsChange=null}={}){
+  function configureSettings({cameraView='chase',onCameraViewChange=null,cameraMotion='auto',onCameraMotionChange=null,onHapticsChange=null}={}){
+    cameraViewMode=['chase','fixed','high-far','first-person'].includes(String(cameraView).toLowerCase())
+      ?String(cameraView).toLowerCase()
+      :'chase';
+    cameraViewCallback=typeof onCameraViewChange==='function'?onCameraViewChange:null;
     cameraMotionMode=['auto','full','reduced'].includes(String(cameraMotion).toLowerCase())
       ?String(cameraMotion).toLowerCase()
       :'auto';
     cameraMotionCallback=typeof onCameraMotionChange==='function'?onCameraMotionChange:null;
     hapticsCallback=typeof onHapticsChange==='function'?onHapticsChange:null;
     syncSettingsButtons();
+  }
+  function cycleCameraView(){
+    const options=['chase','fixed','high-far','first-person'];
+    cameraViewMode=options[(Math.max(0,options.indexOf(cameraViewMode))+1)%options.length];
+    syncSettingsButtons();
+    cameraViewCallback?.(cameraViewMode);
+    return true;
   }
   function cycleCameraMotion(){
     const options=['auto','full','reduced'];
@@ -582,6 +601,7 @@ export function createGameUI({audio,haptics,onStart,onPause,onResume,onRestart,o
   sfxVolumeButton?.addEventListener('click',()=>cycleVolume('sfx'));
   musicVolumeButton?.addEventListener('click',()=>cycleVolume('music'));
   qualityButton?.addEventListener('click',cycleQuality);
+  cameraViewButton?.addEventListener('click',cycleCameraView);
   cameraMotionButton?.addEventListener('click',cycleCameraMotion);
   hapticsButton?.addEventListener('click',()=>{
     const next=!(haptics?.isEnabled?.()!==false);
