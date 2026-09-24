@@ -295,6 +295,11 @@ try{
   await page.keyboard.press('Escape');
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000});
 
+  // Release the active desktop WebGL page before creating a second mobile
+  // renderer. Running both Three.js scenes concurrently under SwiftShader can
+  // starve navigation on CI even though the preview server is healthy.
+  await page.close();
+
   // Real touch/pointer smoke in a coarse-pointer mobile context. This validates
   // the semantic input bridge rather than merely checking that mobile CSS exists.
   const touchContext=await browser.newContext({
