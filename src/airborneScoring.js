@@ -7,6 +7,9 @@ export function resetAirborneScoring(state){
   state.score=0;
   state.combo=0;
   state.comboMultiplier=1;
+  state.bestCombo=0;
+  state.nearMisses=0;
+  state.riskBananas=0;
   state.lastClearTime=-Infinity;
   state.lastClearPoints=0;
   state.clearEventId=0;
@@ -54,6 +57,9 @@ export function scoreSkillEvent(state,{
     T.CLEAR_COMBO_MAX_MULTIPLIER,
     1+(state.combo-1)*T.CLEAR_COMBO_STEP
   );
+  state.bestCombo=Math.max(state.bestCombo||0,state.combo);
+  if(kind==='near-miss'||kind==='thread')state.nearMisses=(state.nearMisses||0)+1;
+  if(kind==='risk-banana')state.riskBananas=(state.riskBananas||0)+1;
 
   const riskScale=1+clamp(Number(intensity)||0,0,1)*.28;
   const points=Math.max(1,Math.round(
