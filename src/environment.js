@@ -350,6 +350,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       activeDecorativeTrees:activeTreeCount,
       activeSnowLayerParticles:snowLayers.reduce((sum,layer)=>sum+(layer.activeCount??layer.count),0),
       realtimeDirectionalLights:3,
+      landscape:landscape.getDiagnostics?.()||null,
       snowParticlePool:snowParticles.getDiagnostics?.()||{densityScale:snowParticles.getDensityMultiplier?.()},
       snowSurfaceDetail:surfaceDetail.getDiagnostics?.()||{detailLevel:surfaceDetail.getDetailLevel?.()}
     };
