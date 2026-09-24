@@ -404,7 +404,7 @@ const BANANA_POWER_GOAL=10;
 const BANANA_POWER_DURATION=3;
 const BANANA_BULLET_TIME_SCALE=.35;
 let startCountdownStarted=false;
-let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
+let catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectorReady=false;
 let avatarCommitted=false;
 let selectedRideMode=normalizeRideMode(userPreferences.rideMode||RIDE_MODE.SKI);
@@ -690,7 +690,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   if(!entry)return;
   const nextRideMode=normalizeRideMode(rideMode);
 
-  if(avatarCommitted&&selectedAvatar?.id===entry.id&&skier){
+  if(avatarCommitted&&selectedAvatar?.id===entry.id&&riderController.rider){
     selectedRideMode=nextRideMode;
     saveRideModePreference(selectedRideMode);
     if(!entry.localOnly)saveAvatarPreference(entry.name);
@@ -712,8 +712,8 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     const nextSkier=await loadRiderAsset(sourceUrl,{rideMode:nextRideMode,requireGameplayRig:!!entry.localOnly,compatibilityInput:entry.name});
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
-    skier=riderController.replace(nextSkier);
-    mountainWeather.setRider(skier);
+    riderController.replace(nextSkier);
+    mountainWeather.setRider(riderController.rider);
     selectedAvatar=entry;
     avatarCommitted=true;
     selectedRideMode=nextRideMode;
@@ -727,9 +727,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     selector?.setSelected(entry,selectedRideMode);
   }finally{
     if(request===avatarRequest){
-      ready=!!skier&&selectorReady;
+      ready=!!riderController.rider&&selectorReady;
       startScreen.setReady(ready);
-      ui.setAvatarLoading(!skier);
+      ui.setAvatarLoading(!riderController.rider);
     }
   }
 }
@@ -761,7 +761,7 @@ function installAvatarSelector(initialAvatar){
   });
   selector.setSelected(initialAvatar,selectedRideMode);
   selectorReady=true;
-  ready=!!skier;
+  ready=!!riderController.rider;
   startScreen.setReady(ready);
   ui.setAvatarLoading(!ready);
 }
@@ -776,8 +776,8 @@ function installAvatarSelector(initialAvatar){
 
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
-  skier=riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
-  mountainWeather.setRider(skier);
+  riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
+  mountainWeather.setRider(riderController.rider);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
   ui.setAvatar(initialAvatar);
