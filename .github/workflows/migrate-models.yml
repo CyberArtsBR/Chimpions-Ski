@@ -1,0 +1,56 @@
+name: One-time Chimpion GLB migration
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chimpion-glb-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Download and commit GLBs in batches
+        env:
+          CHIMP_SOURCE_URL: https://chimp-jump.onrender.com
+        run: |
+          TOTAL=$(node -e "console.log(require('./public/avatars.json').length)")
+          BATCH=12
+          START=0
+          while [ "$START" -lt "$TOTAL" ]; do
+            echo "Migrating models $START..$((START+BATCH-1)) of $TOTAL"
+            MIGRATION_START=$START MIGRATION_COUNT=$BATCH node scripts/migrate-models.mjs
+            git add public/model/characters
+            if ! git diff --cached --quiet; then
+              git commit -m "Migrate Chimpion GLBs batch $START [skip ci]"
+              git push origin HEAD:main
+            fi
+            START=$((START+BATCH))
+          done
+      - name: Verify migration
+        run: |
+          node - <<'NODE'
+          const fs=require('fs');
+          const avatars=require('./public/avatars.json');
+          const missing=avatars.filter(a=>!a.url||!fs.existsSync('public/'+decodeURIComponent(a.url)));
+          if(missing.length){
+            console.error('Missing models:',missing.map(x=>x.name));
+            process.exit(1);
+          }
+          console.log('All',avatars.length,'playable Chimpion GLBs are present.');
+          NODE

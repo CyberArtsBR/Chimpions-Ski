@@ -1,0 +1,142 @@
+/* Floating arcade UI: depth belongs to the lettering, never to filled panels. */
+@font-face{font-family:Barlow UI;src:url('./assets/fonts/barlow-condensed-600.ttf') format('truetype');font-style:normal;font-weight:600;font-display:swap}
+@font-face{font-family:Barlow UI;src:url('./assets/fonts/barlow-condensed-800-italic.ttf') format('truetype');font-style:italic;font-weight:800;font-display:swap}
+:root{
+  --ui-display:'Barlow UI','Bahnschrift','Arial Narrow',sans-serif;
+  font-family:var(--ui-display);
+  --ui-depth:1px 1px 0 #27649a,2px 2px 0 #205587,3px 3px 0 #194776,4px 4px 0 #10355f,5px 5px 0 #08294b,0 7px 12px #041d3780;
+  --ui-outline:0 1px 2px #041d37,1px 0 2px #041d37,-1px 0 2px #041d37,0 -1px 2px #041d37;
+}
+.hud{
+  width:min(760px,calc(100vw - 24px));max-width:none;top:max(18px,env(safe-area-inset-top));
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:clamp(8px,2vw,32px);
+  filter:none;perspective:1000px;
+}
+.hud .stat{
+  min-width:0;padding:4px 4px 13px;overflow:visible;border:0;border-radius:0;
+  background:none;box-shadow:none;backdrop-filter:none;clip-path:none!important;text-align:left;
+}
+.hud .stat::before{display:none}
+.hud .stat::after{
+  left:2px;right:14px;bottom:0;height:2px;opacity:.85;
+  background:linear-gradient(90deg,#b9efff,#37b8f1 42%,transparent);filter:drop-shadow(0 1px 1px #113964);
+}
+.hud .stat.is-banana::after{background:linear-gradient(90deg,#fff6af,#ffd354 42%,transparent)}
+.hud .stat small{
+  display:flex;gap:7px;align-items:center;color:#eaf9ff;opacity:1;
+  font:800 italic clamp(12px,1.2vw,15px)/1 var(--ui-display);letter-spacing:.09em;
+  text-shadow:var(--ui-outline);-webkit-text-stroke:0;
+}
+.hud-icon{width:21px;height:21px;flex:0 0 21px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(1px 2px 0 #133b64)}
+.hud .stat strong{
+  margin-top:3px;white-space:nowrap;color:#f3fcff;font:800 italic clamp(25px,3.3vw,46px)/1.02 var(--ui-display);
+  letter-spacing:.015em;font-variant-numeric:tabular-nums;-webkit-text-stroke:.65px #d9f4ff;paint-order:stroke fill;
+  text-shadow:var(--ui-depth);
+}
+.hud .stat.is-banana strong{color:#ffe069;-webkit-text-stroke:.65px #fff6c5;text-shadow:1px 1px #c68328,2px 2px #a76120,3px 3px #7f421b,4px 4px #533321,0 7px 12px #041d3780}
+.hud .stat.is-score strong{color:#d8f7ff}
+.hud .stat.is-best{border:0}
+.hud.is-fast .stat{box-shadow:none}
+.hud-meta{transform:translate(-50%,8px);gap:clamp(4px,1.2vw,16px);max-width:100%;font:600 12px/1.2 var(--ui-display);letter-spacing:.09em}
+.hud-meta>span,.hud-best,.landing-callout,.speed-up-callout,.countdown-control,.countdown-avatar,.trick-discovery-hint,
+.score-pop,.trick-pop,.new-best-banner{
+  background:none;border:0;border-radius:0;box-shadow:none;backdrop-filter:none;
+}
+.hud-meta>span{padding:3px 5px;color:#e9f9ff;text-shadow:var(--ui-outline)}
+.hud .hud-best{top:100%;transform:translate(-50%,32px);color:#ffe37c;font:800 italic 19px/1 var(--ui-display);text-shadow:var(--ui-depth);letter-spacing:.09em}
+.landing-callout,.speed-up-callout{
+  padding:4px 8px;font:800 italic clamp(20px,2.3vw,32px)/1 var(--ui-display);
+  letter-spacing:.025em;-webkit-text-stroke:.4px #b5ebff;text-shadow:var(--ui-depth);
+}
+.landing-callout{margin-top:32px}
+.speed-up-callout{margin-top:76px}
+.landing-callout.is-hard{color:#ffd891}
+.run-countdown{background:none}
+.run-countdown::before{display:none}
+.run-countdown .countdown-number{
+  left:50%;top:46%;font:800 italic clamp(140px,22vw,290px)/1 var(--ui-display);letter-spacing:-.025em;
+  color:#65d8ff;-webkit-text-stroke:2px #e0faff;paint-order:stroke fill;
+  text-shadow:1px 2px #2aabe2,2px 4px #228ccb,3px 6px #1b71b2,4px 8px #145791,5px 10px #103e72,6px 12px #092c59,0 16px 28px #06244680,0 0 28px #5bd8ff66;
+}
+.run-countdown .countdown-number.is-go{
+  font-size:clamp(135px,23vw,300px);color:#ffdf48;-webkit-text-stroke:2px #fff4bd;
+  text-shadow:1px 2px #f2a329,2px 4px #db7c1c,3px 6px #b85019,4px 8px #95331d,5px 10px #662522,6px 12px #3e242b,0 16px 28px #06244680,0 0 30px #ffc64b55;
+}
+.countdown-avatar{top:clamp(130px,18vh,180px);padding:0;color:white;font:800 italic 18px/1 var(--ui-display);text-shadow:var(--ui-outline)}
+.countdown-avatar span{box-shadow:0 0 0 1px #e1f8ff,2px 3px 0 #16416e}
+.countdown-control{font:600 15px/1.25 var(--ui-display);letter-spacing:.13em;text-shadow:var(--ui-outline);text-align:center;width:max-content;max-width:90vw}
+.score-pop{padding:0;gap:5px;text-shadow:var(--ui-depth)}
+.score-pop strong{font:800 italic 40px/1 var(--ui-display);color:#ffe171;-webkit-text-stroke:.5px #fff5c4}
+.score-pop span{font:800 italic 22px/1 var(--ui-display);letter-spacing:.04em}
+.trick-pop{
+  padding:4px 14px;max-width:calc(100vw - 28px);color:#b5f1ff;
+  font:800 italic clamp(22px,4vw,48px)/1.08 var(--ui-display);letter-spacing:.025em;
+  text-shadow:var(--ui-depth);-webkit-text-stroke:.6px #edfcff;paint-order:stroke fill;
+}
+.trick-pop.is-success{color:#ffe26e;font-size:clamp(28px,5vw,60px);-webkit-text-stroke:.6px #fff6c4}
+.trick-pop.is-failed{color:#ffb69b;-webkit-text-stroke:.5px #fff0dd}
+.trick-discovery-hint{color:#eefaff;text-shadow:var(--ui-outline)}
+.trick-discovery-hint :is(small,strong,span){font-family:var(--ui-display);font-size:14px}
+/* Transparent menu surfaces with restrained full-screen shading for contrast. */
+.overlay,.presentation-overlay{background:radial-gradient(ellipse at 50% 42%,#08274633,transparent 78%);backdrop-filter:blur(3px)}
+.card,.presentation-card,.selector-dialog{
+  background:none;border:0;box-shadow:none;backdrop-filter:none;color:#f0faff;
+}
+.card::before{display:none}
+.card{max-height:calc(100dvh - 32px);overflow:auto}
+.presentation-card{overflow:auto;scrollbar-color:#a6ddf2 transparent}
+.overlay{overflow:auto;align-items:safe center}
+.presentation-overlay{align-items:safe center}
+.card .logo,.presentation-card h2,.selector-head h2{
+  font-family:var(--ui-display);font-style:italic;font-weight:800;letter-spacing:.015em;color:#effbff;
+  text-shadow:var(--ui-depth);-webkit-text-stroke:.6px #d6f2ff;paint-order:stroke fill;
+}
+.card .logo span{color:#6fddff;text-shadow:var(--ui-depth)}
+.badge,.eyebrow,.selected-avatar,.result-grid>div,.control-legend,.ride-mode-card,.ride-mode-back,
+.selector-featured,.selector-close,.chimpion-card,.selector-search{
+  background:none;border-color:transparent;box-shadow:none;backdrop-filter:none;
+}
+:is(.card,.presentation-card,.selector-dialog) :is(small,p,em,.tip,.controller-hint,.control-legend,.control-legend b,.selector-help,.selector-featured strong,.chimpion-card strong,.selected-avatar strong,.selected-avatar small){color:#e6f4ff;text-shadow:var(--ui-outline)}
+:is(.card,.presentation-card,.selector-dialog) :is(.eyebrow,.badge){color:#94e4ff;font:600 14px/1 var(--ui-display);letter-spacing:.17em;text-shadow:var(--ui-outline)}
+.ride-mode-copy strong{color:#eefaff;font:800 italic 34px/1.1 var(--ui-display);text-shadow:var(--ui-depth)}
+.ride-mode-copy span,.ride-mode-card span,.ride-mode-card strong{color:#deeffb;text-shadow:var(--ui-outline)}
+.result-card .new-best-banner{box-shadow:none}
+.start-screen-status{background:none;border:0;box-shadow:none;font-family:var(--ui-display);text-shadow:var(--ui-outline)}
+.result-grid>div{padding:12px 4px}
+.result-grid strong{font:800 italic clamp(26px,4vw,42px)/1 var(--ui-display);color:#fff0ad;text-shadow:var(--ui-depth)}
+.new-best-banner{color:#ffe071;font:800 italic 25px/1 var(--ui-display);text-shadow:var(--ui-depth)}
+.menu-actions button,.presentation-actions button,.ride-mode-back,.selector-close{
+  background:none;border:0;box-shadow:none;border-radius:4px;color:#eaf8ff;
+  font:800 italic 23px/1.1 var(--ui-display);letter-spacing:.04em;text-shadow:var(--ui-depth);
+}
+.menu-actions .primary,.presentation-actions .primary{color:#ffe072;background:none;border:0;box-shadow:none}
+.presentation-actions .secondary,.presentation-actions .toggle-button{background:none;border:0;box-shadow:none}
+.presentation-actions :is(.leave-game-button,.leave-confirm-yes){background:none;color:#ffbc9f;font-size:19px}
+.presentation-actions button:is(.is-menu-selected,.is-controller-selected,:focus-visible),.menu-actions button:focus-visible{
+  background:none;box-shadow:none;outline:2px solid #ffe078;outline-offset:4px;color:#ffe078;filter:drop-shadow(0 0 8px #49c9f455);
+}
+.toggle-button[aria-pressed="false"]{color:#aebdd1;text-decoration:line-through}
+.ride-mode-card{color:#eefaff;border-bottom:1px solid #d5f3ff88;border-radius:0}
+.ride-mode-card b{font-family:var(--ui-display);font-style:italic;color:#fff0a3;text-shadow:var(--ui-depth)}
+.ride-mode-card:hover,.ride-mode-card.is-selected{background:#8bddff0d;box-shadow:none}
+.selector-dialog::backdrop{background:#051c3880;backdrop-filter:blur(10px)}
+.selector-search{border-bottom:1px solid #c7ecff99;border-radius:0;color:#f0faff}
+.selector-search::placeholder{color:#d3e9f5}
+.chimpion-card.is-upload-avatar,.selector-status,.selector-status.is-error,.chimpion-card.is-upload-avatar .local-upload-portrait{background:none;border-color:#b8e9ff66;box-shadow:none}
+.selector-dialog .selector-status{color:#e7f7ff;text-shadow:var(--ui-outline)}
+.selector-dialog .selector-status.is-error{color:#ffbd9f}
+.chimpion-card{border-radius:5px;border-bottom:1px solid #c7ecff55}
+.chimpion-card:hover,.chimpion-card.is-selected{background:#9be0ff0d;box-shadow:none;border-color:#ffe177}
+.chimpion-card.is-selected::after{background:none;color:#ffe177;text-shadow:var(--ui-outline)}
+@keyframes speedPulse{45%{filter:brightness(1.2);transform:translateY(-2px)}}
+@keyframes jumpHint{45%{transform:translateY(-2px) scale(1.1);color:#ffe176}}
+@media(max-width:600px){
+  .hud{gap:8px;top:max(12px,env(safe-area-inset-top));width:calc(100vw - 20px)}
+  .hud .stat{padding:2px 0 10px}.hud .stat strong{font-size:clamp(21px,5.5vw,32px);-webkit-text-stroke:.3px}
+  .hud .stat small{font-size:11px;gap:3px;letter-spacing:.025em}.hud-icon{width:15px;height:15px;flex-basis:15px}
+  .hud-meta{font-size:10px;gap:3px}.hud-meta>span{padding-inline:2px}
+  .countdown-avatar{top:108px;font-size:15px}.speed-up-callout{font-size:18px}
+  .menu-actions button,.presentation-actions button{font-size:21px}
+}
+@media(max-height:580px){.countdown-avatar{top:105px}.run-countdown .countdown-number{font-size:150px}.countdown-control{bottom:5%}}
+@media(prefers-reduced-motion:reduce){.trick-pop,.hud .stat,.hud-best,.landing-callout{animation:none!important;transition:none!important}}
