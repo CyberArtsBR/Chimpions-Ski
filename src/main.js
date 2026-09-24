@@ -803,6 +803,9 @@ function crash(kind='tree',item=null){
   state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
   state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
   state.crashTime=0;
+  state.specialActiveTime=0;
+  specialAura.visible=false;
+  document.body.classList.remove('banana-power-active');
   breakSkillCombo(state);
   state.mode='crashed';
   state.best=Math.max(state.best,runDistance);
@@ -1033,7 +1036,7 @@ function update(dt,frameMs=dt*1000){
         removeCourseItem(item);
         state.bananas++;
         const powerBecameReady=collectBananaPower();
-        audio.play('banana',powerBecameReady?.52:1,powerBecameReady?1.24:1);
+        audio.play('banana',powerBecameReady ? .52 : 1,powerBecameReady ? 1.24 : 1);
         haptics.banana?.(powerBecameReady?1.45:1);
         if(powerBecameReady)ui.showBananaPowerActivated?.();
         continue;
