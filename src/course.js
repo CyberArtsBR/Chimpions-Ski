@@ -444,14 +444,14 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   function addSpecialHazard(placements,startZ,length,safeHint=0,chance=.64,progress=0,postMaxPressure=0){
     const p=clamp(progress,0,1);
     const post=clamp(postMaxPressure,0,1);
-    const effectiveChance=clamp(chance+p*.14+post*.08,0,.98);
+    const effectiveChance=clamp(chance+.08+p*.16+post*.10,0,.99);
     if(random()>effectiveChance)return false;
     const safe=clamp(safeHint,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
     const roll=random();
     // Wide horizontal logs are a stronger part of the mix at every speed,
     // then gain a little more weight during the post-300 pressure ramp.
-    const oilCut=lerp(.24,.32,p);
-    const wideCut=Math.min(.94,oilCut+lerp(.32,.38,clamp(p*.55+post*.45,0,1)));
+    const oilCut=lerp(.12,.18,p);
+    const wideCut=Math.min(.86,oilCut+lerp(.44,.50,clamp(p*.55+post*.45,0,1)));
     const kind=roll<oilCut?'oil':roll<wideCut?'wideLog':'log';
     const extra=kind==='wideLog'?2.0:kind==='oil'?.85:.25;
     const minGap=3.0+extra;
@@ -481,9 +481,9 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   function pickSideHazardKind(progress=0){
     const p=clamp(progress,0,1);
     const roll=random();
-    const oilCut=lerp(.20,.32,p);
-    const logCut=oilCut+lerp(.30,.35,p);
-    const rockCut=logCut+.20;
+    const oilCut=lerp(.10,.16,p);
+    const logCut=oilCut+lerp(.44,.50,p);
+    const rockCut=logCut+.18;
     return roll<oilCut?'oil':roll<logCut?'log':roll<rockCut?'rock':'tree';
   }
 
@@ -756,16 +756,16 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     if(runPlan?.phase==='RECOVERY')return 'RECOVERY';
 
     const transitions={
-      'RECOVERY':['OPEN CARVE','GATE','FOREST','BANANA LINE'],
-      'OPEN CARVE':['GATE','FOREST','ROCK SLALOM','BANANA LINE','RAMP'],
-      'GATE':['OPEN CARVE','FOREST','ROCK SLALOM','BANANA LINE','RAMP'],
-      'BANANA LINE':['OPEN CARVE','GATE','FOREST','RAMP'],
-      'FOREST':['OPEN CARVE','GATE','ROCK SLALOM','RAMP'],
-      'ROCK SLALOM':['OPEN CARVE','GATE','FOREST','RAMP']
+      'RECOVERY':['OPEN CARVE','GATE','FOREST','BANANA LINE','LOG JUMP'],
+      'OPEN CARVE':['GATE','FOREST','ROCK SLALOM','BANANA LINE','RAMP','LOG JUMP'],
+      'GATE':['OPEN CARVE','FOREST','ROCK SLALOM','BANANA LINE','RAMP','LOG JUMP'],
+      'BANANA LINE':['OPEN CARVE','GATE','FOREST','RAMP','LOG JUMP'],
+      'FOREST':['OPEN CARVE','GATE','ROCK SLALOM','RAMP','LOG JUMP'],
+      'ROCK SLALOM':['OPEN CARVE','GATE','FOREST','RAMP','LOG JUMP']
     };
     const options=[...(transitions[lastType]||['OPEN CARVE'])];
 
-    if(difficulty>.20&&lastType==='OPEN CARVE'&&random()<.58)options.push('LOG JUMP');
+    if(difficulty>.16&&lastType!=='RECOVERY'&&random()<(.52+difficulty*.18))options.push('LOG JUMP');
     if(lastType!=='RECOVERY'&&random()<(.14+difficulty*.10))options.push('RAMP');
 
     if(runPlan?.preferredSections?.length){

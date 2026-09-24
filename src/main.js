@@ -1,4 +1,8 @@
 import * as THREE from 'three';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
 import './style.css';
 import './floatingUI.css';
 import {createMountainWeather} from './mountainWeather.js';
@@ -45,6 +49,7 @@ import {createCollisionRuntime} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
 import {createRiderController} from './riderController.js';
 import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
+import {createImpactVfx} from './impactVfx.js';
 
 const userPreferences=loadUserPreferences();
 
@@ -119,9 +124,24 @@ applyCameraMotionPreference();
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const performanceTelemetry=createPerformanceTelemetry();
+let composer=null,bloomPass=null,composerPixelRatio=0;
+
+function applyBloomQuality(){
+  if(!bloomPass)return;
+  const profile=quality.active;
+  bloomPass.strength=profile==='max'?1.28:profile==='high'?1.08:profile==='medium'?.82:.62;
+  bloomPass.radius=profile==='max'?.52:profile==='high'?.48:profile==='medium'?.42:.36;
+  bloomPass.threshold=1.55;
+}
+
 function applyRendererResolution(){
   const next=quality.getPixelRatio(devicePixelRatio);
   if(Math.abs(renderer.getPixelRatio()-next)>.005)renderer.setPixelRatio(next);
+  if(composer&&Math.abs(composerPixelRatio-next)>.005){
+    composer.setPixelRatio(next);
+    composerPixelRatio=next;
+  }
+  applyBloomQuality();
 }
 applyRendererResolution();
 renderer.setSize(innerWidth,innerHeight);
@@ -130,6 +150,24 @@ renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.05;
 app.prepend(renderer.domElement);
+
+const postTarget=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{
+  type:THREE.HalfFloatType,
+  minFilter:THREE.LinearFilter,
+  magFilter:THREE.LinearFilter,
+  depthBuffer:true,
+  stencilBuffer:false
+});
+postTarget.samples=4;
+composer=new EffectComposer(renderer,postTarget);
+composerPixelRatio=renderer.getPixelRatio();
+composer.setPixelRatio(composerPixelRatio);
+composer.setSize(innerWidth,innerHeight);
+composer.addPass(new RenderPass(scene,camera));
+bloomPass=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.08,.48,1.55);
+composer.addPass(bloomPass);
+composer.addPass(new OutputPass());
+applyBloomQuality();
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
@@ -316,6 +354,10 @@ function addCoursePlacement(placement){
   item.userData.landingZone=!!placement.landingZone;
   item.userData.jumpTarget=!!placement.jumpTarget;
   item.userData.courseLocalZ=placement.z;
+  if(placement.kind==='banana'){
+    const phaseSeed=Math.sin(placement.z*12.9898+placement.x*78.233)*43758.5453;
+    item.userData.collectiblePhase=(phaseSeed-Math.floor(phaseSeed))*Math.PI*2;
+  }
   course.push(item);
   collisionRuntime.add(item,placement.z);
 }
@@ -376,9 +418,12 @@ function syncCourseVisuals(){
     item.position.y=itemGround+(item.userData.yOffset||0);
 
     if(item.userData.kind==='banana'){
-      const phase=state.time*3.4+item.position.z*.085;
-      item.rotation.y=Math.sin(phase)*.26;
-      item.rotation.z=Math.sin(phase*.73)*.055;
+      const visual=item.userData.collectibleVisual||item;
+      const phase=item.userData.collectiblePhase||0;
+      const hoverPhase=state.time*2.75+phase;
+      visual.position.y=Math.sin(hoverPhase)*.17;
+      visual.rotation.y=(state.time*2.35+phase)%(Math.PI*2);
+      visual.rotation.z=-.04+Math.sin(hoverPhase*.73)*.038;
     }
 
     if(item.position.z>17){
@@ -403,6 +448,7 @@ let trailTimer=0;
 
 const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
+const impactVfx=createImpactVfx({scene,capacity:224});
 
 const specialAura=new THREE.Group();
 specialAura.name='banana-power-aura';
@@ -866,6 +912,7 @@ function resetRunState(){
   audio.resetRun?.();
   haptics.reset?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
+  state.crashActive=false;state.crashMotion=null;impactVfx.reset();
   startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
@@ -968,6 +1015,37 @@ function crash(kind='tree',item=null){
   state.crashVelocity={x:state.vx,y:state.vy,z:state.speed};
   state.crashDirection=Math.sign(state.x-(item?.position.x??state.x))||Math.sign(state.vx)||1;
   state.crashTime=0;
+
+  const crashProfile=getRideProfile(state.rideMode);
+  const crashSpeed01=THREE.MathUtils.clamp(
+    (state.speed-crashProfile.baseSpeed)/Math.max(.001,crashProfile.maxSpeed-crashProfile.baseSpeed),
+    0,1
+  );
+  const crashJitter=Math.sin((state.time+state.distance*.013)*12.9898)*.5+.5;
+  state.crashMotion={
+    active:true,
+    age:0,
+    duration:2.75+crashSpeed01*.65,
+    bounces:0,
+    vx:state.crashDirection*(6.4+crashSpeed01*9.4)+state.vx*.28,
+    vy:8.4+crashSpeed01*6.8+Math.max(0,state.vy)*.18,
+    vz:-(7.2+crashSpeed01*10.8),
+    wx:(crashJitter-.5)*(7.0+crashSpeed01*6.0),
+    wy:state.crashDirection*(7.8+crashSpeed01*7.2),
+    wz:-state.crashDirection*(5.6+crashSpeed01*5.4)
+  };
+  state.crashActive=true;
+
+  if(!isTrickCrash){
+    impactVfx.burst({
+      x:item?.position.x??state.x,
+      y:Math.max(player.position.y+.24,(item?.position.y??player.position.y)+.34),
+      z:item?.position.z??player.position.z,
+      direction:state.crashDirection,
+      speed:state.speed,
+      severity:.68+crashSpeed01*.32
+    });
+  }
   bananaPower.deactivate();
   breakSkillCombo(state);
   if(!gameFlow.enter(GAME_FLOW.CRASHED,{reason:kind}))return;
@@ -1348,9 +1426,16 @@ function update(dt,frameMs=dt*1000){
       centerGround:state.centerGround
     });
   }else if(state.mode==='crashed'){
-    state.crashTime+=dt;
-    updateCrashOrientation(player,state,dt);
+    // Cinematic crash motion is integrated below so it continues behind results.
   }
+
+  if(state.crashActive){
+    state.crashTime+=dt;
+    const crashGround=terrainHeight(player.position.x,player.position.z-state.travel)+.12;
+    updateCrashOrientation(player,state,dt,crashGround);
+  }
+  impactVfx.update(dt);
+
   for(const tile of tiles){
     tile.position.z+=worldDistance;
     if(tile.position.z>22){
@@ -1365,7 +1450,7 @@ function update(dt,frameMs=dt*1000){
   startGate.update(worldDistance);
   const worldSpeed=worldDistance/dt;
   const environmentUpdateStarted=performance.now();
-  environment.update(state.mode==='paused'?0:simulationFrameDt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode);
+  environment.update(state.mode==='paused'?0:simulationFrameDt,worldSpeed,state.x,state.y,player.position.z,state.speed,state.edge,state.air,state.landingPulse,state.mode==='playing',.12+state.centerGround,state.time,state.rideMode,riderController.trailContacts);
   mountainWeather.update(state.mode==='paused'?0:simulationFrameDt,state);
   performanceTelemetry.record('environmentUpdate',performance.now()-environmentUpdateStarted);
   updateBananaPowerVisual(state.time);
@@ -1438,7 +1523,7 @@ function render(now){
       if(!cameraMoving)startRaceCountdown();
     }else if(!startCountdownStarted)startRaceCountdown();
   }else if(state.mode!=='paused')skiCamera.update(state,dt);
-  renderer.render(scene,camera);
+  composer.render(dt);
   renderFrameHandle=requestAnimationFrame(render);
 }
 renderFrameHandle=requestAnimationFrame(render);
@@ -1446,6 +1531,7 @@ renderFrameHandle=requestAnimationFrame(render);
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
   renderer.setSize(innerWidth,innerHeight);
+  composer?.setSize(innerWidth,innerHeight);
   applyRendererResolution();
 }
 runtimeListeners.on(window,'resize',resize);
@@ -1571,6 +1657,8 @@ if(import.meta.hot){
     avatarLoadController=null;
     runtimeListeners.dispose();
     riderController.dispose();
+    impactVfx.dispose?.();
+    composer?.dispose?.();
     unsubscribeRendererQuality();
     unsubscribeRendererResolution();
     unsubscribeRuntimeQuality();

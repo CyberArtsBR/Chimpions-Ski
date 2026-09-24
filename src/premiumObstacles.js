@@ -158,54 +158,36 @@ function makeEndTexture(){
 }
 const endTexture=makeEndTexture();
 const endMaterial=new THREE.MeshStandardMaterial({map:endTexture,bumpMap:endTexture,bumpScale:.012,roughness:.89});
-function makeLog(wide){
+function makeLog(wide,variant=0){
   const tuning=wide?OBSTACLE_TUNING.wideLog:OBSTACLE_TUNING.log;
-  const radius=wide?.35:.28,parts=[];
-  const body=new THREE.CylinderGeometry(radius*.83,radius,tuning.length,32,14,true);
-  const p=body.attributes.position;
-  for(let i=0;i<p.count;i++){
-    const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i));
-    const ridge=1+.045*Math.sin(a*13+y*.8)+.018*Math.sin(a*23-y*1.9);
-    p.setX(i,p.getX(i)*ridge);p.setZ(i,p.getZ(i)*ridge);
-  }
-  paint(body,(x,y,z)=>{const a=Math.atan2(z,x),v=.7+.23*(.5+.5*Math.sin(a*9+y*.6));return [v,v*.91,v*.79];});
+  const radius=wide?.35:.28,parts=[],phase=variant*1.73;
+  const body=new THREE.CylinderGeometry(radius*.83,radius,tuning.length,36,16,true),p=body.attributes.position;
+  for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i)),ridge=1+.050*Math.sin(a*(12+variant)+y*(.72+variant*.11)+phase)+.021*Math.sin(a*(23-variant)-y*(1.7+variant*.16)-phase*.7)+.010*Math.cos(a*7+y*3.4+phase);p.setX(i,p.getX(i)*ridge);p.setZ(i,p.getZ(i)*ridge);}
+  paint(body,(x,y,z)=>{const a=Math.atan2(z,x),grain=.5+.5*Math.sin(a*(8+variant)+y*(.55+variant*.08)+phase),knots=.5+.5*Math.sin(y*2.7+Math.cos(a*3+phase)*2.1),v=.61+grain*.23+knots*.07;return [v,v*.86,v*.72];});
   body.rotateZ(Math.PI/2);body.translate(0,radius,0);body.computeVertexNormals();parts.push(body);
-  // Knotted branch stubs stay beneath the unchanged clearance envelope.
-  for(let i=0;i<(wide?3:2);i++){
-    const x=(i-.5*(wide?2:1))*tuning.length*.27;
-    parts.push(branchBetween(new THREE.Vector3(x,radius,.10),new THREE.Vector3(x+.08,radius*1.5,.23),.06,.032,i+41));
-  }
-  const group=new THREE.Group();
-  const mesh=new THREE.Mesh(merge(parts),wood);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
-  const snowPositions=[],snowIndices=[],steps=24,across=6;
-  for(let i=0;i<=steps;i++)for(let j=0;j<=across;j++){
-    const u=i/steps,v=j/across*2-1,x=(u-.5)*tuning.length*.90;
-    const width=radius*(.44+.10*Math.sin(u*17)+.07*Math.sin(u*31))*Math.pow(Math.sin(u*Math.PI),.35);
-    const z=v*width;
-    snowPositions.push(x,radius+Math.sqrt(Math.max(0,radius*radius-z*z))+.012,z);
-    if(i<steps&&j<across){const a=i*(across+1)+j,b=a+across+1;snowIndices.push(a,a+1,b,a+1,b+1,b);}
-  }
-  const snowGeometry=new THREE.BufferGeometry();
-  snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(snowPositions,3));snowGeometry.setIndex(snowIndices);snowGeometry.computeVertexNormals();
-  const snowStrip=new THREE.Mesh(snowGeometry,snowCover);
-  snowStrip.receiveShadow=true;group.add(snowStrip);
-  const caps=[];
-  for(const sign of [-1,1]){
-    const g=new THREE.CircleGeometry(radius*(sign<0?.825:.995),32);
-    g.rotateY(sign*Math.PI/2);g.translate(sign*(tuning.length*.5+.002),radius,0);caps.push(g);
-  }
-  const ends=new THREE.Mesh(merge(caps),endMaterial);ends.castShadow=ends.receiveShadow=true;group.add(ends);
-  return group;
+  const stubCount=wide?4:3;
+  for(let i=0;i<stubCount;i++){const offset=(i-(stubCount-1)*.5)*tuning.length*(wide?.19:.25),side=i%2===0?1:-1,z=.08+side*.055;parts.push(branchBetween(new THREE.Vector3(offset,radius,z),new THREE.Vector3(offset+.06*side,radius*(1.48+.08*variant),z+side*(.16+.025*i)),.062,.029,variant*17+i+41));}
+  for(let i=0;i<(wide?3:2);i++){const x=(i-(wide?1:.5))*tuning.length*.22+Math.sin(phase+i)*.10;parts.push(branchBetween(new THREE.Vector3(x,radius*.92,-.07),new THREE.Vector3(x+.035,radius*1.18,-.15),.040,.012,variant*29+i+71));}
+  const group=new THREE.Group(),mesh=new THREE.Mesh(merge(parts),wood);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
+  const snowPositions=[],snowIndices=[],steps=28,across=7;
+  for(let i=0;i<=steps;i++)for(let j=0;j<=across;j++){const u=i/steps,v=j/across*2-1,x=(u-.5)*tuning.length*.90,width=radius*(.42+.105*Math.sin(u*(16+variant*2)+phase)+.055*Math.sin(u*31-phase))*Math.pow(Math.sin(u*Math.PI),.34),z=v*width;snowPositions.push(x,radius+Math.sqrt(Math.max(0,radius*radius-z*z))+.013+Math.sin(u*19+v*4+phase)*.004,z);if(i<steps&&j<across){const a=i*(across+1)+j,b=a+across+1;snowIndices.push(a,a+1,b,a+1,b+1,b);}}
+  const snowGeometry=new THREE.BufferGeometry();snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(snowPositions,3));snowGeometry.setIndex(snowIndices);snowGeometry.computeVertexNormals();const snowStrip=new THREE.Mesh(snowGeometry,snowCover);snowStrip.receiveShadow=true;group.add(snowStrip);
+  const caps=[];for(const sign of [-1,1]){const g=new THREE.CircleGeometry(radius*(sign<0?.83:.995),36);g.rotateY(sign*Math.PI/2);g.translate(sign*(tuning.length*.5+.002),radius,0);caps.push(g);}const ends=new THREE.Mesh(merge(caps),endMaterial);ends.castShadow=ends.receiveShadow=true;group.add(ends);
+  group.userData.visualPrototype='premium-'+(wide?'wide-':'')+'log-v'+variant;return group;
 }
 
 let library;
 export function getPremiumObstacleLibrary(){
-  return library??={trees:Array.from({length:4},(_,i)=>makeFir(i)),rocks:Array.from({length:4},(_,i)=>makeRock(i)),log:makeLog(false),wideLog:makeLog(true)};
+  if(library)return library;
+  const logs=Array.from({length:3},(_,i)=>makeLog(false,i));
+  const wideLogs=Array.from({length:3},(_,i)=>makeLog(true,i));
+  library={trees:Array.from({length:4},(_,i)=>makeFir(i)),rocks:Array.from({length:4},(_,i)=>makeRock(i)),logs,wideLogs,log:logs[0],wideLog:wideLogs[0]};
+  return library;
 }
 
 export function applyPremiumObstacle(root,kind){
   const assets=getPremiumObstacleLibrary();
-  const variants=kind==='tree'?assets.trees:kind==='rock'?assets.rocks:null;
+  const variants=kind==='tree'?assets.trees:kind==='rock'?assets.rocks:kind==='log'?assets.logs:kind==='wideLog'?assets.wideLogs:null;
   const source=variants?.[0]??assets[kind];
   if(!source)return false;
   const old=new Set();root.traverse(node=>{if(node.isMesh)old.add(node.geometry);});
