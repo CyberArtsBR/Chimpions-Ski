@@ -6,12 +6,12 @@ This document describes the current integrated product, not historical rider bra
 
 | Contract | SKI | SNOWBOARD |
 | --- | ---: | ---: |
-| Start speed | 160 km/h | 180 km/h |
+| Start speed | 150 km/h | 150 km/h |
 | Tier interval | 30 s | 30 s |
-| Tier increment | +20 km/h | +20 km/h |
+| Tier increment | +10 km/h | +10 km/h |
 | Maximum speed | 300 km/h | 300 km/h |
 
-`src/gameplayTuning.js` is authoritative for the shared tier interval, increment, and maximum. `src/rideMode.js` gives SNOWBOARD its 180 km/h base while sharing the tier increment and 300 km/h cap.
+`src/gameplayTuning.js` is authoritative for the shared tier interval, increment, and maximum. `src/rideMode.js` gives SNOWBOARD its 150 km/h base while sharing the tier increment and 300 km/h cap.
 
 Legacy 210 km/h and 230 km/h maximums are obsolete and must not be used by landing, progression, smoke, or QA rules.
 
@@ -45,4 +45,4 @@ node checks/course-collision-lategame-invariants.mjs
 node scripts/simulate-ski-snowboard-tricks.mjs
 ```
 
-These checks must agree on the same 160/180 start speeds, +20 km/h per 30 seconds progression, and shared 300 km/h cap.
+These checks must agree on the same 150/150 start speeds, +10 km/h per 30 seconds progression, and shared 300 km/h cap.

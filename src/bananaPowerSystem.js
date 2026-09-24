@@ -9,12 +9,15 @@ export function createBananaPowerSystem({
   onDeactivated=null
 }={}){
   if(!state)throw new Error('createBananaPowerSystem requires shared state');
+  if(!Number.isFinite(state.bananaPowerProgress))state.bananaPowerProgress=0;
+  if(typeof state.specialReady!=='boolean')state.specialReady=false;
+  if(!Number.isFinite(state.specialActiveTime))state.specialActiveTime=0;
 
   function reset(){
     state.bananaPowerProgress=0;
     state.specialReady=false;
     state.specialActiveTime=0;
-    onDeactivated?.();
+    onDeactivated?.({silent:true});
   }
 
   function collect(){

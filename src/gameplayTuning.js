@@ -130,6 +130,6 @@ export function getSpeedProgress(speed=SKI_TUNING.BASE_SPEED){
 }
 
 export function getSpeedFeel(speed=SKI_TUNING.BASE_SPEED){
-  // 160 km/h starts intense while still leaving headroom for the 300 km/h cap.
+  // 150 km/h starts intense while still leaving headroom for the 300 km/h cap.
   return .62+getSpeedProgress(speed)*.38;
 }

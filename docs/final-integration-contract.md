@@ -34,11 +34,11 @@ The integrated runtime has one authoritative ride-mode/profile state and one aut
 
 ## Speed profile contract
 
-SKI starts at 160 km/h and SNOWBOARD starts at 180 km/h. Both use +20 km/h tiers every 30 seconds and both cap at 300 km/h. Landing, damping, recovery, and clamping code consume the active mode profile; legacy 210/230 km/h clamps are not part of the current product.
+SKI starts at 150 km/h and SNOWBOARD starts at 150 km/h. Both use +10 km/h tiers every 30 seconds and both cap at 300 km/h. Landing, damping, recovery, and clamping code consume the active mode profile; legacy 210/230 km/h clamps are not part of the current product.
 
 ## Input ownership
 
-Gameplay owns A/Cross/Space as Jump. While airborne, the second Jump edge may be interpreted as 360 intent but must not add vertical velocity or create a double-jump. UP + Jump is backflip intent; DOWN + Jump is 360 intent.
+Gameplay owns A/Cross/Space as Jump. While airborne, the second Jump edge may be interpreted as 360 intent but must not add vertical velocity or create a double-jump. UP + Jump is 360 intent; DOWN + Jump is backflip intent.
 
 Selector context owns A = select and B = back. Selector input must not leak into gameplay. A held A/Cross used to confirm the ride-mode step must be neutralized/released before gameplay can consume another Jump/trick edge.
 

@@ -19,7 +19,7 @@ Call once whenever the active ride mode changes:
     audio.setRideMode('ski');
     audio.setRideMode('snowboard');
 
-The default is ski. Existing audio.update({speed,...}) calls remain valid. Speed is still supplied in game-world meters/second. Audio normalization converts internally to km/h; SKI starts at 160 km/h, SNOWBOARD starts at 180 km/h, both progress +20 km/h every 30 seconds, and both cap at 300 km/h.
+The default is ski. Existing audio.update({speed,...}) calls remain valid. Speed is still supplied in game-world meters/second. Audio normalization converts internally to km/h; SKI starts at 150 km/h, SNOWBOARD starts at 150 km/h, both progress +10 km/h every 30 seconds, and both cap at 300 km/h.
 
 ## Trick events
 

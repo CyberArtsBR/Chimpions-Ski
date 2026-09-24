@@ -38,11 +38,12 @@ import {BUILTIN_AVATAR_NAMES,DEFAULT_AVATAR_NAME,createBuiltinAvatarEntry} from 
 import {createPerformanceTelemetry} from './performanceTelemetry.js';
 import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveCameraMotionPreference,saveCameraViewPreference,saveHapticsPreference,saveQualityPreference,saveRideModePreference} from './userPreferences.js';
 import {GAME_FLOW,createGameFlow} from './gameFlow.js';
-import {createRunSession} from './runSession.js';
+import {createRunSession,createRunState} from './runSession.js';
 import {createBananaPowerSystem} from './bananaPowerSystem.js';
 import {createCollisionRuntime} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
 import {createRiderController} from './riderController.js';
+import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
 
 const userPreferences=loadUserPreferences();
 
@@ -440,13 +441,14 @@ const BANANA_POWER_GOAL=10;
 const BANANA_POWER_DURATION=3;
 const BANANA_BULLET_TIME_SCALE=.35;
 let startCountdownStarted=false;
-let skier=null,catalog=[],selectedAvatar=null,selector=null,ready=false;
+let catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectorReady=false;
 let avatarCommitted=false;
 let selectedRideMode=normalizeRideMode(userPreferences.rideMode||RIDE_MODE.SKI);
 let initialSelectionFlow=false;
 const initialRideProfile=getRideProfile(selectedRideMode);
-const state={mode:'menu',rideMode:selectedRideMode,runSeed:createRunSeed(),cleanLandings:0,successfulTricks:0,failedTricksCount:0,oilContacts:0,lastMistakeTime:-Infinity,steeringCorrectionIntensity:0,lastSteerSign:0,distance:0,travel:0,time:0,bananas:0,bananaPowerProgress:0,specialReady:false,specialActiveTime:0,speed:initialRideProfile.baseSpeed,maxRunSpeed:initialRideProfile.baseSpeed,bestCombo:0,baseSpeed:initialRideProfile.baseSpeed,speedTier:0,speedTierTime:0,targetSpeed:initialRideProfile.baseSpeed,maxSpeed:initialRideProfile.maxSpeed,maxSpeedReached:false,postMaxHazardTime:0,x:0,vx:0,edge:0,heading:0,turnRate:0,y:.12,vy:0,air:false,grounded:true,jumping:false,jumpSource:'',jumpVelocity:0,jumpBufferTime:0,jumpBuffered:false,jumpInputHeld:false,jumpHoldTime:0,jumpCutApplied:false,jumpProfile:'',lastJumpProfile:'',coyoteTime:0,landingPulse:0,best:0,frame:0,rampGrace:0,counterSteer:false,airControl:false,landingReengageTime:0,oilSlipTime:0,difficulty:0,courseSection:'OPEN CARVE',safeRouteX:0,grip:.72,carveLoad:0,landingGripLoss:0,landingQuality:'none',groundPitch:0,groundRoll:0,leftGround:0,rightGround:0,centerGround:0,crashType:'',crashVelocity:null,crashDirection:0,crashTime:0};
+const state=createRunState({mode:'menu',rideMode:selectedRideMode,rideProfile:initialRideProfile,best:0});
+state.runSeed=createRunSeed();
 const runSession=createRunSession({state});
 const gameFlow=createGameFlow({state,initial:GAME_FLOW.START});
 const runtimeListeners=createGlobalListenerScope();
@@ -525,12 +527,22 @@ const bananaPower=createBananaPowerSystem({
     haptics.bananaPowerActivate?.();
     ui.showBananaPowerActivated?.();
   },
-  onDeactivated:()=>{
+  onDeactivated:({silent=false}={})=>{
     specialAura.visible=false;
     document.body.classList.remove('banana-power-active','bullet-time-active');
-    audio.playBananaPowerEnd?.();
-    haptics.bananaPowerEnd?.(.72);
+    if(!silent){
+      audio.playBananaPowerEnd?.();
+      haptics.bananaPowerEnd?.(.72);
+    }
   }
+});
+const getRuntimeDiagnostics=createRuntimeDiagnostics({
+  state,
+  gameFlow,
+  runSession,
+  bananaPower,
+  collisionRuntime,
+  riderController
 });
 function updateBananaPowerVisual(time=0){
   const active=state.specialActiveTime>0,ready=state.specialReady;
@@ -726,7 +738,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   if(!entry)return;
   const nextRideMode=normalizeRideMode(rideMode);
 
-  if(avatarCommitted&&selectedAvatar?.id===entry.id&&skier){
+  if(avatarCommitted&&selectedAvatar?.id===entry.id&&riderController.rider){
     selectedRideMode=nextRideMode;
     saveRideModePreference(selectedRideMode);
     if(!entry.localOnly)saveAvatarPreference(entry.name);
@@ -756,8 +768,8 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     });
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
-    skier=riderController.replace(nextSkier);
-    mountainWeather.setRider(skier);
+    riderController.replace(nextSkier);
+    mountainWeather.setRider(riderController.rider);
     selectedAvatar=entry;
     avatarCommitted=true;
     selectedRideMode=nextRideMode;
@@ -774,9 +786,9 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   }finally{
     if(avatarLoadController===loadController)avatarLoadController=null;
     if(request===avatarRequest){
-      ready=!!skier&&selectorReady;
+      ready=!!riderController.rider&&selectorReady;
       startScreen.setReady(ready);
-      ui.setAvatarLoading(!skier);
+      ui.setAvatarLoading(!riderController.rider);
     }
   }
 }
@@ -803,12 +815,12 @@ function installAvatarSelector(initialAvatar){
     selectedId:initialAvatar.id,
     selectedRideMode
   });
-  selector.dialog.addEventListener('close',()=>{
+  runtimeListeners.on(selector.dialog,'close',()=>{
     if(initialSelectionFlow)initialSelectionFlow=false;
   });
   selector.setSelected(initialAvatar,selectedRideMode);
   selectorReady=true;
-  ready=!!skier;
+  ready=!!riderController.rider;
   startScreen.setReady(ready);
   ui.setAvatarLoading(!ready);
 }
@@ -823,8 +835,8 @@ function installAvatarSelector(initialAvatar){
 
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
-  skier=riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
-  mountainWeather.setRider(skier);
+  riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
+  mountainWeather.setRider(riderController.rider);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
   ui.setAvatar(initialAvatar);
@@ -853,18 +865,12 @@ function resetRunState(){
   if(state.rideMode!==selectedRideMode)applyRideProfileToState(selectedRideMode);
   const rideProfile=getRideProfile(state.rideMode);
   runSession.reset({rideProfile});
-  Object.assign(state,{runSeed:createRunSeed(),cleanLandings:0,successfulTricks:0,failedTricksCount:0,oilContacts:0,lastMistakeTime:-Infinity,steeringCorrectionIntensity:0,lastSteerSign:0});
+  state.runSeed=createRunSeed();
   bananaPower.reset();
   riderController.setRideMode(state.rideMode);
   audio.setRideMode?.(state.rideMode);
   resetAirborneScoring(state);
   resetTrickScoring(state);
-  state.cleanLandings=0;
-  state.strongLandings=0;
-  state.bananaPowerUses=0;
-  state.edgeContactCooldown=0;
-  state.edgeContact=false;
-  state.edgeContactSide=0;
   tricks.reset();
   audio.resetRun?.();
   haptics.reset?.();
@@ -878,7 +884,7 @@ function resetRunState(){
     displaceTerrainChunk(tile.geometry,tile.position.z);
   });
   environment.reset();
-  Object.assign(state,sampleSkiGround(terrainHeight,0,player.position.z,0,skier?.userData?.skiTrackSpacing));
+  Object.assign(state,sampleSkiGround(terrainHeight,0,player.position.z,0,riderController.trackSpacing));
   state.y=.12+state.centerGround;player.position.y=state.y;
   courseFrame=0;resetCourse(0);skiCamera.reset();startCamera.reset();feedback.reset();
   scorePresentation.reset({
@@ -943,6 +949,8 @@ function pauseGame(){
 }
 function resumeGame(){
   if(state.mode!=='paused'||!gameFlow.enter(GAME_FLOW.PLAYING,{reason:'resume'}))return;
+  gameplayInput.resetTransient();
+  touchControls.reset();
   ui.hidePause();
   audio.play('menu',.22);
   last=performance.now();
@@ -1088,7 +1096,7 @@ function update(dt,frameMs=dt*1000){
       const edgeFeedback=feedback.onEdgeContact(carveStep.edgeScrape.intensity,state.time);
       if(edgeFeedback?.play)haptics.edgeScrape?.(edgeFeedback.hapticStrength);
     }
-    const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,skier?.userData?.skiTrackSpacing);
+    const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,riderController.trackSpacing);
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
 
@@ -1170,7 +1178,7 @@ function update(dt,frameMs=dt*1000){
 
     player.position.x=state.x;player.position.y=state.y;
     updateRidingOrientation(player,state,controlDt);
-    skier?.userData?.updateSkiPose?.({
+    riderController.updatePose({
       dt:controlDt,
       steer:state.edge,
       air:state.air,
@@ -1195,8 +1203,8 @@ function update(dt,frameMs=dt*1000){
           travel:state.travel,
           heading:state.heading,
           edge:state.edge,
-          spacing:skier?.userData?.skiTrackSpacing??.245,
-          skis:skier?.userData?.trailContacts??skier?.userData?.skis,
+          spacing:riderController.trackSpacing??.245,
+          skis:riderController.trailContacts,
           rideMode:state.rideMode
         });
         const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
@@ -1334,7 +1342,7 @@ function update(dt,frameMs=dt*1000){
     syncCourseVisuals();
     if(state.mode==='playing')fillCourse(state.difficulty);
   }else if(state.mode==='countdown'){
-    skier?.userData?.updateSkiPose?.({
+    riderController.updatePose({
       dt,
       steer:0,
       air:false,
@@ -1454,7 +1462,8 @@ runtimeListeners.on(window,'resize',resize);
 window.chimpionsSki=()=>{
   const courseWorldEndZ=courseEndZ+courseTravel;
   const batch=courseRenderBatches.getDiagnostics();
-  const collisionDiagnostics=collisionRuntime.getDiagnostics();
+  const runtimeDiagnostics=getRuntimeDiagnostics();
+  const trickSnapshot=tricks.getSnapshot();
   let standaloneCourseObjects=0;
   let standaloneCourseDrawCalls=0;
   let activeHazardCount=0;
@@ -1472,14 +1481,10 @@ window.chimpionsSki=()=>{
   }
   const pooledObjects=Object.values(coursePool).reduce((sum,pool)=>sum+pool.length,0);
   return {
-    ...state,
+    ...runtimeDiagnostics,
     ...performanceTelemetry.getFlatSnapshot(),
     ...environment.getQualityDiagnostics?.(),
     ...quality.getDiagnostics(),
-    ...collisionDiagnostics,
-    ...gameFlow.snapshot(),
-    ...bananaPower.snapshot(),
-    runSession:runSession.snapshot(),
     cameraViewMode,
     cameraMotionMode,
     cameraReducedMotion:document.documentElement.dataset.cameraMotion==='reduced',
@@ -1535,17 +1540,17 @@ window.chimpionsSki=()=>{
     carveLoad:state.carveLoad,
     landingQuality:state.landingQuality,
     rampGrace:state.rampGrace,
-    trickState:tricks.state.state,
-    trickType:tricks.state.type||tricks.state.lastCompletedType||'',
-    trickActive:tricks.state.state==='SPIN_360'||tricks.state.state==='BACKFLIP',
-    trickRotation:tricks.state.rotation,
-    trickProgress:tricks.state.progress,
-    trickSystemProgress:tricks.state.progress,
-    tricksThisAir:tricks.state.tricksThisAir,
-    remainingAirTime:tricks.state.remainingAirTime,
-    trickAllowed:tricks.state.trickAllowed,
-    pendingTrick:tricks.state.pendingTrick,
-    trickRejectionReason:tricks.state.rejectionReason,
+    trickState:trickSnapshot.state,
+    trickType:trickSnapshot.type||trickSnapshot.lastCompletedType||'',
+    trickActive:trickSnapshot.state==='SPIN_360'||trickSnapshot.state==='BACKFLIP',
+    trickRotation:trickSnapshot.rotation,
+    trickProgress:trickSnapshot.progress,
+    trickSystemProgress:trickSnapshot.progress,
+    tricksThisAir:trickSnapshot.tricksThisAir,
+    remainingAirTime:trickSnapshot.remainingAirTime,
+    trickAllowed:trickSnapshot.trickAllowed,
+    pendingTrick:trickSnapshot.pendingTrick,
+    trickRejectionReason:trickSnapshot.rejectionReason,
     trickVisualPivot:trickVisualPivot.name,
     rendererCalls:renderer.info.render.calls,
     rendererTriangles:renderer.info.render.triangles,
@@ -1561,13 +1566,6 @@ window.chimpionsSki=()=>{
     rideMode:selectedRideMode,
     baseSpeed:getRideProfile(selectedRideMode).baseSpeed,
     maxSpeed:getRideProfile(selectedRideMode).maxSpeed,
-    equipmentType:skier?.userData?.equipmentType||'unknown',
-    poseMode:skier?.userData?.poseMode||'unknown',
-    riderVisual:skier?.userData?.riderVisual?.name||'',
-    skierFallback:!!skier?.userData?.fallback,
-    rigReady:!!skier?.userData?.rigReady,
-    localAvatarComplexity:skier?.userData?.localAvatarComplexity||null,
-    modelForwardAxis:skier?.userData?.modelForwardAxis||'procedural',
     courseObjects:course.length,
     pooledCourseObjects:pooledObjects
   };
@@ -1580,7 +1578,8 @@ if(import.meta.hot){
     avatarRequest++;
     avatarLoadController?.abort();
     avatarLoadController=null;
-    removeEventListener('resize',resize);
+    runtimeListeners.dispose();
+    riderController.dispose();
     unsubscribeRendererQuality();
     unsubscribeRendererResolution();
     unsubscribeRuntimeQuality();

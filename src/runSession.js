@@ -1,4 +1,16 @@
 const BASE_TRANSIENT_STATE=Object.freeze({
+  cleanLandings:0,
+  strongLandings:0,
+  bananaPowerUses:0,
+  successfulTricks:0,
+  failedTricksCount:0,
+  oilContacts:0,
+  lastMistakeTime:-Infinity,
+  steeringCorrectionIntensity:0,
+  lastSteerSign:0,
+  edgeContactCooldown:0,
+  edgeContact:false,
+  edgeContactSide:0,
   distance:0,
   travel:0,
   time:0,
@@ -53,6 +65,21 @@ const BASE_TRANSIENT_STATE=Object.freeze({
   crashDirection:0,
   crashTime:0
 });
+
+export function createRunState({mode='menu',rideMode,rideProfile,best=0}={}){
+  if(!rideProfile)throw new Error('createRunState requires a ride profile');
+  return {
+    mode,
+    rideMode,
+    best,
+    ...BASE_TRANSIENT_STATE,
+    speed:rideProfile.baseSpeed,
+    maxRunSpeed:rideProfile.baseSpeed,
+    baseSpeed:rideProfile.baseSpeed,
+    targetSpeed:rideProfile.baseSpeed,
+    maxSpeed:rideProfile.maxSpeed
+  };
+}
 
 export function createRunSession({state}={}){
   if(!state)throw new Error('createRunSession requires shared state');
