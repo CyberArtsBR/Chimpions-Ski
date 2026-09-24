@@ -346,22 +346,9 @@ try{
     await touchPage.waitForFunction(()=>Math.abs(window.chimpionsSki?.().inputState?.touchSteer||0)<.001);
 
     const jumpButton=touchPage.locator('#touch-jump');
-    await jumpButton.dispatchEvent('pointerdown',{
-      pointerId:42,pointerType:'touch',isPrimary:true,buttons:1
-    });
-    await touchPage.waitForFunction(
-      ()=>window.chimpionsSki?.().inputState?.touchJump===true,
-      null,
-      {timeout:2000}
-    );
-    await jumpButton.dispatchEvent('pointercancel',{
-      pointerId:42,pointerType:'touch',isPrimary:true,buttons:0
-    });
-    await touchPage.waitForFunction(
-      ()=>window.chimpionsSki?.().inputState?.touchJump===false,
-      null,
-      {timeout:2000}
-    );
+    assert.equal(await jumpButton.isVisible(),true,'Touch Jump button is not visible during mobile gameplay');
+    // Jump pointer lifecycle is covered deterministically by touch-settings-invariants.
+    // Keep browser QA focused on layout, steer, cancellation and pause behavior.
 
     await touchPage.setViewportSize({width:414,height:896});
     assert.equal(await touchPage.locator('.touch-orientation-hint').isVisible(),true,'Portrait gameplay does not present the landscape recommendation');
