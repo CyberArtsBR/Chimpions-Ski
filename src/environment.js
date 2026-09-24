@@ -194,9 +194,8 @@ export function decorateCourseObject(root,kind){
 export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   let environmentQuality=normalizeEnvironmentQuality(quality);
   let environmentProfileName=String(quality?.profile||'high');
-  let environmentShadowMapSize=Math.max(512,Math.round(Number(quality?.shadowMapSize)||4096));
-  let environmentSnowLayerDensity=Math.max(.1,Math.min(1,Number(quality?.snowLayerDensity)||1));
   let distantSceneryUpdateHz=Math.max(0,Number(quality?.distantSceneryUpdateHz)||0);
+  let distantSceneryInterval=distantSceneryUpdateHz>0?1/distantSceneryUpdateHz:0;
   scene.background=new THREE.Color(0xd4edf8);
   scene.fog=new THREE.Fog(0xd8eef7,48,268);
   renderer.toneMappingExposure=1.11;
@@ -216,11 +215,6 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
   sun.position.set(-9,15,7);
   sun.castShadow=false;
-  sun.shadow.mapSize.set(environmentShadowMapSize,environmentShadowMapSize);
-  sun.shadow.bias=-.00032;
-  sun.shadow.normalBias=.022;
-  sun.shadow.radius=2.1;
-  Object.assign(sun.shadow.camera,{left:-23,right:23,top:20,bottom:-9,near:.5,far:52});
   scene.add(sun);
 
   const rim=new THREE.DirectionalLight(0xb8e5fb,.48);
@@ -273,12 +267,12 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     layer.geometry.setDrawRange(0,0);
     layer.points.visible=false;
   }
-  const snowParticles=createSnowParticles({scene,densityMultiplier:environmentQuality.particleDensityMultiplier});
+  const snowParticles=createSnowParticles({scene,densityMultiplier:0});
   const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank,detailLevel:environmentQuality.snowDetailLevel});
   const boundaryMarkers=createBoundaryMarkers({
     world,terrainHeight,limit:COURSE_FLAG_X,countPerSide:40,spacing:7.2,
     woodTexture:_barkTexture,
-    decorativeShadows:environmentQuality.decorativeShadows
+    decorativeShadows:false
   });
   const contactShadow=makeContactShadow(scene);
   contactShadow.visible=false;
@@ -287,17 +281,17 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   });
 
   let visualTravel=0;
+  const flybyUpdateState={running:true,skyColor:scene.background};
   function setQualityProfile(overrides={}){
     const input=overrides||{};
     if(input.profile)environmentProfileName=String(input.profile);
-    if(Number.isFinite(Number(input.shadowMapSize)))environmentShadowMapSize=Math.max(512,Math.round(Number(input.shadowMapSize)));
-    if(Number.isFinite(Number(input.snowLayerDensity)))environmentSnowLayerDensity=Math.max(.1,Math.min(1,Number(input.snowLayerDensity)));
-    if(Number.isFinite(Number(input.distantSceneryUpdateHz)))distantSceneryUpdateHz=Math.max(0,Number(input.distantSceneryUpdateHz));
+    if(Number.isFinite(Number(input.distantSceneryUpdateHz))){
+      distantSceneryUpdateHz=Math.max(0,Number(input.distantSceneryUpdateHz));
+      distantSceneryInterval=distantSceneryUpdateHz>0?1/distantSceneryUpdateHz:0;
+    }
 
     const mapped={...input};
-    if(input.snowParticleDensity!=null||input.particleDensityMultiplier!=null)mapped.particleDensityMultiplier=input.snowParticleDensity??input.particleDensityMultiplier;
     if(input.environmentDecorationDensity!=null||input.decorativeDensity!=null)mapped.decorativeDensity=input.environmentDecorationDensity??input.decorativeDensity;
-    if(input.decorativeShadowCasting!=null||input.decorativeShadows!=null)mapped.decorativeShadows=input.decorativeShadowCasting??input.decorativeShadows;
     if(input.snowSurfaceDetailDensity!=null||input.snowDetailLevel!=null)mapped.snowDetailLevel=input.snowSurfaceDetailDensity??input.snowDetailLevel;
     if(input.profile&&input.distantSceneryDetail==null){
       mapped.distantSceneryDetail={high:1,medium:.74,low:.52}[environmentProfileName]??1;
@@ -327,20 +321,12 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     boundaryMarkers.setDecorativeShadows(false);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
     landscape.setDetail(environmentQuality.distantSceneryDetail);
-
-    if(sun.shadow.mapSize.x!==environmentShadowMapSize||sun.shadow.mapSize.y!==environmentShadowMapSize){
-      sun.shadow.mapSize.set(environmentShadowMapSize,environmentShadowMapSize);
-      if(sun.shadow.map){sun.shadow.map.dispose();sun.shadow.map=null;}
-      sun.shadow.needsUpdate=true;
-    }
     return getQualityProfile();
   }
   function getQualityProfile(){
     return {
       ...environmentQuality,
       profile:environmentProfileName,
-      shadowMapSize:environmentShadowMapSize,
-      snowLayerDensity:environmentSnowLayerDensity,
       distantSceneryUpdateHz
     };
   }
@@ -350,8 +336,8 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   function getQualityDiagnostics(){
     return {
       environmentQualityProfile:environmentProfileName,
-      environmentShadowMapSize:sun.shadow.mapSize.x,
-      decorativeShadowCasting:!!environmentQuality.decorativeShadows,
+      globalShadowMapsEnabled:!!renderer.shadowMap.enabled,
+      decorativeShadowCasting:false,
       activeBanks:activeBankCount,
       activeWindBanks:activeWindBankCount,
       activeDecorativeTrees:activeTreeCount,
@@ -429,20 +415,17 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     sky.material.uniforms.time.value=time;
     dayCycle.apply(runTime);
     snowMaterials.setTravel(visualTravel);
-    ambientFlybys.update(dt,{running,skyColor:scene.background});
+    flybyUpdateState.running=running;
+    ambientFlybys.update(dt,flybyUpdateState);
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
     surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
 
-
-    for(const layer of snowLayers)layer.points.material.color.copy(snowMaterials.terrain.color);
-
     let sceneryStep=dt;
     let refreshScenery=true;
-    if(distantSceneryUpdateHz>0){
+    if(distantSceneryInterval>0){
       sceneryAccumulator+=dt;
-      const interval=1/distantSceneryUpdateHz;
-      if(sceneryAccumulator<interval)refreshScenery=false;
+      if(sceneryAccumulator<distantSceneryInterval)refreshScenery=false;
       else{sceneryStep=sceneryAccumulator;sceneryAccumulator=0;}
     }
 
@@ -467,9 +450,11 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
       for(const layer of snowLayers){
         if(layer.points.userData.externalWeather)continue;
+        const activeCount=layer.activeCount??layer.count;
+        if(activeCount<=0)continue;
         const p=layer.positions;
         layer.materialScale=speed01;
-        for(let i=0;i<(layer.activeCount??layer.count);i++){
+        for(let i=0;i<activeCount;i++){
           const k=i*3;
           if(layer.ground){
             p[k+2]+=sceneryStep*(3.8+worldSpeed*(.52+speed01*.55));
