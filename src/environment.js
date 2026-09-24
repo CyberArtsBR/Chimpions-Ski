@@ -215,7 +215,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
   sun.position.set(-9,15,7);
-  sun.castShadow=true;
+  sun.castShadow=false;
   sun.shadow.mapSize.set(environmentShadowMapSize,environmentShadowMapSize);
   sun.shadow.bias=-.00032;
   sun.shadow.normalBias=.022;
@@ -236,11 +236,11 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const bankGeometry=new THREE.SphereGeometry(1,14,8);
   const bankMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.bank,54);
   bankMesh.castShadow=true;
-  bankMesh.receiveShadow=true;
+  bankMesh.receiveShadow=false;
   bankMesh.frustumCulled=true;
   world.add(bankMesh);
   const windMesh=new THREE.InstancedMesh(bankGeometry,snowMaterials.shadowBank,38);
-  windMesh.receiveShadow=true;
+  windMesh.receiveShadow=false;
   windMesh.frustumCulled=true;
   world.add(windMesh);
   const banks=createMovingInstances(54,bankMesh,i=>{const e={};resetBank(e,i,true);return e;});
@@ -266,7 +266,13 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     makeSnowLayer(235,.105,.58,29,-38,13,1.86,false),
     makeSnowLayer(310,.050,.52,25,-31,11,.42,true)
   ];
-  for(const layer of snowLayers)scene.add(layer.points);
+  // White point-sprite snowfall is intentionally disabled; keep the layer
+  // objects only as no-op weather bindings so the rest of the weather API stays stable.
+  for(const layer of snowLayers){
+    layer.activeCount=0;
+    layer.geometry.setDrawRange(0,0);
+    layer.points.visible=false;
+  }
   const snowParticles=createSnowParticles({scene,densityMultiplier:environmentQuality.particleDensityMultiplier});
   const surfaceDetail=createSnowSurfaceDetail({world,terrainHeight,snowMaterial:snowMaterials.bank,detailLevel:environmentQuality.snowDetailLevel});
   const boundaryMarkers=createBoundaryMarkers({
@@ -275,6 +281,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     decorativeShadows:environmentQuality.decorativeShadows
   });
   const contactShadow=makeContactShadow(scene);
+  contactShadow.visible=false;
   const dayCycle=createDayCycle({
     scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
   });
@@ -303,21 +310,21 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     bankMesh.count=activeBankCount;
     windMesh.count=activeWindBankCount;
     for(const mesh of decorativeTreeMeshes){
-      mesh.castShadow=environmentQuality.decorativeShadows;
+      mesh.castShadow=false;
     }
-    bankMesh.castShadow=environmentQuality.decorativeShadows;
+    bankMesh.castShadow=false;
     refreshTrees();
 
     for(const layer of snowLayers){
-      layer.activeCount=Math.max(1,Math.min(layer.count,Math.round(layer.count*environmentSnowLayerDensity)));
-      layer.geometry.setDrawRange(0,layer.activeCount);
-      layer.points.visible=layer.activeCount>0;
+      layer.activeCount=0;
+      layer.geometry.setDrawRange(0,0);
+      layer.points.visible=false;
     }
 
-    snowParticles.setDensityMultiplier(environmentQuality.particleDensityMultiplier);
+    snowParticles.setDensityMultiplier(0);
     surfaceDetail.setDetailLevel(environmentQuality.snowDetailLevel);
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
-    boundaryMarkers.setDecorativeShadows(environmentQuality.decorativeShadows);
+    boundaryMarkers.setDecorativeShadows(false);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
     landscape.setDetail(environmentQuality.distantSceneryDetail);
 

@@ -41,7 +41,7 @@ import {CAMERA_MOTION,loadUserPreferences,saveAvatarPreference,saveCameraMotionP
 const userPreferences=loadUserPreferences();
 let explicitQualityOverride=false;
 try{explicitQualityOverride=new URLSearchParams(globalThis.location?.search||'').has('quality');}catch{}
-if(!explicitQualityOverride)quality.setProfile(userPreferences.quality);
+if(!explicitQualityOverride)quality.setProfile('max');
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -91,7 +91,7 @@ const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-per
 const performanceTelemetry=createPerformanceTelemetry();
 renderer.setPixelRatio(Math.min(devicePixelRatio,quality.getSettings().dprCap));
 renderer.setSize(innerWidth,innerHeight);
-renderer.shadowMap.enabled=true;
+renderer.shadowMap.enabled=false;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure=1.05;
@@ -562,10 +562,9 @@ function installAvatarSelector(initialAvatar){
     onValidateLocalAvatar:validateLocalAvatarEntry,
     onSelect:async(entry,rideMode)=>{
       await setAvatar(entry,rideMode);
-      if(initialSelectionFlow){
-        initialSelectionFlow=false;
-        setTimeout(()=>beginRun(),0);
-      }
+      // Choosing SKI or SNOWBOARD is the final selection step: launch immediately.
+      initialSelectionFlow=false;
+      setTimeout(()=>beginRun(),0);
     },
     selectedId:initialAvatar.id,
     selectedRideMode

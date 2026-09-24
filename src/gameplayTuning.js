@@ -13,12 +13,12 @@ export const SKI_TUNING=Object.freeze({
   SIDE_HAZARD_SECTION_CHANCE:.84,
   SIDE_HAZARD_SECOND_CHANCE:.42,
 
-  // 160 km/h opening pace, +20 km/h every 30 seconds, 300 km/h cap.
-  // The faster climb makes the run demanding much sooner while preserving
-  // the same top speed and deterministic tier cadence.
+  // 160 km/h opening pace, +10 km/h every 30 seconds, 300 km/h cap.
+  // Keep the deterministic tier cadence while giving players more time to
+  // read the denser course before each speed increase.
   BASE_SPEED:44.4444,
   SPEED_TIER_SECONDS:30,
-  SPEED_TIER_INCREMENT:5.5556,
+  SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:83.3333,
   SPEED_RESPONSE:2.2,
 
