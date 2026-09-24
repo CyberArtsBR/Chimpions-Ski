@@ -860,6 +860,7 @@ function update(dt,frameMs=dt*1000){
     for(let step=0;step<steps&&state.mode==='playing';step++){
     physicsSubsteps++;
     const dt=stepDt;
+    const controlDt=bulletTimeActive?dt/BANANA_BULLET_TIME_SCALE:dt;
     state.time+=dt;
     updateAirborneScoring(state);
     state.frame++;
@@ -878,7 +879,7 @@ function update(dt,frameMs=dt*1000){
 
     state.rampGrace=Math.max(0,state.rampGrace-dt);
 
-    stepCarving(state,steer,dt);
+    stepCarving(state,steer,controlDt);
     const contactTarget=sampleSkiGround(terrainHeight,state.x,player.position.z-state.travel,state.heading,skier?.userData?.skiTrackSpacing);
     dampTerrainContact(contactTarget,state,dt);
     const groundY=.12+state.centerGround;
@@ -951,9 +952,9 @@ function update(dt,frameMs=dt*1000){
     }
 
     player.position.x=state.x;player.position.y=state.y;
-    updateRidingOrientation(player,state,dt);
+    updateRidingOrientation(player,state,controlDt);
     skier?.userData?.updateSkiPose?.({
-      dt,
+      dt:controlDt,
       steer:state.edge,
       air:state.air,
       landing:state.landingPulse,
@@ -1180,9 +1181,10 @@ function update(dt,frameMs=dt*1000){
     trickEvent:state.trickEvent??null
   });
   audio.playClear?.(state.clearEvent??null);
+  const audioTimeScale=state.specialActiveTime>0?BANANA_BULLET_TIME_SCALE:1;
   audio.update({
     mode:state.mode,
-    speed:state.speed,
+    speed:state.speed*audioTimeScale,
     baseSpeed:state.baseSpeed,
     maxSpeed:state.maxSpeed,
     carve:state.edge,
