@@ -198,7 +198,12 @@ export function createSafeRouteTracker(initialX=0,initialZ=null){
       return previousSafeX;
     }
 
-    const maxDelta=maxReachableLateralDelta(z-previousSafeZ,speed);
+    const geometricReach=maxReachableLateralDelta(z-previousSafeZ,speed);
+    const humanReach=Math.max(
+      T.SAFE_ROUTE_BASE_REACH,
+      maxHumanReachableLateralDelta(z-previousSafeZ,speed)
+    );
+    const maxDelta=Math.min(geometricReach,humanReach);
     const next=clamp(
       desired,
       previousSafeX-maxDelta,
