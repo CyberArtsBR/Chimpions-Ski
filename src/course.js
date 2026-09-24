@@ -907,6 +907,31 @@ export function createCourseDirector({routeCenter,random=Math.random}){
     return {added:placements.length-before,bananas:bananaCount};
   }
 
+  function pruneExpertAlignment(placements){
+    for(let i=placements.length-1;i>=0;i--){
+      const candidate=placements[i];
+      if(!candidate.expertOverlay||!PHYSICAL_HAZARDS.has(candidate.kind))continue;
+
+      const horizontalPeers=[];
+      const verticalPeers=[];
+      for(let j=0;j<placements.length;j++){
+        if(i===j)continue;
+        const other=placements[j];
+        if(!PHYSICAL_HAZARDS.has(other.kind))continue;
+        if(Math.abs(other.z-candidate.z)<1.55)horizontalPeers.push(other);
+        if(Math.abs(other.x-candidate.x)<.92&&Math.abs(other.z-candidate.z)<11.5)verticalPeers.push(other);
+      }
+
+      const horizontalXs=[candidate.x,...horizontalPeers.map(item=>item.x)];
+      const horizontalSpan=horizontalXs.length>1
+        ?Math.max(...horizontalXs)-Math.min(...horizontalXs)
+        :0;
+      const makesWall=horizontalPeers.length>=2&&horizontalSpan>7.2;
+      const makesColumn=verticalPeers.length>=2;
+      if(makesWall||makesColumn)placements.splice(i,1);
+    }
+  }
+
   function validateAndRepairCorridor(placements,{startZ,endZ,speed,startX}){
     const validate=()=>validateReachableCorridor({
       placements,
@@ -1336,6 +1361,10 @@ export function createCourseDirector({routeCenter,random=Math.random}){
       placement.x=boundedPlacementX(placement.kind,placement.x,placement.safeX,placement);
       placement.section=type;
     }
+    // Expert overlays must not accidentally complete a wide horizontal wall
+    // or a repeated fixed column with hazards authored by the base section.
+    pruneExpertAlignment(placements);
+
     // Boundary fitting can collapse two formerly separate edge hazards onto the
     // same legal X. Re-prune only those final physical overlaps.
     pruneExcessiveOverlap(placements);
