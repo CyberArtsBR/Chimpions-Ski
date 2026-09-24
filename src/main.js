@@ -38,7 +38,9 @@ import {createPerformanceTelemetry} from './performanceTelemetry.js';
 import {CAMERA_MOTION,loadUserPreferences,saveAvatarPreference,saveCameraMotionPreference,saveHapticsPreference,saveQualityPreference,saveRideModePreference} from './userPreferences.js';
 
 const userPreferences=loadUserPreferences();
-quality.setProfile(userPreferences.quality);
+let explicitQualityOverride=false;
+try{explicitQualityOverride=new URLSearchParams(globalThis.location?.search||'').has('quality');}catch{}
+if(!explicitQualityOverride)quality.setProfile(userPreferences.quality);
 
 const app=document.querySelector('#app');
 app.innerHTML=`
@@ -883,7 +885,8 @@ function update(dt,frameMs=dt*1000){
           skis:skier?.userData?.trailContacts??skier?.userData?.skis,
           rideMode:state.rideMode
         });
-        trailTimer=Math.max(.018,.038-state.speed*.00028);
+        const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
+        trailTimer=Math.max(.018,.038-state.speed*.00028)*trailQualityScale;
       }
     }else{
       trailTimer=0;
