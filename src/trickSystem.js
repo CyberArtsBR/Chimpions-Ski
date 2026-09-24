@@ -331,6 +331,10 @@ export function createTrickSystem({visualTarget=null}={}){
     return result;
   }
 
+  function getSnapshot(){
+    return {...snapshot};
+  }
+
   function reset(){
     normalizeVisual();
     snapshot.state=TRICK_STATE.NONE;
@@ -370,6 +374,7 @@ export function createTrickSystem({visualTarget=null}={}){
     land,
     finishLanding,
     abort,
-    reset
+    reset,
+    getSnapshot
   };
 }
