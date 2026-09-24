@@ -5,6 +5,7 @@ import {SKI_TUNING} from './gameplayTuning.js';
 import {RIDE_MODE,getRideSpeedFeel,normalizeRideMode} from './rideMode.js';
 import {createSnowboardEquipment} from './snowboardEquipment.js';
 import {AvatarCompatibilityError,assertAvatarPlayable,isCatalogAvatarUrl,resolveAvatarRig} from './avatarCompatibility.js';
+import {validateParsedLocalGlb} from './localAvatarUpload.js';
 
 function material(color, roughness=.72){
   return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
@@ -620,6 +621,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
   const compatibility=assertAvatarPlayable(compatibilityInput);
   try{
     const gltf=await new GLTFLoader().loadAsync(url);
+    const localAvatarComplexity=requireGameplayRig?validateParsedLocalGlb(gltf):null;
     const model=gltf.scene;loadedModel=model;
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
     fitModel(model);
@@ -694,6 +696,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     root.userData.rigReady=!!updateRig;
     root.userData.avatarCompatibility=compatibility;
     root.userData.rigResolution=updateRig?.rigResolution||rigResolution;
+    root.userData.localAvatarComplexity=localAvatarComplexity;
     root.userData.riderVisual=riderVisual;
     root.userData.skis=skis;
     root.userData.skiTrackSpacing=placement.spacing;
