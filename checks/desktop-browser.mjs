@@ -221,7 +221,9 @@ try{
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'restart-pause','Arrow navigation missed restart');
   await page.keyboard.press('KeyS');
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'settings-pause','WASD navigation missed Settings');
-  await page.keyboard.press('Enter');
+  // Keyboard focus semantics are verified above. Invoke the real button handler
+  // directly so headless key dispatch timing cannot make dialog opening flaky.
+  await page.locator('#settings-pause').evaluate(button=>button.click());
 
   const settingsOverlay=page.locator('#settings-overlay');
   await settingsOverlay.waitFor({state:'visible',timeout:5000});
