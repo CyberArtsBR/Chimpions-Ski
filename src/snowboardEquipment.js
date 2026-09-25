@@ -42,7 +42,8 @@ export function createSnowboardEquipment({
   const edgeMaterial=new THREE.MeshStandardMaterial({color:0x101820,roughness:.22,metalness:.62});
   const deckMaterial=new THREE.MeshPhysicalMaterial({
     color:topColor,roughness:.24,metalness:.06,clearcoat:.74,clearcoatRoughness:.24,
-    sheen:.14,sheenColor:new THREE.Color(0xd9f2ff),sheenRoughness:.46
+    sheen:.14,sheenColor:new THREE.Color(0xd9f2ff),sheenRoughness:.46,
+    emissive:0x000000,emissiveIntensity:0
   });
   const graphicMaterial=new THREE.MeshStandardMaterial({
     color:0xffd95e,roughness:.28,metalness:.08,emissive:0x3b2200,emissiveIntensity:.10
@@ -55,6 +56,20 @@ export function createSnowboardEquipment({
   const bindingPadMaterial=new THREE.MeshStandardMaterial({color:0x263744,roughness:.44,metalness:.12});
   const strapMaterial=new THREE.MeshStandardMaterial({color:0xeaf8fb,roughness:.24,metalness:.18});
   const buckleMaterial=new THREE.MeshStandardMaterial({color:0x8fa8b5,roughness:.24,metalness:.72});
+  const powerMaterials=[deckMaterial,graphicMaterial,accentMaterial];
+  const powerBase=powerMaterials.map(mat=>({emissive:mat.emissive.clone(),intensity:mat.emissiveIntensity||0}));
+  const powerColor=new THREE.Color(0x32b9ff);
+  function setPowerGlow(level=0,time=0){
+    const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
+    const pulse=.82+Math.sin((Number(time)||0)*12.0)*.18;
+    powerMaterials.forEach((mat,index)=>{
+      const base=powerBase[index];
+      mat.emissive.copy(base.emissive).lerp(powerColor,strength*(index===0?.82:1));
+      mat.emissiveIntensity=base.intensity+strength*pulse*(index===0?2.25:3.85);
+    });
+    root.userData.powerGlow=strength;
+    return strength;
+  }
 
   const edge=new THREE.Mesh(makeBoardGeometry(.72,2.24,.054,.210),edgeMaterial);
   edge.castShadow=edge.receiveShadow=true;
@@ -155,6 +170,8 @@ export function createSnowboardEquipment({
   root.userData.boardWidth=.68;
   root.userData.boardLength=2.20;
   root.userData.deckTopOffset=.064;
+  root.userData.setPowerGlow=setPowerGlow;
+  setPowerGlow(0,0);
 
   const trailContacts=[-1,1].map(side=>{
     const contact=new THREE.Object3D();
@@ -164,5 +181,5 @@ export function createSnowboardEquipment({
     return contact;
   });
 
-  return {root,trailContacts};
+  return {root,trailContacts,setPowerGlow};
 }
