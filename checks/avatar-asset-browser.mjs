@@ -19,13 +19,13 @@ try{
    await page.getByRole('button',{name:'START GAME'}).evaluate(el=>el.click());
    const selector=page.locator('#chimpion-selector');await selector.waitFor({state:'visible',timeout:10000});
    const card=selector.locator('.chimpion-card:not(.is-upload-avatar)').filter({hasText:entry.name}).first();assert.equal(await card.count(),1,entry.name+' card missing');await card.evaluate(el=>el.click());
-   const ride=selector.locator(`[data-ride-mode="${mode}"]`);await ride.waitFor({state:'visible',timeout:5000});await ride.evaluate(el=>el.click());
+   const ride=selector.locator(`[data-ride-mode="${mode}"]`);await ride.waitFor({state:'visible',timeout:5000});const loadStarted=Date.now();await ride.evaluate(el=>el.click());
    await page.waitForFunction(({name,mode})=>{const d=window.chimpionsSki?.();return d?.selectedAvatar===name&&d?.rideMode===mode&&d?.riderRigReady===true;},{name:entry.name,mode},{timeout:60000});
    const diag=await page.evaluate(()=>window.chimpionsSki());
    assert.equal(diag.riderEquipmentType,mode==='ski'?'skis':'snowboard',entry.name+' equipment mismatch');
    assert.equal(diag.riderFirstPersonBody,true,entry.name+' first-person visual root missing');
    assert.equal(errors.length,0,entry.name+' runtime errors: '+errors.join('\n'));assert.equal(failed.length,0,entry.name+' failed GLB requests: '+failed.join('\n'));
-   results.push({name:entry.name,mode,rigReady:diag.riderRigReady,equipment:diag.riderEquipmentType,firstPerson:diag.riderFirstPersonBody});await page.close();
+   results.push({name:entry.name,mode,rigReady:diag.riderRigReady,equipment:diag.riderEquipmentType,firstPerson:diag.riderFirstPersonBody,selectionLoadMs:Date.now()-loadStarted,telemetryLoadMs:diag.avatarLoadAverageMs});await page.close();
   }
  }
 
@@ -37,7 +37,7 @@ try{
  await localPage.getByRole('button',{name:'START GAME'}).evaluate(el=>el.click());
  const localSelector=localPage.locator('#chimpion-selector');await localSelector.waitFor({state:'visible',timeout:10000});
  await localSelector.locator('#local-glb-upload').setInputFiles(path.resolve('public/model/characters/The Heretic.glb'));
- const localRide=localSelector.locator('[data-ride-mode="ski"]');await localRide.waitFor({state:'visible',timeout:60000});await localRide.evaluate(el=>el.click());
+ const localRide=localSelector.locator('[data-ride-mode="ski"]');await localRide.waitFor({state:'visible',timeout:60000});const localLoadStarted=Date.now();await localRide.evaluate(el=>el.click());
  await localPage.waitForFunction(()=>{const d=window.chimpionsSki?.();return d?.selectedAvatarLocal===true&&d?.riderRigReady===true&&d?.rideMode==='ski';},null,{timeout:60000});
  const localDiag=await localPage.evaluate(()=>window.chimpionsSki());
  assert.equal(localDiag.selectedAvatarLocal,true,'local GLB selection was not preserved');
@@ -45,7 +45,7 @@ try{
  assert.equal(localDiag.riderEquipmentType,'skis','local GLB ski equipment mismatch');
  assert.equal(localErrors.length,0,'local GLB runtime errors: '+localErrors.join('\n'));
  assert.equal(localFailed.length,0,'local GLB failed requests: '+localFailed.join('\n'));
- results.push({name:'Local GLB / The Heretic',mode:'ski',local:true,rigReady:localDiag.riderRigReady,equipment:localDiag.riderEquipmentType});
+ results.push({name:'Local GLB / The Heretic',mode:'ski',local:true,rigReady:localDiag.riderRigReady,equipment:localDiag.riderEquipmentType,selectionLoadMs:Date.now()-localLoadStarted,telemetryLoadMs:localDiag.avatarLoadAverageMs});
  await localPage.close();
 
  console.log(JSON.stringify({check:'avatar-asset-browser',cases:results.length,results}));
