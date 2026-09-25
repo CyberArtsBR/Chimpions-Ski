@@ -57,6 +57,22 @@ function createBannerTexture(){
     ctx.strokeStyle='rgba(120,235,255,.32)';
     ctx.lineWidth=6;
     ctx.strokeRect(w*.31,66,w*.38,h-132);
+
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.shadowColor='rgba(30,210,255,.42)';
+    ctx.shadowBlur=20;
+    ctx.fillStyle='#effbff';
+    ctx.font='900 62px Inter, Arial, sans-serif';
+    ctx.fillText('CHIMPIONS SKI',w*.5,h*.36);
+    ctx.shadowColor='rgba(255,210,80,.42)';
+    ctx.shadowBlur=16;
+    ctx.fillStyle='#ffd95c';
+    ctx.font='1000 108px Inter, Arial, sans-serif';
+    ctx.fillText('START',w*.5,h*.66);
+    ctx.restore();
+
     for(const x of [18,w-18]){
       ctx.fillStyle='#f9dd75';
       ctx.beginPath();ctx.arc(x,12,5,0,Math.PI*2);ctx.fill();
@@ -294,6 +310,93 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
       addSafetyFence(root,fenceMaterial,x,fenceZ,ground,side);
     }
   }
+
+  /* Layered architectural shell: visual-only geometry kept outside the racing lane. */
+  const structuralMaterial=new THREE.MeshStandardMaterial({color:0x102f49,roughness:.29,metalness:.68,envMapIntensity:.58});
+  const structuralEdgeMaterial=new THREE.MeshStandardMaterial({color:0x2c5c77,roughness:.34,metalness:.54,envMapIntensity:.50});
+  const crownGold=new THREE.MeshStandardMaterial({color:0xd9ad32,roughness:.32,metalness:.52,envMapIntensity:.52});
+  const darkGlass=new THREE.MeshPhysicalMaterial({
+    color:0x06243a,roughness:.18,metalness:.18,transmission:.08,transparent:true,opacity:.94,
+    clearcoat:.58,clearcoatRoughness:.22,envMapIntensity:.72
+  });
+
+  for(const side of [-1,1]){
+    const outerX=side*5.45;
+    const outerGround=terrainHeight(outerX,z);
+
+    addMesh(root,new RoundedBoxGeometry(.68,3.72,.64,4,.075),structuralMaterial,{
+      position:[outerX,outerGround+2.16,z+.04],cast:true,name:'start-aaa-outer-pylon'
+    });
+    addMesh(root,new RoundedBoxGeometry(.92,.28,.86,3,.06),frameDarkMaterial,{
+      position:[outerX,outerGround+.18,z+.04],cast:true,receive:true
+    });
+    addMesh(root,new RoundedBoxGeometry(.78,.12,.76,3,.04),crownGold,{
+      position:[outerX,outerGround+.38,z+.04],cast:true
+    });
+
+    const upperBrace=addMesh(root,new THREE.BoxGeometry(1.82,.16,.20),structuralEdgeMaterial,{
+      position:[side*4.80,outerGround+4.15,z+.12],cast:true,name:'start-aaa-upper-brace'
+    });
+    upperBrace.rotation.z=side*.56;
+
+    const lowerBrace=addMesh(root,new THREE.BoxGeometry(1.68,.14,.18),structuralEdgeMaterial,{
+      position:[side*4.88,outerGround+1.42,z+.13],cast:true,name:'start-aaa-lower-brace'
+    });
+    lowerBrace.rotation.z=-side*.72;
+
+    addMesh(root,new RoundedBoxGeometry(.30,2.18,.05,2,.03),darkGlass,{
+      position:[outerX-side*.35,outerGround+2.34,z-.335],
+      name:'start-aaa-glass-inset'
+    });
+
+    for(const yy of [1.15,1.82,2.49,3.16]){
+      addMesh(root,new RoundedBoxGeometry(.32,.055,.07,2,.02),cyanLed,{
+        position:[outerX-side*.36,outerGround+yy,z-.37],name:'start-aaa-pylon-led'
+      });
+    }
+
+    addFloodlight(root,frameDarkMaterial,whiteLed,outerX,outerGround+3.95,z-.20,side);
+    addSnowCluster(root,snowMaterial,outerX,outerGround+4.20,z+.02,.92,.86);
+  }
+
+  /* Raised crown and stepped roofline make the silhouette read as a proper event structure. */
+  addMesh(root,new RoundedBoxGeometry(6.65,.34,.62,5,.075),structuralMaterial,{
+    position:[0,centerGround+5.58,z+.03],cast:true,name:'start-aaa-crown'
+  });
+  addMesh(root,new RoundedBoxGeometry(5.62,.18,.70,4,.05),crownGold,{
+    position:[0,centerGround+5.79,z+.03],cast:true,name:'start-aaa-crown-trim'
+  });
+  addMesh(root,new RoundedBoxGeometry(3.45,.72,.24,4,.06),frameDarkMaterial,{
+    position:[0,centerGround+6.08,z-.04],cast:true,name:'start-aaa-logo-housing'
+  });
+  addMesh(root,new RoundedBoxGeometry(3.10,.45,.035,3,.035),darkGlass,{
+    position:[0,centerGround+6.08,z-.17],name:'start-aaa-logo-glass'
+  });
+
+  for(const x of [-1.20,-.60,0,.60,1.20]){
+    addMesh(root,new RoundedBoxGeometry(.38,.075,.045,2,.022),x===0?amberLed:cyanLed,{
+      position:[x,centerGround+6.08,z-.195],name:'start-aaa-logo-led'
+    });
+  }
+
+  /* Small rear gantry gives the arch visible depth from the countdown camera. */
+  const rearZ=z+.66;
+  addMesh(root,new RoundedBoxGeometry(8.88,.18,.18,3,.035),structuralEdgeMaterial,{
+    position:[0,centerGround+5.10,rearZ],cast:true,name:'start-aaa-rear-gantry'
+  });
+  for(const side of [-1,1]){
+    addMesh(root,new RoundedBoxGeometry(.18,1.22,.18,3,.035),structuralEdgeMaterial,{
+      position:[side*4.28,centerGround+4.55,rearZ],cast:true
+    });
+    const diagonal=addMesh(root,new THREE.BoxGeometry(1.12,.12,.12),structuralEdgeMaterial,{
+      position:[side*3.90,centerGround+4.82,rearZ],cast:true
+    });
+    diagonal.rotation.z=-side*.62;
+  }
+
+  addSnowCluster(root,snowMaterial,0,centerGround+5.96,z+.04,3.35,.80);
+  addSnowCluster(root,snowMaterial,-2.55,centerGround+5.80,z+.02,1.15,.78);
+  addSnowCluster(root,snowMaterial,2.55,centerGround+5.80,z+.02,1.15,.78);
 
   function reset(){
     root.position.z=0;
