@@ -45,7 +45,7 @@ import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveC
 import {GAME_FLOW,createGameFlow} from './gameFlow.js';
 import {createRunSession,createRunState} from './runSession.js';
 import {createBananaPowerSystem} from './bananaPowerSystem.js';
-import {createCollisionRuntime} from './collisionRuntime.js';
+import {COLLISION_QUERY_HALF_Z,createCollisionRuntime} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
 import {createRiderController} from './riderController.js';
 import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
@@ -282,7 +282,7 @@ const collisionBroadphase=createCollisionBroadphase({bucketSize:8});
 const collisionRuntime=createCollisionRuntime({
   broadphase:collisionBroadphase,
   telemetry:performanceTelemetry,
-  queryHalfZ:3.5
+  queryHalfZ:COLLISION_QUERY_HALF_Z
 });
 let courseDirector=null;
 let courseFrame=0;
