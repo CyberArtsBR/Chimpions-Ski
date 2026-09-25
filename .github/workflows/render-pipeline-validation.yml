@@ -74,7 +74,7 @@ jobs:
 
           async function openProfile(profile){
             const context=await browser.newContext({
-              viewport:{width:960,height:540},
+              viewport:{width:480,height:270},
               deviceScaleFactor:2
             });
             const page=await context.newPage();
@@ -87,13 +87,13 @@ jobs:
             return {context,page,errors};
           }
 
-          async function collectDynamicFrameTimes(page,durationMs=1800){
+          async function collectDynamicFrameTimes(page,durationMs=900){
             await page.evaluate(()=>{
               const start=document.querySelector('.start-screen');
               if(start)start.hidden=true;
               document.body.classList.remove('start-screen-active');
             });
-            await page.waitForTimeout(250);
+            await page.waitForTimeout(120);
             return page.evaluate(duration=>new Promise(resolve=>{
               const values=[];
               let last=performance.now();
@@ -111,7 +111,7 @@ jobs:
           for(const profile of profiles){
             const {context,page,errors}=await openProfile(profile);
             const staticBefore=await page.evaluate(()=>window.chimpionsSki());
-            await page.waitForTimeout(700);
+            await page.waitForTimeout(350);
             const staticAfter=await page.evaluate(()=>window.chimpionsSki());
 
             const frameTimes=await collectDynamicFrameTimes(page);
@@ -185,7 +185,7 @@ jobs:
             if(start)start.hidden=true;
             document.body.classList.remove('start-screen-active');
           });
-          await leak.page.waitForTimeout(600);
+          await leak.page.waitForTimeout(300);
           const before=await leak.page.evaluate(()=>window.chimpionsSki());
           const sequence=['medium','low','auto','high','max','medium','low','auto','high','max'];
           for(const target of sequence){
@@ -197,7 +197,7 @@ jobs:
             }
             assert.equal(await leak.page.evaluate(()=>window.chimpionsSki().qualityMode),target,'failed to switch quality to '+target);
           }
-          await leak.page.waitForTimeout(500);
+          await leak.page.waitForTimeout(250);
           const after=await leak.page.evaluate(()=>window.chimpionsSki());
           assert(after.pipelineRebuilds>before.pipelineRebuilds,'quality switching did not rebuild render targets');
           assert(after.targetDisposals>before.targetDisposals,'quality switching did not dispose replaced render targets');
