@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {createSkiCamera,predictAirborneLanding,SKI_CAMERA_LIMITS as LIMITS} from '../src/skiCamera.js';
-import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS} from '../src/startCameraSequence.js';
+import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS,START_CAMERA_SEQUENCE_MS} from '../src/startCameraSequence.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {RIDE_MODE,getRideProfile} from '../src/rideMode.js';
 import {createFallbackSkier} from '../src/skier.js';
@@ -153,6 +153,12 @@ for(const mode of [RIDE_MODE.SKI,RIDE_MODE.SNOWBOARD]){
   skiCamera.update(ground,1/60);
   assertFiniteCamera(camera,'post-reset camera');
 }
+
+assert.equal(
+  START_CAMERA_SEQUENCE_MS,
+  START_CAMERA_FRONT_HOLD_MS+START_CAMERA_ROTATE_MS,
+  'start-camera wall-clock safety duration drifted from presentation duration'
+);
 
 // Start hero camera remains compatible with the chase frame and hands off cleanly to gameplay.
 {

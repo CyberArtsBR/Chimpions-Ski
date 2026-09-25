@@ -20,7 +20,7 @@ import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
 import {createGameFeedback} from './gameFeedback.js';
-import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS} from './startCameraSequence.js';
+import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS,START_CAMERA_SEQUENCE_MS} from './startCameraSequence.js';
 import {createStartCrowd} from './startCrowd.js';
 import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
@@ -464,6 +464,7 @@ const BANANA_POWER_GOAL=10;
 const BANANA_POWER_DURATION=3;
 const BANANA_BULLET_TIME_SCALE=.35;
 let startCountdownStarted=false;
+let startCountdownSafetyTimer=0;
 let catalog=[],selectedAvatar=null,selector=null,ready=false;
 let selectorReady=false;
 let avatarCommitted=false;
@@ -896,6 +897,10 @@ function resetRunState(){
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
   state.crashActive=false;state.crashMotion=null;state.crashTime=0;pendingCrashResults=null;impactVfx.reset();
   startCountdownStarted=false;
+  if(startCountdownSafetyTimer){
+    clearTimeout(startCountdownSafetyTimer);
+    startCountdownSafetyTimer=0;
+  }
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
   keys.clear();
@@ -920,6 +925,10 @@ function resetRunState(){
 function startRaceCountdown(){
   if(startCountdownStarted||state.mode!=='countdown')return false;
   startCountdownStarted=true;
+  if(startCountdownSafetyTimer){
+    clearTimeout(startCountdownSafetyTimer);
+    startCountdownSafetyTimer=0;
+  }
   startCamera.finish(state);
   ui.startCountdown({
     entry:selectedAvatar,
@@ -954,6 +963,12 @@ async function beginRun(){
     resetRunState();
     ui.prepareRun({best:state.best,speed:state.speed});
     startCamera.begin(state,performance.now());
+    // Presentation normally hands off from requestAnimationFrame. Guarantee the
+    // same wall-clock handoff when rendering is severely throttled or suspended.
+    startCountdownSafetyTimer=setTimeout(()=>{
+      startCountdownSafetyTimer=0;
+      if(state.mode==='countdown'&&!startCountdownStarted)startRaceCountdown();
+    },START_CAMERA_SEQUENCE_MS);
     return true;
   }finally{
     ui.hideRunLoading?.();
@@ -1679,6 +1694,8 @@ window.chimpionsSki=()=>{
 if(import.meta.hot){
   import.meta.hot.dispose(()=>{
     if(renderFrameHandle)cancelAnimationFrame(renderFrameHandle);
+    if(startCountdownSafetyTimer)clearTimeout(startCountdownSafetyTimer);
+    startCountdownSafetyTimer=0;
     avatarRequest++;
     avatarLoadController?.abort();
     avatarLoadController=null;
