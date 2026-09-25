@@ -190,6 +190,27 @@ export function resolveAvatarRig(model,compatibility=getAvatarCompatibility(''))
   return {rig,bones,ambiguous,missing,missingRequired,source:bonePaths?'explicit':'aliases',error:null};
 }
 
+
+export function getAvatarRigCapabilities(rigResolution={}){
+  const rig=rigResolution?.rig||rigResolution||{};
+  const has=slot=>!!rig[slot];
+  const all=slots=>slots.every(has);
+  const required=[...REQUIRED_GAMEPLAY_SLOTS];
+  return {
+    gameplay:all(required),
+    torso:all(['hips','spine','chest']),
+    gaze:all(['neck','head']),
+    leftArm:all(['leftShoulder','leftUpperArm','leftForearm']),
+    rightArm:all(['rightShoulder','rightUpperArm','rightForearm']),
+    leftHandIK:all(['leftUpperArm','leftForearm','leftHand']),
+    rightHandIK:all(['rightUpperArm','rightForearm','rightHand']),
+    leftLegIK:all(['leftThigh','leftShin','leftFoot']),
+    rightLegIK:all(['rightThigh','rightShin','rightFoot']),
+    terrainLegIK:all(['leftThigh','leftShin','leftFoot','rightThigh','rightShin','rightFoot']),
+    missingOptional:AVATAR_RIG_SLOTS.filter(slot=>!required.includes(slot)&&!has(slot))
+  };
+}
+
 export function isCatalogAvatarUrl(url=''){
   return /\/model\/characters\/[^/]+\.glb(?:[?#].*)?$/i.test(String(url));
 }
