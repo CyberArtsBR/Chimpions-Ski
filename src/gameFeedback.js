@@ -30,7 +30,6 @@ export function createGameFeedback({audio,ui,haptics}){
     if(!landing.landed)return null;
     const feedback=calculateLandingFeedback({...landing,...context});
     audio.play(feedback.sound,feedback.audioGain,feedback.rateScale);
-    if(feedback.dramatic||feedback.quality!=='clean')ui?.showLandingFeedback?.(feedback.quality,feedback.intensity);
     return remember('landing',feedback);
   }
 
