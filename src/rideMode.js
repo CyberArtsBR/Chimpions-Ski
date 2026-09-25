@@ -14,12 +14,21 @@ const PROFILES=Object.freeze({
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
     maxSpeed:SKI_TUNING.MAX_SPEED,
     // SKI: quick edge set, fast reversal and precise slalom corrections.
-    edgeResponseScale:1.10,
-    reversalResponseScale:1.16,
-    turnRateScale:1.03,
-    lateralScale:.99,
-    lateralResponseScale:1.12,
-    landingReengageScale:.90
+    edgeResponseScale:1.14,
+    reversalResponseScale:1.22,
+    turnRateScale:1.04,
+    lateralScale:.985,
+    lateralResponseScale:1.16,
+    landingReengageScale:.88,
+    edgeTransferSeconds:.060,
+    edgeHoldScale:.98,
+    skidResistance:1.08,
+    brakeDeceleration:11.2,
+    brakeSteeringScale:.93,
+    tuckSteeringScale:.78,
+    tuckTargetBonus:1.15,
+    snowDisplacementScale:.92,
+    trickStyleScale:.96
   }),
   [RIDE_MODE.SNOWBOARD]:Object.freeze({
     mode:RIDE_MODE.SNOWBOARD,
@@ -28,13 +37,22 @@ const PROFILES=Object.freeze({
     tierSeconds:SKI_TUNING.SPEED_TIER_SECONDS,
     tierIncrement:SKI_TUNING.SPEED_TIER_INCREMENT,
     maxSpeed:SKI_TUNING.MAX_SPEED,
-    // SNOWBOARD: wider carve and stronger momentum, but deliberate reversals.
-    edgeResponseScale:.90,
-    reversalResponseScale:.82,
-    turnRateScale:1.07,
-    lateralScale:1.08,
-    lateralResponseScale:.87,
-    landingReengageScale:1.10
+    // SNOWBOARD: wider committed arcs, stronger edge hold and more momentum.
+    edgeResponseScale:.88,
+    reversalResponseScale:.76,
+    turnRateScale:1.08,
+    lateralScale:1.095,
+    lateralResponseScale:.84,
+    landingReengageScale:1.12,
+    edgeTransferSeconds:.115,
+    edgeHoldScale:1.10,
+    skidResistance:1.15,
+    brakeDeceleration:9.5,
+    brakeSteeringScale:.86,
+    tuckSteeringScale:.73,
+    tuckTargetBonus:1.35,
+    snowDisplacementScale:1.18,
+    trickStyleScale:1.08
   })
 });
 
