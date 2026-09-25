@@ -37,12 +37,17 @@ export function createAlpineSky(){
           color=mix(color,cloud,cover*(.54+.32*sceneryDetail));
           float wisps=pow(max(0.0,fbm(p*vec2(.45,5.2)+17.0)-.42),2.0);
           color=mix(color,horizon,wisps*.5*smoothstep(.12,.4,d.y));
+          float cirrus=pow(max(0.0,fbm(p*vec2(.22,7.4)+vec2(-time*.0008,23.0))-.47),2.6);
+          color=mix(color,vec3(.91,.96,1.0),cirrus*.30*sceneryDetail*smoothstep(.22,.55,d.y));
         }
         // Very distant ridges remain behind the 3D valley and clear the downhill view.
         float a=atan(d.x,-d.z),sides=smoothstep(.20,.52,abs(a));
-        float ridge=.023+sin(a*8.0)*.016+sin(a*21.0)*.008;
+        float ridge=.021+sin(a*8.0)*.015+sin(a*21.0)*.008+abs(sin(a*43.0+2.1))*.004;
         float mask=(1.0-smoothstep(ridge,ridge+.004,d.y))*smoothstep(-.10,-.02,d.y)*sides;
-        color=mix(color,mix(horizon,high*.58,.45),mask*.66);
+        float ridge2=.013+sin(a*11.0-2.7)*.009+abs(sin(a*31.0))*.005;
+        float mask2=(1.0-smoothstep(ridge2,ridge2+.003,d.y))*smoothstep(-.085,-.018,d.y)*smoothstep(.12,.42,abs(a));
+        color=mix(color,mix(horizon,high*.58,.45),mask*.62);
+        color=mix(color,mix(horizon*.90,high*.64,.34),mask2*.26);
         gl_FragColor=vec4(color,1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>

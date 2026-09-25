@@ -3,6 +3,7 @@ import {makeBarkTexture} from './alpineArt.js';
 import {applyPremiumObstacle,getPremiumObstacleLibrary} from './premiumObstacles.js';
 import {createAlpineSky} from './alpineSky.js';
 import {createAlpineLandscape} from './alpineLandscape.js';
+import {createAlpineInfrastructure} from './alpineInfrastructure.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
 import {terrainHeight} from './terrainContact.js';
@@ -188,6 +189,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
   const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
+  const infrastructure=createAlpineInfrastructure({world,terrainHeight});
   const ambient=new THREE.HemisphereLight(0xffffff,0x818486,1.34);
   scene.add(ambient);
 
@@ -300,6 +302,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     boundaryMarkers.setDecorativeShadows(false);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
     landscape.setDetail(environmentQuality.distantSceneryDetail);
+    infrastructure.setDetail(environmentQuality.distantSceneryDetail);
     return getQualityProfile();
   }
   function getQualityProfile(){
@@ -324,6 +327,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       realtimeDirectionalLights:3,
       dynamicSceneryFrustumCulled:true,
       landscape:landscape.getDiagnostics?.()||null,
+      infrastructure:infrastructure.getDiagnostics?.()||null,
       snowParticlePool:snowParticles.getDiagnostics?.()||{densityScale:snowParticles.getDensityMultiplier?.()},
       snowSurfaceDetail:surfaceDetail.getDiagnostics?.()||{detailLevel:surfaceDetail.getDetailLevel?.()}
     };
@@ -337,7 +341,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       setInstance(mesh,i,e.x,ground+e.y,e.z,e.sx,e.sy,e.sz,e.ry);
     }
     mesh.instanceMatrix.needsUpdate=true;
-    if(mesh.count>0)mesh.computeBoundingSphere();
+    if(mesh.count>0&&!mesh.userData.environmentBoundsReady){mesh.computeBoundingSphere();if(mesh.boundingSphere)mesh.boundingSphere.radius+=110;mesh.userData.environmentBoundsReady=true;}
   }
 
   function refreshTrees(time=0){
@@ -355,7 +359,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     for(let v=0;v<forestBatches.length;v++)for(const mesh of forestBatches[v]){
       mesh.count=forestCounts[v];mesh.instanceMatrix.needsUpdate=true;
       if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
-      if(mesh.count>0)mesh.computeBoundingSphere();
+      if(mesh.count>0&&!mesh.userData.environmentBoundsReady){mesh.computeBoundingSphere();if(mesh.boundingSphere)mesh.boundingSphere.radius+=125;mesh.userData.environmentBoundsReady=true;}
     }
   }
 
@@ -381,6 +385,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     boundaryMarkers.reset();
     ambientFlybys.reset();
     landscape.reset();
+    infrastructure.reset();
     contactShadow.position.y=-100;
     contactShadow.visible=false;
     contactShadow.material.opacity=.18;
@@ -400,6 +405,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     snowParticles.setTint(snowMaterials.terrain.color);
     surfaceDetail.moundMaterial.color.copy(snowMaterials.bank.color);
     surfaceDetail.ridgeMaterial.color.copy(snowMaterials.shadowBank.color);
+    infrastructure.update(dt,worldSpeed);
 
     let sceneryStep=dt;
     let refreshScenery=true;
@@ -481,7 +487,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   }
 
   return {
-    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail},
+    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail,infrastructure},
     update,
     reset,
     ambientFlybys,

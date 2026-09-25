@@ -162,16 +162,16 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     bumpScale:.019
   });
 
-  const snowTravel={value:0},snowDetail={value:detailLevel};
+  const snowTravel={value:0},snowDetail={value:detailLevel},snowWetness={value:0},snowWind={value:0},snowFlash={value:0},snowNight={value:0};
   terrain.onBeforeCompile=shader=>{
-    shader.uniforms.snowTravel=snowTravel;shader.uniforms.snowDetail=snowDetail;
+    shader.uniforms.snowTravel=snowTravel;shader.uniforms.snowDetail=snowDetail;shader.uniforms.snowWetness=snowWetness;shader.uniforms.snowWind=snowWind;shader.uniforms.snowFlash=snowFlash;shader.uniforms.snowNight=snowNight;
     shader.vertexShader='varying vec3 vSnowWorld;\n'+shader.vertexShader;
     shader.vertexShader=shader.vertexShader.replace('#include <worldpos_vertex>',`#include <worldpos_vertex>
       vSnowWorld=(modelMatrix*vec4(transformed,1.0)).xyz;
     `);
     shader.fragmentShader=`
       varying vec3 vSnowWorld;
-      uniform float snowTravel,snowDetail;
+      uniform float snowTravel,snowDetail,snowWetness,snowWind,snowFlash,snowNight;
       float snowHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       float snowNoise(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(snowHash(i),snowHash(i+vec2(1,0)),f.x),mix(snowHash(i+vec2(0,1)),snowHash(i+vec2(1,1)),f.x),f.y);}
     `+shader.fragmentShader;
@@ -183,14 +183,17 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float snowMeso=snowNoise(snowP*vec2(.48,.16));
       float snowFine=snowNoise(snowP*vec2(1.65,.72)+vec2(-13.0,7.0));
       float snowLoose=1.0-snowPacked;
+      float windPacked=smoothstep(.61,.84,snowNoise(snowP*vec2(.115,.038)+vec2(-7.0+snowWind*.8,21.0)))*(1.0-snowPacked*.35);
+      float powderPocket=(1.0-smoothstep(.30,.72,snowMeso))*snowLoose*(1.0-windPacked*.55);
       float compressed=smoothstep(.60,.83,snowNoise(snowP*vec2(.22,.055)+vec2(9.0,-14.0)))*snowPacked;
       float snowPhase=snowP.x*68.0+sin(snowP.y*.16)*.7+snowMeso*1.3;
       float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
       float grooming=sin(snowPhase)*snowAA*snowPacked*.016*snowDetail;
       float trough=smoothstep(.58,.82,1.0-snowMeso)*(.45+.55*snowLarge);
-      float snowShade=.945+snowMacro*.018+snowMeso*.050+snowLarge*.035+snowFine*.014+grooming-compressed*.018-trough*.015;
+      float snowShade=.947+snowMacro*.018+snowMeso*.046+snowLarge*.034+snowFine*.013+grooming-compressed*.017-trough*.014-windPacked*.010+powderPocket*.010-snowWetness*.015;
       diffuseColor.rgb*=vec3(snowShade);
-      diffuseColor.rgb+=vec3((.006+.008*snowFine)*snowDetail);
+      diffuseColor.rgb*=mix(vec3(1.0),vec3(.970,.980,.988),snowWetness*.55);
+      diffuseColor.rgb+=vec3((.005+.007*snowFine)*snowDetail);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       float driftPhase=snowP.x*2.3+snowP.y*.32+sin(snowP.y*.17)*1.1;
@@ -199,23 +202,41 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       driftSlope+=cos(snowP.x*.63-snowP.y*.27)*vec2(.63,-.27)*.08;
       driftSlope+=cos(snowP.x*4.2+snowP.y*.74)*vec2(4.2,.74)*.005;
       driftSlope.x+=cos(snowPhase)*snowPacked*snowAA*.042;
-      normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade*(.68+.42*snowLoose));
+      float sculptResponse=(.66+.38*snowLoose+.18*powderPocket-.15*windPacked)*(1.0-snowWetness*.16);
+      normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade*sculptResponse);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      roughnessFactor=clamp(roughnessFactor+snowMeso*.055+snowLoose*.018-compressed*.012,.84,1.0);
+      roughnessFactor=clamp(roughnessFactor+snowMeso*.050+snowLoose*.020+powderPocket*.018-compressed*.012-windPacked*.016-snowWetness*.072,.79,1.0);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
       float crystalDistance=1.0-smoothstep(7.0,34.0,length(vViewPosition));
       vec2 crystalGrid=snowP*82.0;
       float crystalAA=1.0-smoothstep(.38,1.65,max(fwidth(crystalGrid.x),fwidth(crystalGrid.y)));
       float crystal=pow(max(0.0,snowHash(floor(crystalGrid))-.993)/.007,4.0);
-      outgoingLight+=vec3(.92,.96,1.0)*crystal*.035*crystalDistance*crystalAA*snowDetail;
+      float sparkleGain=(1.0-snowWetness*.45)*(1.0-snowNight*.35)+snowFlash*.35;
+      outgoingLight+=vec3(.90,.95,1.0)*crystal*.032*crystalDistance*crystalAA*snowDetail*sparkleGain;
+      outgoingLight+=vec3(.30,.43,.68)*snowFlash*.024;
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v8-powder';
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v9-weathered-powder';
 
   let currentDetailLevel=1;
+  let currentWetness=0,currentWind=0,currentFlash=0,currentNight=0;
+  function setWetness(value=0){
+    const numeric=Number(value);
+    currentWetness=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:0,0,1);
+    snowWetness.value=currentWetness;
+    terrain.envMapIntensity=.08+currentWetness*.10;
+    bank.envMapIntensity=.06+currentWetness*.08;
+    return currentWetness;
+  }
+  function setWeatherState(state={}){
+    setWetness(state.wet);
+    currentWind=THREE.MathUtils.clamp(Math.abs(Number(state.wind)||0),0,1.5);currentFlash=THREE.MathUtils.clamp(Number(state.flash)||0,0,1);currentNight=THREE.MathUtils.clamp(Number(state.night)||0,0,1);
+    snowWind.value=currentWind;snowFlash.value=currentFlash;snowNight.value=currentNight;
+    return {wet:currentWetness,wind:currentWind,flash:currentFlash,night:currentNight};
+  }
   function setDetailLevel(value=1){
     const numeric=Number(value);
     currentDetailLevel=THREE.MathUtils.clamp(Number.isFinite(numeric)?numeric:1,0,1);
@@ -232,6 +253,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     return currentDetailLevel;
   }
   setDetailLevel(detailLevel);
+  setWetness(0);setWeatherState();
 
   return {
     terrain,
@@ -240,7 +262,11 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     texture:textures.albedo,
     textures,
     setDetailLevel,
+    setWetness,
+    setWeatherState,
     setTravel:value=>{snowTravel.value=Number.isFinite(value)?value:0;},
-    getDetailLevel:()=>currentDetailLevel
+    getDetailLevel:()=>currentDetailLevel,
+    getWetness:()=>currentWetness,
+    getWeatherState:()=>({wet:currentWetness,wind:currentWind,flash:currentFlash,night:currentNight})
   };
 }

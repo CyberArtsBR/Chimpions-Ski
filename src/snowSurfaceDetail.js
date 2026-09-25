@@ -49,11 +49,12 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
   const ridgeData=new Array(ridgeCount);
   let activeMounds=moundCount;
   let activeRidges=ridgeCount;
-  let travel=0;
+  let travel=0,boundsDirty=true,windStrength=0;
 
   function resetEntry(entry,i,isRidge){
-    entry.x=(hash(i*3.17+4)-.5)*(isRidge?23:25);
-    entry.z=-6-hash(i*5.73+9)*220;
+    const launchWear=!isRidge&&i<10;
+    entry.x=launchWear?(hash(i*3.17+4)-.5)*4.2:(hash(i*3.17+4)-.5)*(isRidge?23:25);
+    entry.z=launchWear?(5.2-i*.72+(hash(i+91)-.5)*.18):(-6-hash(i*5.73+9)*220);
     entry.ry=(hash(i*7.41+3)-.5)*(isRidge?.42:Math.PI);
     if(isRidge){
       entry.sx=.65+hash(i*4.83+7)*2.4;
@@ -82,14 +83,17 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
     for(let i=0;i<activeRidges;i++){
       const e=ridgeData[i];
       const ground=terrainHeight(e.x,e.z-travel);
-      setInstance(ridges,i,e.x,ground+.010,e.z,e.sx,1,e.sz,e.ry);
+      setInstance(ridges,i,e.x,ground+.010,e.z,e.sx*(1+Math.abs(windStrength)*.045),1,e.sz,e.ry+windStrength*.055);
     }
     mounds.count=activeMounds;
     ridges.count=activeRidges;
     mounds.instanceMatrix.needsUpdate=true;
     ridges.instanceMatrix.needsUpdate=true;
-    if(mounds.count>0)mounds.computeBoundingSphere();
-    if(ridges.count>0)ridges.computeBoundingSphere();
+    if(boundsDirty){
+      if(mounds.count>0){mounds.computeBoundingSphere();if(mounds.boundingSphere)mounds.boundingSphere.radius+=120;}
+      if(ridges.count>0){ridges.computeBoundingSphere();if(ridges.boundingSphere)ridges.boundingSphere.radius+=120;}
+      boundsDirty=false;
+    }
   }
 
   function update(dt,worldSpeed){
@@ -109,25 +113,29 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
     refresh();
   }
 
+  function setWind(value=0){windStrength=THREE.MathUtils.clamp(Number(value)||0,-1.5,1.5);ridgeMaterial.opacity=.24+Math.min(.07,Math.abs(windStrength)*.04);return windStrength;}
+
   function setDensity(value=1){
     const density=THREE.MathUtils.clamp(Number(value)||1,.1,1);
     activeMounds=Math.max(1,Math.round(moundCount*density));
     activeRidges=Math.max(1,Math.round(ridgeCount*density));
+    boundsDirty=true;
     refresh();
   }
 
   function reset(){
     travel=0;
+    boundsDirty=true;
     for(let i=0;i<moundCount;i++)resetEntry(moundData[i],i,false);
     for(let i=0;i<ridgeCount;i++)resetEntry(ridgeData[i],i,true);
     refresh();
   }
 
   function getDiagnostics(){
-    return {activeMounds,activeRidges,moundCapacity:moundCount,ridgeCapacity:ridgeCount};
+    return {activeMounds,activeRidges,moundCapacity:moundCount,ridgeCapacity:ridgeCount,startAreaWear:Math.min(10,activeMounds),wind:windStrength};
   }
 
   reset();
   setDensity(detailLevel);
-  return {update,reset,setDensity,getDiagnostics,moundMaterial,ridgeMaterial,setDetailLevel:setDensity,getDetailLevel:()=>activeMounds/moundCount};
+  return {update,reset,setDensity,setWind,getDiagnostics,moundMaterial,ridgeMaterial,setDetailLevel:setDensity,getDetailLevel:()=>activeMounds/moundCount};
 }
