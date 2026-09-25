@@ -182,12 +182,12 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
     color:0xffffff,roughness:.94,metalness:0,clearcoat:.015,clearcoatRoughness:.90,
     sheen:.18,sheenColor:new THREE.Color(0xffffff),envMapIntensity:.08
   });
-  const cyanLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.08,1.62,6.8),toneMapped:false,fog:false});
-  const amberLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(4.8,1.15,.08),toneMapped:false,fog:false});
-  const redLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(5.8,.18,.05),toneMapped:false,fog:false});
-  const whiteLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(5.4,4.7,3.2),toneMapped:false,fog:false});
-  const beaconGlowCyan=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,1.40,5.8),transparent:true,opacity:.22,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const beaconGlowRed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(5.3,.16,.05),transparent:true,opacity:.22,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const cyanLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.29,1.05),toneMapped:false,fog:false});
+  const amberLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(1,.43,.035),toneMapped:false,fog:false});
+  const redLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(1,.075,.025),toneMapped:false,fog:false});
+  const whiteLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.96,.83,.62),toneMapped:false,fog:false});
+  const beaconGlowCyan=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.52),transparent:true,opacity:.17,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const beaconGlowRed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.65,.035,.012),transparent:true,opacity:.16,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
 
   const towerGeometry=new RoundedBoxGeometry(.76,4.55,.72,5,.10);
   const towerInsetGeometry=new RoundedBoxGeometry(.44,3.06,.038,3,.055);

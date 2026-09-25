@@ -22,10 +22,10 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const railMaterial=new THREE.MeshStandardMaterial({color:0x071a24,roughness:.24,metalness:.88,emissive:0x03131c,emissiveIntensity:.42});
   const capMaterial=new THREE.MeshStandardMaterial({color:0x183644,roughness:.28,metalness:.74});
   const iron=new THREE.MeshStandardMaterial({color:0x6d8794,roughness:.29,metalness:.88});
-  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.62,7.80),toneMapped:false,fog:false});
-  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.72,4.10),transparent:true,opacity:.36,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(3.4,3.7,4.2),toneMapped:false,fog:false});
-  const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.78,.92,1.18),transparent:true,opacity:.24,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.28,1.05),toneMapped:false,fog:false});
+  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.48),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.035,.25,.88),toneMapped:false,fog:false});
+  const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.08,.40),transparent:true,opacity:.14,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
   const n=countPerSide*2;
   const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n),caps=new THREE.InstancedMesh(capGeometry,capMaterial,n),feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
   const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2),ledRails=new THREE.InstancedMesh(ledRailGeometry,strapCoreMaterial,n*2),ledGlows=new THREE.InstancedMesh(ledGlowGeometry,strapGlowMaterial,n*2);
@@ -35,7 +35,7 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   for(const mesh of meshes){mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);}
   ledRails.receiveShadow=ledGlows.receiveShadow=postLeds.receiveShadow=postGlows.receiveShadow=false;ledGlows.renderOrder=postGlows.renderOrder=5;ledRails.renderOrder=postLeds.renderOrder=6;
   function setDecorativeShadows(enabled=true){for(const m of [posts,caps,feet,rails])m.castShadow=!!enabled;return !!enabled;}setDecorativeShadows(decorativeShadows);
-  ledTint.setRGB(.36,.82,1);
+  ledTint.setRGB(.55,.80,1);
   for(let i=0;i<n;i++){const shade=.88+hash(i+14)*.12;tint.setRGB(shade,shade,shade);for(const mesh of [posts,caps,feet])mesh.setColorAt(i,tint);rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);postLeds.setColorAt(i,ledTint);postGlows.setColorAt(i,ledTint);for(const mesh of [ledRails,ledGlows]){mesh.setColorAt(i*2,strapTint);mesh.setColorAt(i*2+1,strapTint);}}
   for(const mesh of [posts,caps,feet,rails,ledRails,ledGlows,postLeds,postGlows])if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   const positions=new Float32Array(countPerSide);let travel=0,pulseTime=0;
@@ -47,6 +47,6 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
     for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
   function reset(){travel=0;pulseTime=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
-  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);strapGlowMaterial.opacity=.24+Math.sin(pulseTime*2.1)*.035;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
+  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);strapGlowMaterial.opacity=.14+Math.sin(pulseTime*2.1)*.025;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
   reset();return {update,reset,limit,postMaterial,railMaterial,ledCoreMaterial,ledGlowMaterial,setDecorativeShadows,setShadowEnabled:setDecorativeShadows,blueMaterial:ledCoreMaterial,redMaterial:ledCoreMaterial};
 }

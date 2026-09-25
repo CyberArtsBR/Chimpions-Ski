@@ -4,6 +4,7 @@ import {createSkiCamera,predictAirborneLanding,SKI_CAMERA_LIMITS as LIMITS} from
 import {createStartCameraSequence,START_CAMERA_FRONT_HOLD_MS,START_CAMERA_ROTATE_MS} from '../src/startCameraSequence.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {RIDE_MODE,getRideProfile} from '../src/rideMode.js';
+import {createFallbackSkier} from '../src/skier.js';
 
 function makeState(overrides={}){
   return {
@@ -59,6 +60,29 @@ for(const mode of [RIDE_MODE.SKI,RIDE_MODE.SNOWBOARD]){
     assert(camera.fov>=LIMITS.MIN_FOV-1e-9&&camera.fov<=LIMITS.MAX_FOV+1e-9,mode+' FOV escaped bounds');
     assert(Math.abs(diagnostics.roll)<=LIMITS.MAX_GAMEPLAY_ROLL+1e-9,mode+' roll escaped gameplay bounds');
     assert(diagnostics.airborneLookBlend>.1,mode+' airborne lookahead never engaged');
+  }
+}
+
+// Waist view follows lateral travel without steering the horizon. Both ride
+// modes keep their equipment tips on screen while the rider body can be hidden.
+for(const mode of [RIDE_MODE.SKI,RIDE_MODE.SNOWBOARD]){
+  const {camera,skiCamera}=makeRig();
+  const rider=createFallbackSkier({rideMode:mode});
+  rider.position.set(0,.12,2.2);
+  rider.updateMatrixWorld(true);
+  skiCamera.setViewMode('first-person');
+  const state=makeState({rideMode:mode,speed:41});
+  for(let i=0;i<15;i++)skiCamera.update(state,1/60);
+  assert.equal(camera.position.y,1.05,'first-person view is above waist height');
+  const equipment=mode===RIDE_MODE.SKI?rider.userData.skis[0]:rider.getObjectByName('snowboard-equipment');
+  const tip=equipment.localToWorld(new THREE.Vector3(0,0,-1.06)).project(camera);
+  assert(Math.abs(tip.x)<1&&tip.y>-1&&tip.y<0,'ski or snowboard tip is outside the first-person frame');
+  assert(rider.userData.firstPersonBody,'rider body cannot be hidden while keeping equipment visible');
+  const forward=camera.getWorldDirection(new THREE.Vector3());
+  for(const [x,heading] of [[-8,-.44],[8,.44],[0,0]]){
+    skiCamera.update({...state,x,heading,edge:Math.sign(heading),groundPitch:heading*.25},1/60);
+    assert.equal(camera.position.x,x,'first-person camera did not move sideways with the rider');
+    assert(camera.getWorldDirection(new THREE.Vector3()).distanceTo(forward)<1e-9,'first-person camera turns away from downhill');
   }
 }
 

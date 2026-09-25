@@ -26,7 +26,7 @@ void main(){
   float side=clamp(abs(vSide),0.0,1.0);
   float trough=1.0-smoothstep(.12,.56,side);
   float berm=smoothstep(.55,.76,side)*(1.0-smoothstep(.81,1.0,side));
-  vec3 shadow=vec3(.48,.63,.75),packed=vec3(.78,.87,.93),snowEdge=vec3(.97,.99,1.0);
+  vec3 shadow=vec3(.69,.81,.90),packed=vec3(.89,.94,.98),snowEdge=vec3(.99,1.0,1.0);
   vec3 color=mix(packed,shadow,trough*.68);
   color=mix(color,snowEdge,berm*.90);
   float feather=1.0-smoothstep(.78,1.0,side)*.65;

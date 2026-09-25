@@ -23,14 +23,14 @@ export function createSnowSurfaceDetail({world,terrainHeight,snowMaterial,detail
 
   const moundMaterial=snowMaterial.clone();
   moundMaterial.roughness=Math.min(1,(moundMaterial.roughness??.9)+.06);
-  moundMaterial.clearcoat=.02;
+  moundMaterial.clearcoat=0;
 
   const ridgeMaterial=new THREE.MeshStandardMaterial({
-    color:0xddebf2,
+    color:0xf7fbff,
     roughness:.92,
     metalness:0,
     transparent:true,
-    opacity:.42,
+    opacity:.26,
     depthWrite:false,
     polygonOffset:true,
     polygonOffsetFactor:-1,
