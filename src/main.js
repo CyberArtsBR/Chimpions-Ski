@@ -1,8 +1,5 @@
 import * as THREE from 'three';
-import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
-import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
-import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
-import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {createRenderPipeline} from './renderPipeline.js';
 import './style.css';
 import './floatingUI.css';
 import {createMountainWeather} from './mountainWeather.js';
@@ -124,55 +121,24 @@ applyCameraMotionPreference();
 
 const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});
 const performanceTelemetry=createPerformanceTelemetry();
-let composer=null,bloomPass=null,composerPixelRatio=0;
-
-function applyBloomQuality(){
-  if(!bloomPass)return;
-  const profile=quality.active;
-  bloomPass.strength=profile==='max'?1.28:profile==='high'?1.08:profile==='medium'?.82:.62;
-  bloomPass.radius=profile==='max'?.52:profile==='high'?.48:profile==='medium'?.42:.36;
-  bloomPass.threshold=1.55;
-}
-
-function applyRendererResolution(){
-  const next=quality.getPixelRatio(devicePixelRatio);
-  if(Math.abs(renderer.getPixelRatio()-next)>.005)renderer.setPixelRatio(next);
-  if(composer&&Math.abs(composerPixelRatio-next)>.005){
-    composer.setPixelRatio(next);
-    composerPixelRatio=next;
-  }
-  applyBloomQuality();
-}
-applyRendererResolution();
 renderer.setSize(innerWidth,innerHeight);
 renderer.shadowMap.enabled=false;
 renderer.shadowMap.type=THREE.PCFSoftShadowMap;
 renderer.toneMapping=THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure=1.05;
+renderer.toneMappingExposure=1.02;
 app.prepend(renderer.domElement);
-
-const postTarget=new THREE.WebGLRenderTarget(innerWidth,innerHeight,{
-  type:THREE.HalfFloatType,
-  minFilter:THREE.LinearFilter,
-  magFilter:THREE.LinearFilter,
-  depthBuffer:true,
-  stencilBuffer:false
-});
-postTarget.samples=4;
-composer=new EffectComposer(renderer,postTarget);
-composerPixelRatio=renderer.getPixelRatio();
-composer.setPixelRatio(composerPixelRatio);
-composer.setSize(innerWidth,innerHeight);
-composer.addPass(new RenderPass(scene,camera));
-bloomPass=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),1.08,.48,1.55);
-composer.addPass(bloomPass);
-composer.addPass(new OutputPass());
-applyBloomQuality();
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
-const unsubscribeRendererQuality=quality.subscribe(applyRendererResolution);
-const unsubscribeRendererResolution=quality.subscribeResolution(applyRendererResolution);
+const renderPipeline=createRenderPipeline({
+  renderer,
+  scene,
+  camera,
+  quality,
+  width:innerWidth,
+  height:innerHeight,
+  shadowLight:environment.weatherBindings?.sun
+});
 const snowMat=environment.terrainMaterial;
 const {
   trunk:trunkMat,
@@ -787,6 +753,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     riderController.replace(nextSkier);
+    renderPipeline.refreshTextureQuality(riderController.rider);
     mountainWeather.setRider(riderController.rider);
     selectedAvatar=entry;
     avatarCommitted=true;
@@ -854,6 +821,7 @@ function installAvatarSelector(initialAvatar){
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
   riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
+  renderPipeline.refreshTextureQuality(riderController.rider);
   mountainWeather.setRider(riderController.rider);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
@@ -1579,6 +1547,8 @@ function update(dt,frameMs=dt*1000){
   performanceTelemetry.endFrame();
 }
 
+renderPipeline.refreshTextureQuality(scene);
+
 let renderFrameHandle=0;
 function render(now){
   const frameMs=Math.max(0,now-last)||16;
@@ -1596,16 +1566,18 @@ function render(now){
   const firstPersonBody=riderController.rider?.userData?.firstPersonBody;
   if(firstPersonBody)firstPersonBody.visible=cameraViewMode!==CAMERA_VIEW.FIRST_PERSON||
     (state.mode!=='playing'&&state.mode!=='paused'&&state.mode!=='crashed');
-  composer.render(dt);
+  renderPipeline.render(dt,{
+    staticFrame:startScreen.isActive||state.mode==='paused',
+    staticReason:startScreen.isActive?'start-screen':state.mode==='paused'?'paused':null,
+    stamp:now
+  });
   renderFrameHandle=requestAnimationFrame(render);
 }
 renderFrameHandle=requestAnimationFrame(render);
 
 function resize(){
   camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth,innerHeight);
-  composer?.setSize(innerWidth,innerHeight);
-  applyRendererResolution();
+  renderPipeline.resize(innerWidth,innerHeight);
 }
 runtimeListeners.on(window,'resize',resize);
 
@@ -1633,6 +1605,7 @@ window.chimpionsSki=()=>{
   return {
     ...runtimeDiagnostics,
     ...performanceTelemetry.getFlatSnapshot(),
+    ...renderPipeline.getDiagnostics(),
     ...environment.getQualityDiagnostics?.(),
     ...quality.getDiagnostics(),
     cameraViewMode,
@@ -1746,9 +1719,7 @@ if(import.meta.hot){
     runtimeListeners.dispose();
     riderController.dispose();
     impactVfx.dispose?.();
-    composer?.dispose?.();
-    unsubscribeRendererQuality();
-    unsubscribeRendererResolution();
+    renderPipeline.dispose();
     unsubscribeRuntimeQuality();
     selector?.dispose?.();
     delete window.chimpionsSki;
