@@ -535,10 +535,14 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
           return Math.sign(existing.x)===side&&Math.abs(existing.x-x)<1.7&&dz<6.5;
         }))continue;
 
+        const sidePressureAnchor=added===0;
         placements.push(place(kind,x,z,safe,{
           formation:'EDGE_THREAT',
           sidePressure:true,
-          safetyOptional:true
+          sidePressureAnchor,
+          // Preserve one authored extreme-edge threat when the section elects
+          // to create side pressure; any second threat remains budget-prunable.
+          safetyOptional:!sidePressureAnchor
         }));
         previousZ=z;
         lastThreatSide=side;
