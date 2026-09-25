@@ -1533,6 +1533,9 @@ function render(now){
       if(!cameraMoving)startRaceCountdown();
     }else if(!startCountdownStarted)startRaceCountdown();
   }else if(state.mode!=='paused')skiCamera.update(state,dt);
+  const firstPersonBody=riderController.rider?.userData?.firstPersonBody;
+  if(firstPersonBody)firstPersonBody.visible=cameraViewMode!==CAMERA_VIEW.FIRST_PERSON||
+    (state.mode!=='playing'&&state.mode!=='paused'&&state.mode!=='crashed');
   composer.render(dt);
   renderFrameHandle=requestAnimationFrame(render);
 }

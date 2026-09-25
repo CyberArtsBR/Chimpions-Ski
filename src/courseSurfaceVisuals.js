@@ -43,10 +43,10 @@ function rampSurface(){
   for(const z of [.78,.18,-.42,-1.02])for(const side of [-1,1]){const g=new THREE.BoxGeometry(.56,.018,.070);g.rotateY(side*-.54);g.rotateX(angle);g.translate(side*.23,height(z)+.024,z);markings.push(g);}
   const deckMaterial=new THREE.MeshPhysicalMaterial({color:0x12232d,roughness:.31,metalness:.72,clearcoat:.32,clearcoatRoughness:.22});
   const chassisMaterial=new THREE.MeshStandardMaterial({color:0x06141d,roughness:.23,metalness:.92,emissive:0x020b10,emissiveIntensity:.46});
-  const ledMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.48,6.6),toneMapped:false,fog:false});
-  const glowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.58,2.95),transparent:true,opacity:.30,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const underglowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.035,.28,1.50),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const markingMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.78,2.0,5.4),toneMapped:false,fog:false});
+  const ledMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.28,1.02),toneMapped:false,fog:false});
+  const glowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.48),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const underglowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.006,.055,.32),transparent:true,opacity:.12,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const markingMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.08,.36,.94),toneMapped:false,fog:false});
   addMerged(deck,deckMaterial,{cast:true});addMerged(chassis,chassisMaterial,{cast:true});addMerged(underglow,underglowMaterial,{renderOrder:4});addMerged(glows,glowMaterial,{renderOrder:5});addMerged(cores,ledMaterial,{renderOrder:6});addMerged(markings,markingMaterial,{renderOrder:6});
   root.userData.visualPrototype='competition-tech-kicker-v5-hdr';return root;
 }

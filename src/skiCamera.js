@@ -169,18 +169,14 @@ export function createSkiCamera(camera){
   }
 
   function applyFirstPersonView(state){
-    const heading=THREE.MathUtils.clamp(finite(state.heading,0),-.48,.48);
     const speed01=getSpeedFeel(finite(state.speed,T.BASE_SPEED));
-    const groundPitch=THREE.MathUtils.clamp(finite(state.groundPitch,0),-.16,.16);
-    const eyeY=finite(state.y,.12)+1.58;
-    const forwardX=Math.sin(heading);
-    const forwardZ=-Math.cos(heading);
-    const lookDistance=22+speed01*8;
-    const eyeForward=.78;
+    // Waist-height view behind the bindings keeps the downhill tips in frame.
+    // Keep the optical axis parallel to the piste as the rider carves sideways.
+    const waistY=finite(state.y,.12)+.93;
     camera.position.set(
-      finite(state.x,0)+forwardX*eyeForward,
-      eyeY,
-      1.58+forwardZ*eyeForward
+      finite(state.x,0),
+      waistY,
+      2.92
     );
     camera.fov=THREE.MathUtils.clamp(
       SKI_CAMERA_LIMITS.FIRST_PERSON_MIN_FOV+speed01*9.6+(state.air?.65:0),
@@ -189,11 +185,7 @@ export function createSkiCamera(camera){
     );
     camera.updateProjectionMatrix();
     camera.up.set(0,1,0);
-    camera.lookAt(
-      finite(state.x,0)+forwardX*lookDistance,
-      eyeY-.30-groundPitch*2.15+(state.air?THREE.MathUtils.clamp(finite(state.vy,0)*.018,-.12,.10):0),
-      1.58+forwardZ*lookDistance
-    );
+    camera.lookAt(camera.position.x,waistY-2.65,camera.position.z-20);
     roll=0;
   }
 

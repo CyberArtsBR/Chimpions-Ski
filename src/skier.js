@@ -217,12 +217,12 @@ function createEquipmentPowerGlow(skis=[],snowboard=null){
       materials.push({mat,baseEmissive:mat.emissive.clone(),baseIntensity:mat.emissiveIntensity||0});
     }
   }
-  const glowColor=new THREE.Color(0x32b9ff);
+  const glowColor=new THREE.Color(0x1b7be5);
   return (level=0,time=0)=>{
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
     materials.forEach(({mat,baseEmissive,baseIntensity},index)=>{
       mat.emissive.copy(baseEmissive).lerp(glowColor,strength);
-      mat.emissiveIntensity=baseIntensity+strength*(index===0?2.15:3.65);
+      mat.emissiveIntensity=baseIntensity+strength*(index===0?.72:1.15);
     });
     snowboard?.setPowerGlow?.(strength,time);
     return strength;
@@ -286,6 +286,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
   root.userData.fallback=true;
   root.userData.rigReady=false;
   root.userData.riderVisual=riderVisual;
+  root.userData.firstPersonBody=body;
   root.userData.skiTrackSpacing=.22;
   root.userData.skis=skis;
   root.userData.setRideMode=setRideMode;
@@ -784,6 +785,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     root.userData.rigResolution=updateRig?.rigResolution||rigResolution;
     root.userData.localAvatarComplexity=localAvatarComplexity;
     root.userData.riderVisual=riderVisual;
+    root.userData.firstPersonBody=modelCarrier;
     root.userData.skis=skis;
     root.userData.skiTrackSpacing=placement.spacing;
     root.userData.setRideMode=setRideMode;

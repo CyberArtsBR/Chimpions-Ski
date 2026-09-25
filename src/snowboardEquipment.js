@@ -58,13 +58,13 @@ export function createSnowboardEquipment({
   const buckleMaterial=new THREE.MeshStandardMaterial({color:0x8fa8b5,roughness:.24,metalness:.72});
   const powerMaterials=[deckMaterial,graphicMaterial,accentMaterial];
   const powerBase=powerMaterials.map(mat=>({emissive:mat.emissive.clone(),intensity:mat.emissiveIntensity||0}));
-  const powerColor=new THREE.Color(0x32b9ff);
+  const powerColor=new THREE.Color(0x1b7be5);
   function setPowerGlow(level=0,time=0){
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
     powerMaterials.forEach((mat,index)=>{
       const base=powerBase[index];
       mat.emissive.copy(base.emissive).lerp(powerColor,strength*(index===0?.82:1));
-      mat.emissiveIntensity=base.intensity+strength*(index===0?2.25:3.85);
+      mat.emissiveIntensity=base.intensity+strength*(index===0?.75:1.20);
     });
     root.userData.powerGlow=strength;
     return strength;
