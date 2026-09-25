@@ -9,6 +9,7 @@ npm install
 npm run assets:audit
 npm run assets:optimize
 npm run assets:verify
+npm run assets:audit-static
 ```
 
 `assets:audit` inspects every built-in GLB and writes `reports/assets/asset-audit.json` plus `asset-manifest.json`. The audit records transfer bytes/SHA-256, mesh and skinned-mesh counts, vertices, triangles, materials, textures, maximum texture dimensions, skeleton joints, animation clips, estimated decoded geometry/texture memory, texture semantic/color-space intent, and compression extensions.
@@ -16,6 +17,8 @@ npm run assets:verify
 `assets:optimize` creates temporary Meshopt candidates with the pinned glTF Transform CLI. A candidate is accepted only when the structural/rig fingerprint is unchanged, skinned-mesh/bone/animation counts stay unchanged, and transfer size clears the configured savings threshold. Accepted candidates replace production GLBs only after validation. It then regenerates measured budgets and reports.
 
 `assets:verify` enforces the canonical 10-avatar roster, total/per-avatar byte budgets, geometry/material/texture/animation/bone ceilings, texture dimensions, supported compression extensions, required Meshopt extensions, skinned meshes, skeleton presence, and committed manifest hashes.
+
+`assets:audit-static` scans deployable image/audio/model assets outside the Chimpion roster, records the largest files and byte-identical duplicates, and writes `reports/assets/static-assets.json`. It reports opportunities only; it does not degrade menu art or audio automatically.
 
 ## Compression decision
 
