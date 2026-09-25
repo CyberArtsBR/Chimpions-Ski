@@ -41,6 +41,25 @@ const BASE_TRANSIENT_STATE=Object.freeze({
   safeRouteX:0,
   grip:.72,
   carveLoad:0,
+  carveAngle:0,
+  carveDirection:0,
+  carveDuration:0,
+  skidRatio:0,
+  edgeStability:1,
+  edgeTransition:0,
+  edgeTransitionPhase:'neutral',
+  edgeTransferTime:0,
+  edgeTransferDirection:0,
+  lineSmoothness:1,
+  speedRetention:1,
+  previousTurnRate:0,
+  tuckAmount:0,
+  brakeAmount:0,
+  brakeDeceleration:0,
+  aeroEfficiency:1,
+  effectiveTargetSpeed:0,
+  landingPreparation:0,
+  landingImpact:0,
   landingGripLoss:0,
   landingQuality:'none',
   groundPitch:0,
@@ -77,6 +96,7 @@ export function createRunState({mode='menu',rideMode,rideProfile,best=0}={}){
     maxRunSpeed:rideProfile.baseSpeed,
     baseSpeed:rideProfile.baseSpeed,
     targetSpeed:rideProfile.baseSpeed,
+    effectiveTargetSpeed:rideProfile.baseSpeed,
     maxSpeed:rideProfile.maxSpeed
   };
 }
@@ -91,6 +111,7 @@ export function createRunSession({state}={}){
       maxRunSpeed:rideProfile.baseSpeed,
       baseSpeed:rideProfile.baseSpeed,
       targetSpeed:rideProfile.baseSpeed,
+      effectiveTargetSpeed:rideProfile.baseSpeed,
       maxSpeed:rideProfile.maxSpeed
     });
     return state;

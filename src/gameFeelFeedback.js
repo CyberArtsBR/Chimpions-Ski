@@ -34,7 +34,7 @@ export function calculateCarveFeedback(feel={}){
   };
 }
 
-const LANDING_QUALITY_BIAS=Object.freeze({clean:0,rough:.10,hard:.20,air:0,none:0});
+const LANDING_QUALITY_BIAS=Object.freeze({clean:0,solid:.045,rough:.10,hard:.20,air:0,none:0});
 
 export function calculateLandingFeedback(landing={}){
   const impact=Math.max(

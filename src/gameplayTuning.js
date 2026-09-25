@@ -15,13 +15,27 @@ export const SKI_TUNING=Object.freeze({
   SIDE_HAZARD_SECOND_CHANCE:.42,
 
   // 150 km/h opening pace for both ride modes, +10 km/h every 30 seconds,
-  // 300 km/h cap. The slower opening gives the player a clean read before the
-  // course begins applying pressure.
+  // 300 km/h cap. Player stances may temporarily alter convergence toward the
+  // current tier target but never move the hard maximum.
   BASE_SPEED:41.6667,
   SPEED_TIER_SECONDS:30,
   SPEED_TIER_INCREMENT:2.7778,
   MAX_SPEED:83.3333,
   SPEED_RESPONSE:2.2,
+
+  // Player-controlled speed management. Tuck trades steering authority for
+  // slightly better acceleration/retention. Brake is deliberately progressive:
+  // even at 300 km/h it takes sustained input to shed meaningful speed.
+  TUCK_RESPONSE:7.5,
+  TUCK_RELEASE_RESPONSE:9.5,
+  TUCK_SPEED_RESPONSE_BONUS:.72,
+  TUCK_CARVE_DRAG_REDUCTION:.44,
+  BRAKE_RESPONSE:10.5,
+  BRAKE_RELEASE_RESPONSE:8.5,
+  BRAKE_MIN_SPEED_SCALE:.56,
+  BRAKE_SPEED_RESPONSE_SCALE:.18,
+  BRAKE_SKID_GAIN:.58,
+  BRAKE_GRIP_LOSS:.20,
 
   // Physics integration stays tightly substepped at all supported frame rates.
   // Collision tests depend on this ceiling rather than generalized CCD.
@@ -62,6 +76,14 @@ export const SKI_TUNING=Object.freeze({
   POSE_CARVE_BLEND:.20,
   POSE_REVERSAL_BLEND:.30,
 
+  // Carve-quality diagnostics/game-feel signals. These values do not alter the
+  // course contract; they describe how cleanly the current line is being held.
+  CARVE_DURATION_LOAD_MIN:.30,
+  CLEAN_CARVE_SKID_MAX:.34,
+  EDGE_STABILITY_RESPONSE:8.5,
+  SKID_RESPONSE:10,
+  LINE_SMOOTHNESS_RESPONSE:7.5,
+
   // Boundary contact remains non-lethal: a small inward deflection and tiny
   // speed scrub make fence contact legible without turning it into a death wall.
   EDGE_CONTACT_COOLDOWN:.16,
@@ -100,6 +122,14 @@ export const SKI_TUNING=Object.freeze({
   RAMP_JUMP_BASE_VELOCITY:13.4,
   RAMP_JUMP_SPEED_FACTOR:.095,
   RAMP_RETRIGGER_GRACE:.85,
+
+  // Landing grades remain forgiving but distinguish well-prepared touchdowns.
+  MANUAL_LANDING_CLEAN_MAX:6.8,
+  MANUAL_LANDING_SOLID_MAX:7.8,
+  MANUAL_LANDING_ROUGH_MAX:10.8,
+  RAMP_LANDING_CLEAN_MAX:14.8,
+  RAMP_LANDING_SOLID_MAX:17.2,
+  RAMP_LANDING_ROUGH_MAX:20.5,
 
   // Course intelligence/rhythm.
   // More pressure without returning to repetitive close-packed rows.

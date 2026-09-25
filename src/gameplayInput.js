@@ -15,6 +15,8 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
   const touchTricks=new Set();
   let touchSteer=0;
   let touchJump=false;
+  let touchTuck=false;
+  let touchBrake=false;
   let jumpQueued=false;
   let specialQueued=false;
   let cameraQueued=false;
@@ -45,6 +47,12 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     if(next&&!touchJump)jumpQueued=true;
     touchJump=next;
   }
+  function setTouchTuck(pressed){
+    touchTuck=!!pressed;
+  }
+  function setTouchBrake(pressed){
+    touchBrake=!!pressed;
+  }
   function setTouchTrick(type,pressed){
     const normalized=type===TRICK_TYPE.BACKFLIP?TRICK_TYPE.BACKFLIP:TRICK_TYPE.SPIN_360;
     if(pressed){
@@ -63,6 +71,8 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
   function resetTransient(){
     touchSteer=0;
     touchJump=false;
+    touchTuck=false;
+    touchBrake=false;
     touchTricks.clear();
     touchTrickIntent=null;
     jumpQueued=false;
@@ -89,6 +99,8 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     const cameraPressed=cameraQueued||!!pad?.edges?.pressed?.camera;
     const cameraMotionPressed=cameraMotionQueued||!!pad?.edges?.pressed?.cameraMotion;
     const pausePressed=pauseQueued||!!pad?.edges?.pressed?.menu;
+    const tuckHeld=touchTuck||keys.has('ShiftLeft')||keys.has('ShiftRight')||!!pad?.tuck;
+    const brakeHeld=touchBrake||keys.has('ControlLeft')||keys.has('ControlRight')||!!pad?.brake;
 
     jumpQueued=false;
     specialQueued=false;
@@ -107,8 +119,10 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
       cameraPressed,
       cameraMotionPressed,
       pausePressed,
-      keyboardActive:keyboardSteer!==0||keys.has('Space')||keys.has('KeyQ')||keys.has('KeyE')||keys.has('KeyR'),
-      touchActive:Math.abs(touchSteer)>.01||touchJump||touchTricks.size>0,
+      tuckHeld,
+      brakeHeld,
+      keyboardActive:keyboardSteer!==0||keys.has('Space')||keys.has('KeyQ')||keys.has('KeyE')||keys.has('KeyR')||keys.has('ShiftLeft')||keys.has('ShiftRight')||keys.has('ControlLeft')||keys.has('ControlRight'),
+      touchActive:Math.abs(touchSteer)>.01||touchJump||touchTuck||touchBrake||touchTricks.size>0,
       keys
     };
   }
@@ -117,6 +131,8 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
       keyboardKeys:[...keys],
       touchSteer,
       touchJump,
+      touchTuck,
+      touchBrake,
       specialQueued,
       cameraQueued,
       cameraMotionQueued,
@@ -134,6 +150,8 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     read,
     setTouchSteer,
     setTouchJump,
+    setTouchTuck,
+    setTouchBrake,
     setTouchTrick,
     requestPause,
     resetTransient,

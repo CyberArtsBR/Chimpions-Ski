@@ -8,7 +8,7 @@ const DEADZONE_HYSTERESIS=.03;
 const DEADZONE_ENTER=Math.min(.55,DEADZONE+DEADZONE_HYSTERESIS);
 const SWITCH_AXIS_THRESHOLD=Math.max(.28,DEADZONE_ENTER+.08);
 const BUTTON_PRESS_THRESHOLD=.5;
-const STANDARD_BUTTON={confirm:0,cancel:1,special:2,camera:3,menu:9,up:12,down:13,left:14,right:15};
+const STANDARD_BUTTON={confirm:0,cancel:1,special:2,camera:3,tuck:6,brake:7,menu:9,up:12,down:13,left:14,right:15};
 
 let activeKey=null;
 let activeAxisState=makeAxisPair();
@@ -18,7 +18,7 @@ const reconnectGuards=new Map();
 
 function makeAxisState(){return {engaged:false,sign:0};}
 function makeAxisPair(){return {x:makeAxisState(),y:makeAxisState()};}
-function emptySemantic(){return {confirm:false,jump:false,cancel:false,cameraMotion:false,special:false,camera:false,menu:false};}
+function emptySemantic(){return {confirm:false,jump:false,cancel:false,cameraMotion:false,special:false,camera:false,tuck:false,brake:false,menu:false};}
 function clampAxis(value=0){return Math.max(-1,Math.min(1,Number(value)||0));}
 function buttonPressed(button){
   if(typeof button==='boolean')return button;
@@ -119,6 +119,8 @@ function edgeData(current){
       cameraMotion:current.cameraMotion&&!previousSemantic.cameraMotion,
       special:current.special&&!previousSemantic.special,
       camera:current.camera&&!previousSemantic.camera,
+      tuck:current.tuck&&!previousSemantic.tuck,
+      brake:current.brake&&!previousSemantic.brake,
       menu:current.menu&&!previousSemantic.menu
     },
     released:{
@@ -128,6 +130,8 @@ function edgeData(current){
       cameraMotion:!current.cameraMotion&&previousSemantic.cameraMotion,
       special:!current.special&&previousSemantic.special,
       camera:!current.camera&&previousSemantic.camera,
+      tuck:!current.tuck&&previousSemantic.tuck,
+      brake:!current.brake&&previousSemantic.brake,
       menu:!current.menu&&previousSemantic.menu
     }
   };
@@ -147,6 +151,8 @@ function disconnectedState(){
     cameraMotion:false,
     special:false,
     camera:false,
+    tuck:false,
+    brake:false,
     menu:false,
     edges,
     activeIndex:null,
@@ -214,6 +220,8 @@ export function readPad(pads){
     cameraMotion:!!buttons[STANDARD_BUTTON.cancel],
     special:!!buttons[STANDARD_BUTTON.special],
     camera:!!buttons[STANDARD_BUTTON.camera],
+    tuck:!!buttons[STANDARD_BUTTON.tuck],
+    brake:!!buttons[STANDARD_BUTTON.brake],
     menu:!!buttons[STANDARD_BUTTON.menu]
   };
   const edges=edgeData(semantic);

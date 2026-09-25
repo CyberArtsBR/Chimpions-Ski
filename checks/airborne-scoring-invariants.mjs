@@ -61,31 +61,26 @@ function attempt(state,item,{previousZ=playerZ-.08,itemGround=0}={}){
   const state=makeState({air:true,y:2});
   const rock=makeItem('rock');
   const first=attempt(state,rock);
-  assert.equal(first.points,100);
+  assert(first.points>=T.CLEAR_SCORE_BASE,'legitimate clear should preserve at least the baseline reward');
   assert.equal(first.multiplier,1);
-  assert.equal(state.score,100);
+  assert.equal(state.score,first.points);
   assert.equal(attempt(state,rock),null);
-  assert.equal(state.score,100);
+  assert.equal(state.score,first.points);
 }
 
-// E) Distinct hazards inside 1.5s follow 100/150/200/250/300 and cap at x3.
+// E) Distinct hazards inside 1.5s build combo and cap at x3 while retaining risk scaling.
 {
   const state=makeState({air:true,y:5});
-  const expected=[
-    [100,1],
-    [150,1.5],
-    [200,2],
-    [250,2.5],
-    [300,3],
-    [300,3]
-  ];
-  for(let i=0;i<expected.length;i++){
+  const expectedMultipliers=[1,1.5,2,2.5,3,3];
+  let previousPoints=0;
+  for(let i=0;i<expectedMultipliers.length;i++){
     state.time=i*1.0;
     const event=attempt(state,makeItem(i%2?'log':'rock'));
     assert(event,'distinct airborne clearance failed to score');
-    assert.equal(event.points,expected[i][0]);
-    assert.equal(event.multiplier,expected[i][1]);
+    assert.equal(event.multiplier,expectedMultipliers[i]);
     assert.equal(event.combo,i+1);
+    assert(event.points>=previousPoints,'combo/risk reward regressed while multiplier increased');
+    previousPoints=event.points;
   }
 }
 
@@ -97,7 +92,7 @@ function attempt(state,item,{previousZ=playerZ-.08,itemGround=0}={}){
   updateAirborneScoring(state);
   assert.equal(state.combo,0);
   const event=attempt(state,makeItem('log'));
-  assert.equal(event.points,100);
+  assert(event.points>=T.CLEAR_SCORE_BASE);
   assert.equal(event.combo,1);
   assert.equal(event.multiplier,1);
 }

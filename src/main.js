@@ -15,7 +15,7 @@ import {createSkiEnvironment,decorateCourseObject} from './environment.js';
 import {createBananaVisual} from './collectibleVisuals.js';
 import {loadAvatarCatalog,createAvatarSelector,disposeAvatarObject} from './avatar-system.js';
 import {createGameUI} from './ui.js';
-import {progressSpeed,stepCarving,updateJumpAssist,tryManualJump,stepAir,launchRamp} from './skiPhysics.js';
+import {progressSpeed,stepCarving,updateJumpAssist,tryManualJump,stepAir,applyTrickLandingQuality,launchRamp} from './skiPhysics.js';
 import {createCourseDirector,getCourseDifficulty} from './course.js';
 import {terrainHeight,sampleSkiGround,displaceTerrainChunk,dampTerrainContact} from './terrainContact.js';
 import {createSkiCamera} from './skiCamera.js';
@@ -34,7 +34,7 @@ import {createScorePresentation} from './scorePresentation.js';
 import {createCourseRenderBatches} from './courseRenderBatches.js';
 import {createCollisionBroadphase} from './collisionBroadphase.js';
 import {createTrickSystem} from './trickSystem.js';
-import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFailure} from './trickScoring.js';
+import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFailure,scoreTrickLandingBonus} from './trickScoring.js';
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
@@ -621,7 +621,7 @@ sessionTutorialRoot.innerHTML=`
       <em>HOW TO PLAY</em>
     </header>
     <div class="session-tutorial-grid">
-      <section><h3><b>1</b> MOVEMENT</h3><div class="tutorial-controls"><kbd>A</kbd><kbd>D</kbd><span>or</span><i>LEFT STICK / D-PAD</i></div><p>Carve left and right to avoid obstacles.</p></section>
+      <section><h3><b>1</b> MOVEMENT</h3><div class="tutorial-controls"><kbd>A</kbd><kbd>D</kbd><span>or</span><i>LEFT STICK / D-PAD</i></div><p>Carve left and right to avoid obstacles.</p><strong class="tutorial-highlight">SHIFT / LT · TUCK &nbsp; CTRL / RT · BRAKE</strong></section>
       <section><h3><b>2</b> JUMP + TRICKS</h3><div class="tutorial-controls"><kbd>SPACE</kbd><span>or</span><i class="pad-a">A</i></div><p>Jump ramps and clear hazards.</p><strong class="tutorial-highlight">↑ + JUMP · 360° SPIN &nbsp; ↓ + JUMP · BACKFLIP</strong></section>
       <section><h3><b>3</b> 🍌 BANANA POWER</h3><p>Collect 10 bananas to charge 1 Banana Power.</p><div class="tutorial-controls"><kbd>Q</kbd><span>or</span><i class="pad-x">X</i><strong>= BULLET TIME</strong></div><p>Bullet Time lasts 3 seconds.</p></section>
       <section><h3><b>4</b> CAMERA</h3><div class="tutorial-controls"><kbd>E</kbd><span>or</span><i class="pad-y">Y</i><strong>CHANGE VIEW</strong></div><p>Chase · Fixed View · High + Far · First Person</p><div class="tutorial-controls tutorial-motion-row"><kbd>R</kbd><span>or</span><i class="pad-b">B</i><strong>CAMERA MOTION</strong></div><p>Full · Fixed · Reduced</p></section>
@@ -872,6 +872,8 @@ const keys=gameplayInput.keys;
 const touchControls=createTouchControls({
   onSteer:value=>gameplayInput.setTouchSteer(value),
   onJump:pressed=>gameplayInput.setTouchJump(pressed),
+  onTuck:pressed=>gameplayInput.setTouchTuck(pressed),
+  onBrake:pressed=>gameplayInput.setTouchBrake(pressed),
   onTrick:(type,pressed)=>gameplayInput.setTouchTrick(type,pressed),
   onPause:()=>gameplayInput.requestPause()
 });
@@ -1113,6 +1115,7 @@ function update(dt,frameMs=dt*1000){
     if(crashInputPressed)showCrashResults('input');
   }
   const steer=actions.steer;
+  const rideControls={steer,tuck:actions.tuckHeld,brake:actions.brakeHeld};
   const jumpPressed=wasPlaying&&state.mode==='playing'&&actions.jumpPressed;
   const jumpHeld=actions.jumpHeld;
   const trickIntent=jumpPressed?actions.trickIntent:null;
@@ -1135,7 +1138,7 @@ function update(dt,frameMs=dt*1000){
     updateAirborneScoring(state);
     state.frame++;
     courseFrame=state.frame;
-    progressSpeed(state,dt);
+    progressSpeed(state,dt,rideControls);
     state.maxRunSpeed=Math.max(state.maxRunSpeed||0,state.speed);
     if(!state.maxSpeedReached&&state.speed>=state.maxSpeed-.12)state.maxSpeedReached=true;
     if(state.maxSpeedReached)state.postMaxHazardTime+=dt;
@@ -1162,7 +1165,7 @@ function update(dt,frameMs=dt*1000){
     }
     if(steerSign)state.lastSteerSign=steerSign;
 
-    const carveStep=stepCarving(state,steer,controlDt);
+    const carveStep=stepCarving(state,rideControls,controlDt,dt);
     if(carveStep?.edgeScrape){
       const edgeFeedback=feedback.onEdgeContact(carveStep.edgeScrape.intensity,state.time);
       if(edgeFeedback?.play)haptics.edgeScrape?.(edgeFeedback.hapticStrength);
@@ -1230,18 +1233,28 @@ function update(dt,frameMs=dt*1000){
 
     const landing=stepAir(state,dt,groundY);
     if(landing.landed){
-      if(landing.quality==='clean'){
-        state.cleanLandings=(state.cleanLandings||0)+1;
-      }else{
-        state.lastMistakeTime=state.time;
-      }
       const trickLanding=tricks.land({jumpSource:landingSource});
+      applyTrickLandingQuality(state,trickLanding);
+      landing.quality=state.landingQuality;
+
       if(trickLanding.interrupted){
         resolveTrickAudio(scoreTrickFailure(state,trickLanding));
         crash('trick');
       }else if(state.mode==='playing'){
+        if(landing.quality==='clean'){
+          state.cleanLandings=(state.cleanLandings||0)+1;
+        }else if(landing.quality==='rough'||landing.quality==='hard'){
+          state.lastMistakeTime=state.time;
+        }
+        if(landing.quality==='hard')breakSkillCombo(state);
+
+        scoreTrickLandingBonus(state,{
+          quality:landing.quality,
+          type:trickLanding.type,
+          source:trickLanding.source||landingSource
+        });
+
         const landingFeedback=feedback.onLanding(landing,{jumpSource:landingSource,verticalVelocity:landing.impact});
-        if(landingFeedback?.quality==='clean')state.cleanLandings=(state.cleanLandings||0)+1;
         if(landingFeedback?.dramatic&&landingFeedback?.quality!=='hard')state.strongLandings=(state.strongLandings||0)+1;
         haptics.land(landingFeedback?.hapticStrength??Math.min(1,(Number(landing.impact)||0)/18),landing.quality);
       }
@@ -1263,7 +1276,12 @@ function update(dt,frameMs=dt*1000){
       groundRoll:state.groundRoll,
       leftGround:state.leftGround,
       rightGround:state.rightGround,
-      centerGround:state.centerGround
+      centerGround:state.centerGround,
+      tuckAmount:state.tuckAmount,
+      brakeAmount:state.brakeAmount,
+      skidAmount:state.skidRatio,
+      edgeTransition:state.edgeTransition,
+      carveLoad:state.carveLoad
     });
     if(!state.air&&!ridingRamp){
       trailTimer-=dt;
@@ -1276,7 +1294,10 @@ function update(dt,frameMs=dt*1000){
           edge:state.edge,
           spacing:riderController.trackSpacing??.245,
           skis:riderController.trailContacts,
-          rideMode:state.rideMode
+          rideMode:state.rideMode,
+          skidAmount:state.skidRatio,
+          brakeAmount:state.brakeAmount,
+          snowDisplacementScale:getRideProfile(state.rideMode).snowDisplacementScale
         });
         const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
         trailTimer=Math.max(.012,.027-state.speed*.00018)*trailQualityScale;
@@ -1390,16 +1411,17 @@ function update(dt,frameMs=dt*1000){
           state.lastMistakeTime=state.time;
           breakSkillCombo(state);
           state.oilSlipTime=SKI_TUNING.OIL_SLIP_SECONDS;
-          state.landingGripLoss=Math.max(state.landingGripLoss||0,.82);
+          state.landingGripLoss=Math.max(state.landingGripLoss||0,.68);
           const slipDirection=Math.sign(state.x-item.position.x)||Math.sign(state.vx)||1;
-          state.vx+=slipDirection*2.15;
+          const slipImpulse=Math.min(1.25,Math.max(.55,state.speed*.015));
+          state.vx+=slipDirection*slipImpulse;
           state.heading=THREE.MathUtils.clamp(
-            state.heading+slipDirection*.055,
+            state.heading+slipDirection*.025,
             -SKI_TUNING.HEADING_LIMIT_HIGH,
             SKI_TUNING.HEADING_LIMIT_HIGH
           );
           const rideProfile=getRideProfile(state.rideMode);
-          state.speed=Math.max(rideProfile.baseSpeed*.92,state.speed*.94);
+          state.speed=Math.max(rideProfile.baseSpeed*.92,state.speed*.975);
           audio.play('oil',.34);
           haptics.oil();
         }
@@ -1492,6 +1514,9 @@ function update(dt,frameMs=dt*1000){
     carve:state.edge,
     edge:state.edge,
     carveLoad:state.carveLoad,
+    skidAmount:state.skidRatio,
+    brakeAmount:state.brakeAmount,
+    tuckAmount:state.tuckAmount,
     lateralVelocity:state.vx,
     grounded:state.grounded,
     groundRoll:state.groundRoll,
@@ -1628,6 +1653,21 @@ window.chimpionsSki=()=>{
     heading:state.heading,
     turnRate:state.turnRate,
     carveLoad:state.carveLoad,
+    carveAngle:state.carveAngle,
+    carveDirection:state.carveDirection,
+    carveDuration:state.carveDuration,
+    skidRatio:state.skidRatio,
+    edgeStability:state.edgeStability,
+    edgeTransition:state.edgeTransition,
+    edgeTransitionPhase:state.edgeTransitionPhase,
+    lineSmoothness:state.lineSmoothness,
+    speedRetention:state.speedRetention,
+    tuckAmount:state.tuckAmount,
+    brakeAmount:state.brakeAmount,
+    brakeDeceleration:state.brakeDeceleration,
+    aeroEfficiency:state.aeroEfficiency,
+    effectiveTargetSpeed:state.effectiveTargetSpeed,
+    landingPreparation:state.landingPreparation,
     landingQuality:state.landingQuality,
     rampGrace:state.rampGrace,
     trickState:trickSnapshot.state,

@@ -3,12 +3,33 @@ import {SKI_TUNING} from './gameplayTuning.js';
 export const TRICK_LANDING_SAFETY_MARGIN=.11;
 
 export const TRICK_TIMING=Object.freeze({
-  '360':Object.freeze({degreesPerSecond:760,duration:360/760}),
-  BACKFLIP:Object.freeze({degreesPerSecond:800,duration:360/800})
+  '360':Object.freeze({
+    degreesPerSecond:760,
+    rotationDegrees:360,
+    axis:'y',
+    direction:1,
+    duration:360/760
+  }),
+  BACKFLIP:Object.freeze({
+    degreesPerSecond:800,
+    rotationDegrees:360,
+    axis:'x',
+    direction:1,
+    duration:360/800
+  })
 });
+
+export function getTrickDefinition(type){
+  return TRICK_TIMING[type]||null;
+}
 
 export function getTrickDuration(type){
   return TRICK_TIMING[type]?.duration??Infinity;
+}
+
+export function getTrickRotationRadians(type){
+  const degrees=TRICK_TIMING[type]?.rotationDegrees;
+  return Number.isFinite(degrees)?degrees*Math.PI/180:Infinity;
 }
 
 export function estimateRemainingAirTime(
@@ -41,11 +62,23 @@ export function evaluateTrickTiming(
   }={}
 ){
   const remainingAirTime=estimateRemainingAirTime(physicsState,{landingHeight,gravity});
-  const trickDuration=getTrickDuration(type);
+  const definition=getTrickDefinition(type);
+  const trickDuration=definition?.duration??Infinity;
   const safetyMargin=Math.max(0,Number(landingSafetyMargin)||0);
   const requiredAirTime=trickDuration+safetyMargin;
   const allowed=!!physicsState?.air
+    &&!!definition
     &&Number.isFinite(trickDuration)
     &&remainingAirTime+1e-6>=requiredAirTime;
-  return {type,allowed,remainingAirTime,trickDuration,safetyMargin,requiredAirTime};
+  return {
+    type,
+    allowed,
+    remainingAirTime,
+    trickDuration,
+    safetyMargin,
+    requiredAirTime,
+    rotationDegrees:definition?.rotationDegrees??0,
+    axis:definition?.axis??'',
+    direction:definition?.direction??1
+  };
 }
