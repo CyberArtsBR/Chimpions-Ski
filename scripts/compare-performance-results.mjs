@@ -1,6 +1,13 @@
 import {readFile,writeFile} from 'node:fs/promises';
 
-const [baselinePath='benchmark-baseline.json',highPath='benchmark-high.json',lowPath='benchmark-low.json',outputPath='benchmark-comparison.json']=process.argv.slice(2);
+const [
+  baselinePath='benchmark-baseline.json',
+  maxPath='benchmark-max.json',
+  highPath='benchmark-high.json',
+  mediumPath='benchmark-medium.json',
+  lowPath='benchmark-low.json',
+  outputPath='benchmark-comparison.json'
+]=process.argv.slice(2);
 
 async function load(path){return JSON.parse(await readFile(path,'utf8'));}
 
@@ -36,6 +43,17 @@ function phaseSummary(report,name){
     courseBatchSyncMsMedian:median('perfCourseBatchSyncMs'),
     environmentUpdateMsMedian:median('perfEnvironmentUpdateMs'),
     rendererPixelRatioMedian:median('rendererPixelRatio'),
+    renderTargetSamplesMedian:median('renderTargetSamples'),
+    managedRenderTargetCountMedian:median('managedRenderTargetCount'),
+    bloomStrengthMedian:median('bloomStrength'),
+    shadowMapSizeMedian:median('shadowMapSize'),
+    gpuFrameP50MsMedian:median('gpuFrameP50Ms'),
+    gpuFrameP95MsMedian:median('gpuFrameP95Ms'),
+    gpuFrameP99MsMedian:median('gpuFrameP99Ms'),
+    renderCpuP50MsMedian:median('renderCpuP50Ms'),
+    renderCpuP95MsMedian:median('renderCpuP95Ms'),
+    postProcessCpuP95MsMedian:median('postProcessCpuP95Ms'),
+    staticFrameSkipsMedian:median('staticFrameSkips'),
     environmentShadowMapSizeMedian:median('environmentShadowMapSize'),
     activeDecorativeTreesMedian:median('activeDecorativeTrees'),
     activeSnowLayerParticlesMedian:median('activeSnowLayerParticles'),
@@ -57,12 +75,20 @@ function summarize(report){
   };
 }
 
-const [baseline,high,low]=await Promise.all([load(baselinePath),load(highPath),load(lowPath)]);
+const [baseline,max,high,medium,low]=await Promise.all([
+  load(baselinePath),
+  load(maxPath),
+  load(highPath),
+  load(mediumPath),
+  load(lowPath)
+]);
 const comparison={
-  schemaVersion:1,
+  schemaVersion:2,
   generatedAt:new Date().toISOString(),
   baseline:summarize(baseline),
+  max:summarize(max),
   high:summarize(high),
+  medium:summarize(medium),
   low:summarize(low)
 };
 await writeFile(outputPath,JSON.stringify(comparison,null,2)+'\n','utf8');
