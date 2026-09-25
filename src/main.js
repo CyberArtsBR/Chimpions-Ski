@@ -1662,6 +1662,8 @@ window.chimpionsSki=()=>{
     courseObjectHalfWidth:SKI_TUNING.COURSE_OBJECT_HALF_WIDTH,
     ready,
     selectorReady,
+    avatarCommitted,
+    avatarLoadPending:!!avatarLoadController,
     catalogSize:catalog.length,
     selectedAvatar:selectedAvatar?.name||'',
     selectedAvatarLocal:!!selectedAvatar?.localOnly,
