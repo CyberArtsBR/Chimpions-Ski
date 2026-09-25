@@ -1558,10 +1558,14 @@ window.chimpionsSki=()=>{
   let standaloneCourseDrawCalls=0;
   let activeHazardCount=0;
   let visibleHazardCount=0;
+  let visibleUnrepresentedHazards=0;
   for(const item of course){
     if(item.visible&&item.userData.kind!=='banana'){
       activeHazardCount++;
-      if(item.position.z>=batch.renderMinZ&&item.position.z<=batch.renderMaxZ)visibleHazardCount++;
+      if(item.position.z>=batch.renderMinZ&&item.position.z<=batch.renderMaxZ){
+        visibleHazardCount++;
+        if(item.userData.batchedCourseRender&&!item.userData.batchRendered)visibleUnrepresentedHazards++;
+      }
     }
     if(item.userData.batchedCourseRender)continue;
     standaloneCourseObjects++;
@@ -1586,6 +1590,7 @@ window.chimpionsSki=()=>{
     qualitySettings:quality.getSettings(),
     activeHazardCount,
     visibleHazardCount,
+    visibleUnrepresentedHazards,
     rendererPixelRatio:renderer.getPixelRatio(),
     physicsSubsteps,
     activeCourseObjects:course.length,
@@ -1597,7 +1602,14 @@ window.chimpionsSki=()=>{
     courseDrawCallsEstimate:batch.batchDrawCalls+standaloneCourseDrawCalls,
     courseLegacyDrawCallsEstimate:batch.legacyDrawCalls+standaloneCourseDrawCalls,
     courseBatchOverflow:batch.overflow,
+    courseBatchOverflowPrevented:batch.overflowPrevented,
     courseBatchCapacity:batch.capacity,
+    courseBatchTotalCapacity:batch.totalCapacity,
+    courseBatchActivePages:batch.activePages,
+    courseBatchAllocatedPages:batch.allocatedPages,
+    courseBatchGrowthEvents:batch.growthEvents,
+    courseBatchPagesByKind:batch.pagesByKind,
+    courseBatchCapacityByKind:batch.capacityByKind,
     courseBatchComponentCounts,
     startCrowdCount:startCrowd.count,
     startCrowdLoadedCount:startCrowd.loadedCount,

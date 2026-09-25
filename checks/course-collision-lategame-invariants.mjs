@@ -4,7 +4,7 @@ import {COURSE_TYPES,FORMATION_TYPES,createCourseDirector} from '../src/course.j
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {OBSTACLE_TUNING} from '../src/obstacleTuning.js';
 import {maxReachableLateralDelta} from '../src/courseSafety.js';
-import {estimateRampFlightEnvelope} from '../src/rampTrajectory.js';
+import {calculateJumpSectionContract} from '../src/courseSectionContract.js';
 import {getRideProfile} from '../src/rideMode.js';
 import {stepCarving} from '../src/skiPhysics.js';
 
@@ -155,7 +155,11 @@ for(const seed of seeds){
       totalRamps++;
       const ramp=section.placements.find(p=>p.kind==='ramp');
       assert(ramp,'late-game jump section missing ramp');
-      const envelope=estimateRampFlightEnvelope(T.MAX_SPEED);
+      const envelope=calculateJumpSectionContract({
+        startZ:z,
+        speed:T.MAX_SPEED,
+        reactionSpacingScale:section.threatBudget?.reactionSpacingScale??1
+      }).envelope;
       const protectedHazards=hazards.filter(placement=>{
         if(placement.jumpTarget)return false;
         const distance=ramp.z-placement.z;

@@ -166,6 +166,8 @@ try{
   assert.equal(Math.round(playing.speed*3.6),150,'Run must begin at 150 km/h');
   assert(playing.courseLookaheadTarget>280,'Course streaming must remain beyond camera far plane');
   assert(playing.courseAhead>280,'Generated course must remain ahead of the visible camera range');
+  assert.equal(playing.courseBatchOverflow,0,'Visible batched hazards overflowed rendering capacity');
+  assert.equal(playing.visibleUnrepresentedHazards,0,'A visible collidable hazard has no rendered representation');
 
   const hud=page.locator('.hud');
   for(const viewport of responsiveViewports){

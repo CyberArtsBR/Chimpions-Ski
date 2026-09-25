@@ -3,10 +3,9 @@ import {readFileSync} from 'node:fs';
 import {COURSE_TYPES,FORMATION_TYPES,createCourseDirector,getCourseDifficulty} from '../src/course.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {OBSTACLE_TUNING} from '../src/obstacleTuning.js';
-import {estimateRampFlightEnvelope} from '../src/rampTrajectory.js';
 import {maxReachableLateralDelta} from '../src/courseSafety.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
-import {getCourseSectionLengthBounds} from '../src/courseSectionContract.js';
+import {JUMP_SECTION_CONTRACT,calculateJumpSectionContract,getCourseSectionLengthBounds} from '../src/courseSectionContract.js';
 
 function rng(seed=0x5f3759df){
   let x=seed>>>0;
@@ -35,6 +34,25 @@ for(const [distance,speed] of [[0,T.BASE_SPEED],[900,T.BASE_SPEED+5],[1800,T.MAX
   assert(Number.isFinite(d)&&d>=0&&d<=1,'difficulty escaped normalized range');
 }
 
+const jumpSpeedSamples=[
+  T.BASE_SPEED,
+  T.BASE_SPEED+(T.MAX_SPEED-T.BASE_SPEED)*.5,
+  T.BASE_SPEED+(T.MAX_SPEED-T.BASE_SPEED)*.9,
+  T.MAX_SPEED
+];
+for(const speed of jumpSpeedSamples){
+  for(const reactionSpacingScale of [JUMP_SECTION_CONTRACT.reactionSpacingScaleMin,1,JUMP_SECTION_CONTRACT.reactionSpacingScaleMax]){
+    const jump=calculateJumpSectionContract({startZ:0,speed,reactionSpacingScale});
+    assert(jump.approachZ>jump.rampZ,'jump approach does not precede the ramp');
+    assert(jump.touchdownZ<jump.rampZ,'jump touchdown is not downhill of ramp');
+    assert(jump.landingEndZ<=jump.touchdownZ,'protected landing end does not cover touchdown');
+    assert(jump.postLandingZ<jump.landingEndZ,'post-landing route does not clear protected landing');
+    assert(jump.followUpZ<jump.postLandingZ,'follow-up route does not provide recovery spacing');
+    assert(jump.endZ<=jump.followUpZ-JUMP_SECTION_CONTRACT.trailingPadding+1e-9,'jump section lost trailing recovery padding');
+    assert(jump.length>=JUMP_SECTION_CONTRACT.minimumLength,'jump section fell below minimum authored length');
+  }
+}
+
 const seeds=[1,7,19,43,101,31337,0xabcdef,0x12345678,0xdeadbeef,0xc0ffee,0x5eed,0xdecafbad];
 const sectionsPerSeed=120;
 let totalSections=0,totalMeters=0,totalRamps=0;
@@ -59,8 +77,7 @@ for(const seed of seeds){
     totalMeters+=section.length;
 
     assert(COURSE_TYPES.includes(section.type),'unknown course section type');
-    const maxJumpLength=Math.ceil(62+estimateRampFlightEnvelope(T.MAX_SPEED).protectedEndDistance);
-    const lengthBounds=getCourseSectionLengthBounds(section.type,{maxJumpLength});
+    const lengthBounds=getCourseSectionLengthBounds(section.type);
     assert(
       section.length>=lengthBounds.min&&section.length<=lengthBounds.max,
       `implausible section length: ${section.type} ${section.length}m outside ${lengthBounds.min}-${lengthBounds.max}m`
@@ -174,6 +191,15 @@ for(const seed of seeds){
 
     if(section.type==='RAMP'||section.type==='LOG JUMP'){
       totalRamps++;
+      const jumpContract=calculateJumpSectionContract({
+        startZ:z,
+        speed,
+        reactionSpacingScale:section.threatBudget?.reactionSpacingScale??1
+      });
+      assert(
+        Math.abs(section.length-jumpContract.length)<1e-9,
+        'jump section generation drifted from authoritative jump contract'
+      );
       const ramp=section.placements.find(p=>p.kind==='ramp');
       assert(ramp,'jump section missing ramp');
       assert(ramp.landingZone===true,'ramp is missing landing-zone metadata');

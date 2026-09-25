@@ -1,6 +1,6 @@
 import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {OBSTACLE_TUNING,obstacleCollisionHalfWidth,obstacleHalfDepth} from './obstacleTuning.js';
-import {estimateRampFlightEnvelope} from './rampTrajectory.js';
+import {JUMP_SECTION_CONTRACT,calculateJumpSectionContract} from './courseSectionContract.js';
 import {createSafeRouteTracker,maxHumanReachableLateralDelta,validateReachableCorridor} from './courseSafety.js';
 import {createExpertRunDirector} from './courseRunDirector.js';
 import {
@@ -1350,17 +1350,20 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     }
 
     if(type==='RAMP'||type==='LOG JUMP'){
-      const rampZ=startZ-34;
+      const jumpContract=calculateJumpSectionContract({
+        startZ,
+        speed:currentSpeed,
+        reactionSpacingScale:runPlan.threatBudget?.reactionSpacingScale??1
+      });
+      const {approachZ,rampZ,touchdownZ,landingEndZ,postLandingZ,followUpZ,envelope}=jumpContract;
       const rampX=clamp(
         contentX(rampZ,pickRampBand(),.99),
         -(T.COURSE_OBJECT_HALF_WIDTH-.25),
         T.COURSE_OBJECT_HALF_WIDTH-.25
       );
       const rampTarget=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      const envelope=estimateRampFlightEnvelope(currentSpeed);
 
       // Track the route in chronological downhill order: approach first, ramp second.
-      const approachZ=startZ-12;
       const approachSafe=safeRoute.constrain(rampTarget,approachZ,currentSpeed);
       const rampSafe=safeRoute.constrain(rampTarget,rampZ,currentSpeed);
       addFormation(placements,'OFFSET_GATE',approachZ,approachSafe,{kinds:['tree','rock'],intensity:.42});
@@ -1386,9 +1389,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       // Keep flight visibly populated outside the landing corridor.
       populateFlight(placements,rampZ,rampSafe,envelope,type);
 
-      const touchdownZ=rampZ-envelope.landingDistance;
-      const landingEndZ=rampZ-envelope.protectedEndDistance;
-
       // Guarantee visible edge pressure at touchdown without invading the protected corridor.
       addFormation(
         placements,
@@ -1400,8 +1400,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
 
       // Resume pressure only after the protected touchdown envelope, then turn
       // the landing into a readable two-step route rather than an empty runway.
-      const landingGap=24*(runPlan.threatBudget?.reactionSpacingScale??1);
-      const postLandingZ=landingEndZ-18;
       const firstLandingTarget=clamp(
         rampSafe+(runPlan.side||1)*Math.min(2.8,1.25+runPlan.intensity*1.7),
         -T.SAFE_ROUTE_HALF_WIDTH,
@@ -1422,7 +1420,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         {riskReward:runPlan.intensity>.66?2:1,landingReward:true}
       ));
 
-      const followUpZ=postLandingZ-landingGap;
       const followUpTarget=clamp(
         postLandingSafe-(runPlan.side||1)*Math.min(3.6,1.6+runPlan.intensity*2.0),
         -T.SAFE_ROUTE_HALF_WIDTH,
@@ -1448,13 +1445,13 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         envelope
       };
 
-      length=Math.max(126,Math.abs(startZ-followUpZ)+14);
+      length=jumpContract.length;
     }
 
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
-      length=92;
+      length=JUMP_SECTION_CONTRACT.recoverySectionLength;
       // Recovery still asks for light carving: one easy readable obstacle,
       // generous route width and simple banana guidance instead of dead terrain.
       let z=startZ-24;

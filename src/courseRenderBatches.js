@@ -24,34 +24,55 @@ function copyGameplayMetadata(prototype,kind){
   return userData;
 }
 
-function collectComponents(world,kind,prototype,capacity){
+function collectComponentSpecs(prototype){
   prototype.updateMatrixWorld(true);
   _inverseRoot.copy(prototype.matrixWorld).invert();
-  const components=[];
+  const specs=[];
 
   prototype.traverse(node=>{
     if(!node.isMesh)return;
     node.updateWorldMatrix(true,false);
-    const relative=new THREE.Matrix4().multiplyMatrices(_inverseRoot,node.matrixWorld);
-    const batch=new THREE.InstancedMesh(node.geometry,node.material,capacity);
-    batch.name='course-batch-'+kind+'-'+components.length;
+    specs.push({
+      geometry:node.geometry,
+      material:node.material,
+      relative:new THREE.Matrix4().multiplyMatrices(_inverseRoot,node.matrixWorld),
+      castShadow:node.castShadow,
+      receiveShadow:node.receiveShadow,
+      renderOrder:node.renderOrder
+    });
+  });
+  return specs;
+}
+
+function createPage(world,kind,variantIndex,pageIndex,specs,capacity){
+  const components=specs.map((spec,componentIndex)=>{
+    const batch=new THREE.InstancedMesh(spec.geometry,spec.material,capacity);
+    batch.name=`course-batch-${kind}-v${variantIndex}-p${pageIndex}-c${componentIndex}`;
     batch.count=0;
-    batch.castShadow=node.castShadow;
-    batch.receiveShadow=node.receiveShadow;
-    batch.renderOrder=node.renderOrder;
+    batch.castShadow=spec.castShadow;
+    batch.receiveShadow=spec.receiveShadow;
+    batch.renderOrder=spec.renderOrder;
     batch.frustumCulled=false;
     batch.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     batch.userData.courseBatchKind=kind;
+    batch.userData.courseBatchVariant=variantIndex;
+    batch.userData.courseBatchPage=pageIndex;
     world.add(batch);
-    components.push({mesh:batch,relative});
+    return {mesh:batch,relative:spec.relative};
   });
+  return {components,count:0};
+}
 
+function collectVariant(world,kind,prototype,capacity,variantIndex){
+  const specs=collectComponentSpecs(prototype);
   return {
-    components,
+    specs,
     baseQuaternion:prototype.quaternion.clone(),
     baseScale:prototype.scale.clone(),
-    metadata:copyGameplayMetadata(prototype,kind),
-    count:0
+    pages:[createPage(world,kind,variantIndex,0,specs,capacity)],
+    count:0,
+    kind,
+    variantIndex
   };
 }
 
@@ -62,32 +83,65 @@ export function createCourseRenderBatches({
   renderMinZ=-315,
   renderMaxZ=28
 }){
+  const pageCapacity=Math.max(1,Math.trunc(Number(capacity)||512));
   const kinds={};
   const kindCounts={};
+  const pagesByKind={};
+  const capacityByKind={};
   let serial=0;
   let dirty=true;
+  let growthEvents=0;
+  let peakRenderedInstances=0;
   const lastDiagnostics={
     activeLogical:0,
+    visibleLogical:0,
     renderedInstances:0,
     batchDrawCalls:0,
     legacyDrawCalls:0,
     overflow:0,
-    capacity,
+    overflowPrevented:0,
+    growthEvents:0,
+    activePages:0,
+    allocatedPages:0,
+    totalCapacity:0,
+    peakRenderedInstances:0,
+    capacity:pageCapacity,
+    pageCapacity,
     renderMinZ,
     renderMaxZ,
-    kindCounts
+    kindCounts,
+    pagesByKind,
+    capacityByKind
   };
 
   for(const kind of BATCHED_COURSE_KINDS){
     const prototype=prototypes[kind];
     if(!prototype)throw new Error('Missing course batch prototype for '+kind);
-    const variants=(prototype.userData.visualVariants||[prototype]).map(visual=>collectComponents(world,kind,visual,capacity));
+    const variants=(prototype.userData.visualVariants||[prototype])
+      .map((visual,index)=>collectVariant(world,kind,visual,pageCapacity,index));
     kinds[kind]={variants,metadata:copyGameplayMetadata(prototype,kind),count:0};
     kindCounts[kind]=0;
+    pagesByKind[kind]=variants.length;
+    capacityByKind[kind]=variants.length*pageCapacity;
   }
 
   function isBatchedKind(kind){
     return BATCHED_KIND_SET.has(kind);
+  }
+
+  function ensurePage(variant,pageIndex){
+    while(variant.pages.length<=pageIndex){
+      variant.pages.push(createPage(
+        world,
+        variant.kind,
+        variant.variantIndex,
+        variant.pages.length,
+        variant.specs,
+        pageCapacity
+      ));
+      growthEvents++;
+    }
+    return variant.pages[pageIndex];
   }
 
   function createHandle(kind){
@@ -97,7 +151,14 @@ export function createCourseRenderBatches({
     const item={
       position:new THREE.Vector3(),
       visible:false,
-      userData:{...info.metadata,batchSerial:id,visualVariant:Math.floor(hash01(id*4.73)*info.variants.length)}
+      userData:{
+        ...info.metadata,
+        batchSerial:id,
+        batchRendered:false,
+        batchPage:-1,
+        batchInstance:-1,
+        visualVariant:Math.floor(hash01(id*4.73)*info.variants.length)
+      }
     };
 
     if(kind==='rock'){
@@ -114,11 +175,15 @@ export function createCourseRenderBatches({
 
   function activate(item){
     item.visible=true;
+    item.userData.batchRendered=false;
     dirty=true;
   }
 
   function deactivate(item){
     item.visible=false;
+    item.userData.batchRendered=false;
+    item.userData.batchPage=-1;
+    item.userData.batchInstance=-1;
     dirty=true;
   }
 
@@ -127,28 +192,45 @@ export function createCourseRenderBatches({
 
     for(const kind of BATCHED_COURSE_KINDS){
       kinds[kind].count=0;
-      for(const variant of kinds[kind].variants)variant.count=0;
+      for(const variant of kinds[kind].variants){
+        variant.count=0;
+        for(const page of variant.pages){
+          page.count=0;
+          for(const component of page.components)component.mesh.count=0;
+        }
+      }
     }
+
     let activeLogical=0;
+    let visibleLogical=0;
     let renderedInstances=0;
-    let overflow=0;
+    let overflowPrevented=0;
 
     for(let i=0;i<course.length;i++){
       const item=course[i];
-      if(!item?.visible)continue;
-      const info=kinds[item.userData.kind];
+      const info=kinds[item?.userData?.kind];
       if(!info)continue;
+      item.userData.batchRendered=false;
+      item.userData.batchPage=-1;
+      item.userData.batchInstance=-1;
+      if(!item.visible)continue;
       activeLogical++;
       if(item.position.z<renderMinZ||item.position.z>renderMaxZ)continue;
 
-      const logicalIndex=info.count++;
-      if(logicalIndex>=capacity){
-        overflow++;
-        continue;
-      }
+      visibleLogical++;
+      info.count++;
+      const variantIndex=Math.min(
+        info.variants.length-1,
+        Math.max(0,Math.trunc(item.userData.visualVariant||0))
+      );
+      const variant=info.variants[variantIndex];
+      const ordinal=variant.count++;
+      const pageIndex=Math.floor(ordinal/pageCapacity);
+      const index=ordinal%pageCapacity;
+      const page=ensurePage(variant,pageIndex);
+      page.count=Math.max(page.count,index+1);
+      if(pageIndex>0)overflowPrevented++;
 
-      const variant=info.variants[item.userData.visualVariant||0];
-      const index=variant.count++;
       _extraYaw.setFromAxisAngle(_yAxis,item.userData.visualYaw||0);
       _composedQuaternion.copy(variant.baseQuaternion).multiply(_extraYaw);
       _composedScale.set(
@@ -158,34 +240,61 @@ export function createCourseRenderBatches({
       );
       _rootMatrix.compose(item.position,_composedQuaternion,_composedScale);
 
-      for(const component of variant.components){
+      for(const component of page.components){
         _instanceMatrix.multiplyMatrices(_rootMatrix,component.relative);
         component.mesh.setMatrixAt(index,_instanceMatrix);
       }
+
+      item.userData.batchRendered=true;
+      item.userData.batchPage=pageIndex;
+      item.userData.batchInstance=index;
       renderedInstances++;
     }
 
     let batchDrawCalls=0;
     let legacyDrawCalls=0;
+    let activePages=0;
+    let allocatedPages=0;
+    let totalCapacity=0;
+
     for(const kind of BATCHED_COURSE_KINDS){
       const info=kinds[kind];
-      const drawCount=Math.min(info.count,capacity);
-      kindCounts[kind]=drawCount;
+      kindCounts[kind]=info.count;
+      pagesByKind[kind]=0;
+      capacityByKind[kind]=0;
       for(const variant of info.variants){
-        for(const component of variant.components){
-          component.mesh.count=variant.count;
-          component.mesh.instanceMatrix.needsUpdate=true;
+        const componentCount=variant.specs.length;
+        legacyDrawCalls+=variant.count*componentCount;
+        pagesByKind[kind]+=variant.pages.length;
+        capacityByKind[kind]+=variant.pages.length*pageCapacity;
+        allocatedPages+=variant.pages.length;
+        totalCapacity+=variant.pages.length*pageCapacity;
+        for(const page of variant.pages){
+          for(const component of page.components){
+            component.mesh.count=page.count;
+            if(page.count>0)component.mesh.instanceMatrix.needsUpdate=true;
+          }
+          if(page.count>0){
+            activePages++;
+            batchDrawCalls+=componentCount;
+          }
         }
-        if(variant.count>0)batchDrawCalls+=variant.components.length;
-        legacyDrawCalls+=variant.count*variant.components.length;
       }
     }
 
+    peakRenderedInstances=Math.max(peakRenderedInstances,renderedInstances);
     lastDiagnostics.activeLogical=activeLogical;
+    lastDiagnostics.visibleLogical=visibleLogical;
     lastDiagnostics.renderedInstances=renderedInstances;
     lastDiagnostics.batchDrawCalls=batchDrawCalls;
     lastDiagnostics.legacyDrawCalls=legacyDrawCalls;
-    lastDiagnostics.overflow=overflow;
+    lastDiagnostics.overflow=0;
+    lastDiagnostics.overflowPrevented=overflowPrevented;
+    lastDiagnostics.growthEvents=growthEvents;
+    lastDiagnostics.activePages=activePages;
+    lastDiagnostics.allocatedPages=allocatedPages;
+    lastDiagnostics.totalCapacity=totalCapacity;
+    lastDiagnostics.peakRenderedInstances=peakRenderedInstances;
     dirty=false;
     return lastDiagnostics;
   }
@@ -196,7 +305,7 @@ export function createCourseRenderBatches({
 
   function getComponentCounts(){
     const result={};
-    for(const kind of BATCHED_COURSE_KINDS)result[kind]=kinds[kind].variants[0].components.length;
+    for(const kind of BATCHED_COURSE_KINDS)result[kind]=kinds[kind].variants[0].specs.length;
     return result;
   }
 
