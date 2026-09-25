@@ -19,7 +19,7 @@ concurrency:
 jobs:
   benchmark:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       BASE_SHA: 744819df9486208e52dc9d922ce5732ec7c131b8
       BENCH_ENV: "GAMEPLAY_SECONDS=30 LONG_RUN_SECONDS=60 MODE_RUN_SECONDS=15 TRICK_RUN_SECONDS=15 RESTART_ITERATIONS=2 SELECTOR_ITERATIONS=2 SAMPLE_INTERVAL_MS=500"
@@ -72,6 +72,22 @@ jobs:
           wait_preview
           env $BENCH_ENV BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-baseline.json" node scripts/benchmark-ski-runtime.mjs
 
+      - name: Benchmark MAX
+        id: max
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/chimpions-max-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-max-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          env $BENCH_ENV QUALITY_PROFILE=max BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-max.json" node scripts/benchmark-ski-runtime.mjs
+
       - name: Benchmark HIGH
         id: high
         continue-on-error: true
@@ -87,6 +103,22 @@ jobs:
             sleep 1
           done
           env $BENCH_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-high.json" node scripts/benchmark-ski-runtime.mjs
+
+      - name: Benchmark MEDIUM
+        id: medium
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/chimpions-medium-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-medium-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          env $BENCH_ENV QUALITY_PROFILE=medium BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-medium.json" node scripts/benchmark-ski-runtime.mjs
 
       - name: Benchmark LOW
         id: low
@@ -110,12 +142,14 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          for file in benchmark-baseline.json benchmark-high.json benchmark-low.json; do
+          for file in benchmark-baseline.json benchmark-max.json benchmark-high.json benchmark-medium.json benchmark-low.json; do
             test -s "benchmark-artifacts/$file"
           done
           node scripts/compare-performance-results.mjs \
             benchmark-artifacts/benchmark-baseline.json \
+            benchmark-artifacts/benchmark-max.json \
             benchmark-artifacts/benchmark-high.json \
+            benchmark-artifacts/benchmark-medium.json \
             benchmark-artifacts/benchmark-low.json \
             benchmark-artifacts/benchmark-comparison.json
 
@@ -130,12 +164,16 @@ jobs:
         if: always()
         env:
           BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
+          MAX_OUTCOME: ${{ steps.max.outcome }}
           HIGH_OUTCOME: ${{ steps.high.outcome }}
+          MEDIUM_OUTCOME: ${{ steps.medium.outcome }}
           LOW_OUTCOME: ${{ steps.low.outcome }}
           COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: |
-          echo "baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
+          echo "baseline=$BASELINE_OUTCOME max=$MAX_OUTCOME high=$HIGH_OUTCOME medium=$MEDIUM_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
           test "$BASELINE_OUTCOME" = success
+          test "$MAX_OUTCOME" = success
           test "$HIGH_OUTCOME" = success
+          test "$MEDIUM_OUTCOME" = success
           test "$LOW_OUTCOME" = success
           test "$COMPARE_OUTCOME" = success
