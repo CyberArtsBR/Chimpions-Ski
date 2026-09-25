@@ -28,7 +28,9 @@ jobs:
     timeout-minutes: 30
     env:
       HISTORICAL_BASE_SHA: 744819df9486208e52dc9d922ce5732ec7c131b8
-      BENCH_ENV: "GAMEPLAY_SECONDS=30 LONG_RUN_SECONDS=60 MODE_RUN_SECONDS=15 TRICK_RUN_SECONDS=15 RESTART_ITERATIONS=2 SELECTOR_ITERATIONS=2 SAMPLE_INTERVAL_MS=500"
+      # Keep push/PR regression coverage broad but bounded for software-WebGL CI.
+      # Manual runs can still use the documented 300/600 second long-run windows.
+      BENCH_ENV: "GAMEPLAY_SECONDS=15 LONG_RUN_SECONDS=30 MODE_RUN_SECONDS=10 TRICK_RUN_SECONDS=10 RESTART_ITERATIONS=1 SELECTOR_ITERATIONS=1 SAMPLE_INTERVAL_MS=1000"
     steps:
       - uses: actions/checkout@v7
         with:
