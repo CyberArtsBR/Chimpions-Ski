@@ -17,7 +17,7 @@
     "check:release": "npm run check && npm run build",
     "check:roster": "node checks/roster-bandwidth-invariants.mjs",
     "assets:audit": "node scripts/assets-audit.mjs",
-    "assets:optimize": "node scripts/assets-optimize.mjs",
+    "assets:optimize": "node scripts/optimize-character-assets.mjs",
     "assets:verify": "node scripts/assets-verify.mjs",
     "check:assets": "node checks/asset-pipeline-invariants.mjs && node scripts/assets-verify.mjs"
   },
