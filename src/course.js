@@ -1134,7 +1134,12 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         const placement=placements[i];
         if(!PHYSICAL_HAZARDS.has(placement.kind)||placement.jumpTarget||placement.landingProtected)continue;
         const distance=Math.abs(placement.z-failureZ);
-        const structuralPenalty=placement.commitmentDecision?180:0;
+        // Preserve the section's one authored shoulder-pressure anchor when
+        // another nearby hazard can be removed to recover the reachable corridor.
+        // The validator is still authoritative: this is a priority, not immunity.
+        const structuralPenalty=
+          (placement.commitmentDecision?180:0)+
+          (placement.sidePressureAnchor?240:0);
         const score=distance+structuralPenalty;
         if(score<candidateScore){
           candidateScore=score;
