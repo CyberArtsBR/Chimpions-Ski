@@ -183,6 +183,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float snowPacked=1.0-smoothstep(6.4,13.4,abs(snowP.x));
       float snowMeso=snowNoise(snowP*vec2(.48,.16));
       float snowFine=snowNoise(snowP*vec2(1.65,.72)+vec2(-13.0,7.0));
+      float snowLoose=1.0-snowPacked;
       float compressed=smoothstep(.60,.83,snowNoise(snowP*vec2(.22,.055)+vec2(9.0,-14.0)))*snowPacked;
       float iceField=snowNoise(snowP*.105+31.0)*.68+snowNoise(snowP*.031-11.0)*.32;
       float iceMask=smoothstep(.72,.90,iceField)*(1.0-snowPacked*.24)*snowDetail;
@@ -203,10 +204,11 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       vec2 driftSlope=cos(driftPhase)*vec2(2.3,.32+cos(snowP.y*.17)*.187)*.074;
       driftSlope+=cos(snowP.x*.63-snowP.y*.27)*vec2(.63,-.27)*.13;
       driftSlope+=cos(snowP.x*4.2+snowP.y*.74)*vec2(4.2,.74)*.009;
-      normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade);
+      driftSlope.x+=cos(snowPhase)*snowPacked*snowAA*.095;
+      normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade*(.56+.65*snowLoose));
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
-      roughnessFactor=clamp(roughnessFactor+snowMeso*.15-snowPacked*.035-compressed*.040-iceMask*.16-snowFine*.018,.48,.98);
+      roughnessFactor=clamp(roughnessFactor+snowMeso*.15-snowPacked*.035+snowLoose*.035-compressed*.040-iceMask*.16-snowFine*.018,.48,.98);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
       float crystalDistance=1.0-smoothstep(7.0,34.0,length(vViewPosition));
@@ -225,7 +227,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v6-powder';
+  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v7-flanks';
 
   let currentDetailLevel=1;
   function setDetailLevel(value=1){

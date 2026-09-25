@@ -5,7 +5,7 @@ import {COURSE_FLAG_X} from './environmentCorridor.js';
 
 const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
 const dummy=new THREE.Object3D();
-const forestTint=new THREE.Color(),forestNear=new THREE.Color(0x31534e),forestFar=new THREE.Color(0x718b94);
+const forestTint=new THREE.Color(),forestNear=new THREE.Color(0xf0f7f7),forestFar=new THREE.Color(0xb9d3e0);
 function mountainGeometry(seed){
   const nx=64,nz=28,p=[],uv=[],indices=[],colors=[];
   for(let z=0;z<=nz;z++)for(let x=0;x<=nx;x++){
@@ -19,12 +19,15 @@ function mountainGeometry(seed){
   }
   const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(indices);g.computeVertexNormals();
   const normal=g.attributes.normal;
-  const stone=new THREE.Color(0x566b7a),snow=new THREE.Color(0xe5f1f6),c=new THREE.Color();
+  const stone=new THREE.Color(0x4b6377),snow=new THREE.Color(0xf0f9fc),c=new THREE.Color();
   for(let i=0;i<p.length/3;i++){
     const x=p[i*3],h=p[i*3+1],z=p[i*3+2];
     const snowLine=.30+.09*Math.sin(x*37+seed)+.06*Math.sin(z*29+x*13);
-    const coverage=THREE.MathUtils.smoothstep(h,snowLine,snowLine+.15)*THREE.MathUtils.smoothstep(normal.getY(i),.24,.75);
-    c.copy(stone).lerp(snow,coverage);c.multiplyScalar(.79+.21*normal.getY(i));colors.push(c.r,c.g,c.b);
+    const coverage=THREE.MathUtils.smoothstep(h,snowLine,snowLine+.15)*THREE.MathUtils.smoothstep(normal.getY(i),.20,.72);
+    const crevice=Math.pow(Math.abs(Math.sin(x*47+z*16+seed)),12)*.22;
+    c.copy(stone).lerp(snow,coverage*(1-crevice));
+    c.multiplyScalar(.72+.19*Math.max(0,normal.getY(i))+.10*Math.max(0,-normal.getX(i)));
+    colors.push(c.r,c.g,c.b);
   }
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));return g;
 }
@@ -34,7 +37,17 @@ function forestGeometry(){
     const r=.95-i*.16,g=makeSerratedFirGeometry(r,1.35-i*.10,18,12+i*7);
     g.translate(.025*Math.sin(i),.95+i*.56,0);parts.push(g);
   }
-  const merged=mergeGeometries(parts);for(const p of parts)p.dispose();return merged;
+  const merged=mergeGeometries(parts);for(const p of parts)p.dispose();
+  const position=merged.getAttribute('position'),normal=merged.getAttribute('normal');
+  const green=new THREE.Color(0x284a51),snow=new THREE.Color(0xe5f2f8),color=new THREE.Color(),colors=[];
+  for(let i=0;i<position.count;i++){
+    const y=position.getY(i),up=Math.max(0,normal.getY(i));
+    const load=THREE.MathUtils.clamp(THREE.MathUtils.smoothstep(up,.10,.52)*(.48+.30*hash(i+317))+
+      THREE.MathUtils.smoothstep(y,2.7,4.0)*.20,0,.92);
+    color.copy(green).lerp(snow,load);colors.push(color.r,color.g,color.b);
+  }
+  merged.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+  return merged;
 }
 export function createAlpineLandscape({world,atmosphere,terrainHeight}){
   const geometries=[11,37,79].map(mountainGeometry);
@@ -52,7 +65,7 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
       entries.push({layer,index:i,x,z:-52-rank*61-layer*15,width,depth,height:27+hash(seed+7)*25,side});
     }
   }
-  const forestMaterial=new THREE.MeshStandardMaterial({color:0x31534e,roughness:1});
+  const forestMaterial=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:1});
   const forestGeo=forestGeometry();
   const forestCapacity=280;
   const forestChunkCount=6;

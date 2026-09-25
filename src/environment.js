@@ -294,7 +294,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       layer.points.visible=false;
     }
 
-    snowParticles.setDensityMultiplier(environmentQuality.particleDensityMultiplier);
+    snowParticles.setDensityMultiplier(.30+.70*environmentQuality.snowDetailLevel);
     surfaceDetail.setDetailLevel(environmentQuality.snowDetailLevel);
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
     boundaryMarkers.setDecorativeShadows(false);
