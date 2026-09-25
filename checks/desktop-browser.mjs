@@ -209,7 +209,23 @@ try{
       {timeout:5000,polling:100}
     );
   }
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
+  try{
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
+  }catch(error){
+    const launchDiagnostics=await page.evaluate(()=>({
+      runtime:window.chimpionsSki?.()||null,
+      tutorialVisible:!!document.querySelector('.session-tutorial:not([hidden])'),
+      countdownHidden:document.querySelector('#run-countdown')?.hidden??null,
+      countdownText:document.querySelector('#countdown-number')?.textContent||'',
+      startScreenHidden:document.querySelector('.start-screen')?.hidden??null,
+      startScreenClasses:document.querySelector('.start-screen')?.className||'',
+      runLoadingHidden:document.querySelector('#run-loading-overlay')?.hidden??null,
+      visibilityState:document.visibilityState,
+      now:performance.now()
+    }));
+    console.error('PLAYING_TIMEOUT_DIAGNOSTICS '+JSON.stringify(launchDiagnostics));
+    throw error;
+  }
   assert.equal(await page.locator('.start-screen').isVisible(),false);
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
