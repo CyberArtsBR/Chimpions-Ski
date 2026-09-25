@@ -28,9 +28,17 @@ assert.equal(machine.update({dt:1/60,oilSlipTime:.6}).state,RIDER_ANIMATION_STAT
 assert.equal(machine.update({dt:1/60,crashActive:true,mode:'crashed'}).state,RIDER_ANIMATION_STATE.CRASH);
 
 const ski=createRiderPoseController({rideMode:'ski'});
+const readyFlex=ski.update({dt:.1,mode:'countdown',steer:0,speed:40,rideMode:'ski'}).hipFlex;
+for(let i=0;i<4;i++)ski.update({dt:.1,mode:'countdown',steer:0,speed:40,rideMode:'ski'});
+assert(ski.pose.hipFlex>readyFlex,'start compression visibly loads the rider stance');
+ski.reset('ski');
 const skiPose=ski.update({dt:1/60,steer:.9,carveLoad:.9,speed:40,rideMode:'ski'});
 assert(skiPose.outsideLoad>skiPose.insideFlex,'hard carve visually loads outside leg more');
 assert.equal(skiPose.toeEdge,0);
+
+ski.update({dt:1/60,steer:-.65,carveLoad:.6,speed:40,rideMode:'ski'});
+const reversalPose=ski.update({dt:1/60,steer:.65,carveLoad:.6,speed:40,rideMode:'ski'});
+assert(Math.abs(reversalPose.polePlant)>0,'edge reversal produces a directional pole-plant gesture');
 
 const board=createRiderPoseController({rideMode:'snowboard'});
 const toe=board.update({dt:1/60,steer:.8,carveLoad:.8,speed:35,rideMode:'snowboard'});
