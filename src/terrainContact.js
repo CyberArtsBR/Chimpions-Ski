@@ -20,7 +20,15 @@ export function terrainHeight(x,z){
     Math.sin(downhill*.027+x*.19)*.14+
     Math.cos(downhill*.014-x*.11)*.07
   );
-  return macro+broad+crest+gentleBank+edgeRelief;
+  // Outside the playable flags the same heightfield opens into opposing
+  // mountain flanks. The smooth shoulder leaves ski contact unchanged.
+  const sideDistance=Math.max(0,Math.abs(x)-13.8);
+  const shoulder=clamp(sideDistance/13,0,1);
+  const fade=shoulder*shoulder*(3-2*shoulder);
+  const flank=x>=0?sideDistance*.105:-sideDistance*.055;
+  const folds=Math.sin(sideDistance*.061+downhill*.015)*.85+
+    Math.sin(sideDistance*.025-downhill*.009+x*.004)*1.25;
+  return macro+broad+crest+gentleBank+edgeRelief+fade*(flank+folds);
 }
 
 export function sampleSkiGround(heightFn,x,z,heading=0,halfWidth=.235){

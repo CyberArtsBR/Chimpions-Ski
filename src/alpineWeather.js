@@ -44,6 +44,11 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
         cloudColor+=vec3(.62,.72,1.)*flash*(.3+detail);
         color=mix(color,cloudColor,cloud*smoothstep(.015,.15,d.y));
         color=mix(color,mix(top,horizon,.45),highCloud*smoothstep(.18,.42,d.y)*.32);
+        // A far glacial skyline closes the valley without filling the course view.
+        float azimuth=atan(d.x,-d.z),center=1.-smoothstep(.17,.48,abs(azimuth));
+        float peaks=.010+.009*abs(sin(azimuth*23.))+ .006*abs(sin(azimuth*61.+1.4));
+        float ridge=(1.-smoothstep(peaks,peaks+.004,d.y))*smoothstep(-.065,-.018,d.y)*center;
+        color=mix(color,mix(horizon*.72,top*.78,.28),ridge*(.50-night*.18));
         float horizonAir=exp(-max(d.y,0.)*13.0)*(1.-night*.45);color=mix(color,horizon,horizonAir*.075);
         color+=vec3(.38,.47,.7)*flash*.35;
         gl_FragColor=vec4(color,1.);
