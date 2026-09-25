@@ -5,6 +5,8 @@ const clamp=(value,min=-1,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 export function createTouchControls({
   onSteer=()=>{},
   onJump=()=>{},
+  onTuck=()=>{},
+  onBrake=()=>{},
   onTrick=()=>{},
   onPause=()=>{},
   windowRef=globalThis.window,
@@ -22,6 +24,8 @@ export function createTouchControls({
     <div class="touch-action-cluster" aria-label="Jump and trick controls">
       <button type="button" class="touch-action touch-trick" data-touch-trick="360" aria-label="360 trick">360</button>
       <button type="button" class="touch-action touch-trick" data-touch-trick="backflip" aria-label="Backflip trick">FLIP</button>
+      <button type="button" class="touch-action touch-speed" id="touch-tuck" aria-label="Tuck for speed">TUCK</button>
+      <button type="button" class="touch-action touch-speed" id="touch-brake" aria-label="Brake and skid">BRAKE</button>
       <button type="button" class="touch-action touch-jump" id="touch-jump" aria-label="Jump">JUMP</button>
     </div>
     <button type="button" class="touch-pause" id="touch-pause" aria-label="Pause game">Ⅱ</button>
@@ -32,6 +36,8 @@ export function createTouchControls({
   const steerZone=root.querySelector('#touch-steer-zone');
   const steerKnob=root.querySelector('#touch-steer-knob');
   const jump=root.querySelector('#touch-jump');
+  const tuck=root.querySelector('#touch-tuck');
+  const brake=root.querySelector('#touch-brake');
   const pause=root.querySelector('#touch-pause');
   let steerPointer=null;
   const heldPointers=new Map();
@@ -86,6 +92,8 @@ export function createTouchControls({
   }
 
   bindHold(jump,onJump);
+  bindHold(tuck,onTuck);
+  bindHold(brake,onBrake);
   for(const button of root.querySelectorAll('[data-touch-trick]')){
     const type=button.dataset.touchTrick==='backflip'?TRICK_TYPE.BACKFLIP:TRICK_TYPE.SPIN_360;
     bindHold(button,pressed=>onTrick(type,pressed));
@@ -102,6 +110,8 @@ export function createTouchControls({
     root.querySelectorAll('.is-held').forEach(element=>element.classList.remove('is-held'));
     onSteer(0);
     onJump(false);
+    onTuck(false);
+    onBrake(false);
     onTrick(TRICK_TYPE.SPIN_360,false);
     onTrick(TRICK_TYPE.BACKFLIP,false);
   }
