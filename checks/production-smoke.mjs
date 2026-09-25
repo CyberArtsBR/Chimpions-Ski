@@ -7,11 +7,18 @@ const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftsh
 const RUN_TIMEOUT=60000;
 const domClick=locator=>locator.evaluate(element=>element.click());
 async function dismissTutorial(page){
-  const tutorial=page.locator('.session-tutorial:not([hidden])');
-  if(await tutorial.isVisible().catch(()=>false)){
-    await page.keyboard.press('Enter');
-    await tutorial.waitFor({state:'hidden',timeout:5000}).catch(()=>{});
-  }
+  await page.waitForFunction(()=>(
+    !!document.querySelector('.session-tutorial:not([hidden])')||
+    ['countdown','playing'].includes(window.chimpionsSki?.().mode)
+  ),null,{timeout:10000,polling:100}).catch(()=>{});
+  if(!await page.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])'))return false;
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(
+    ()=>!document.querySelector('.session-tutorial:not([hidden])'),
+    null,
+    {timeout:5000,polling:100}
+  ).catch(()=>{});
+  return true;
 }
 
 function trackHttpGlbs(page){
@@ -52,7 +59,6 @@ try{
 
   await domClick(selector.locator('.chimpion-card:not(.is-upload-avatar)').first());
   await domClick(selector.locator('.ride-mode-card[data-ride-mode="ski"]'));
-  await page.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
   await dismissTutorial(page);
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT,polling:100});
   const ski=await page.evaluate(()=>window.chimpionsSki());
@@ -101,7 +107,6 @@ try{
   await customSelector.locator('#ride-mode-step:not([hidden])').waitFor({state:'visible',timeout:20000});
   assert.equal(local.glbs.length,0,'Valid local GLB parsing must stay local-only');
   await domClick(customSelector.locator('.ride-mode-card[data-ride-mode="snowboard"]'));
-  await custom.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
   await dismissTutorial(custom);
   await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT,polling:100});
   const snowboard=await custom.evaluate(()=>window.chimpionsSki());

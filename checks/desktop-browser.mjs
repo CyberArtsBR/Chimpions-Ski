@@ -197,14 +197,17 @@ try{
     }));
     throw error;
   }
-  const sessionTutorial=page.locator('.session-tutorial:not([hidden])');
   await page.waitForFunction(()=>(
     !!document.querySelector('.session-tutorial:not([hidden])')||
     ['countdown','playing'].includes(window.chimpionsSki?.().mode)
   ),null,{timeout:10000,polling:100});
-  if(await sessionTutorial.isVisible().catch(()=>false)){
+  if(await page.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])'))){
     await page.keyboard.press('Enter');
-    await sessionTutorial.waitFor({state:'hidden',timeout:5000});
+    await page.waitForFunction(
+      ()=>!document.querySelector('.session-tutorial:not([hidden])'),
+      null,
+      {timeout:5000,polling:100}
+    );
   }
   await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
   assert.equal(await page.locator('.start-screen').isVisible(),false);
@@ -388,14 +391,17 @@ try{
     const touchSkiChoice=touchSelector.locator('.ride-mode-card[data-ride-mode="ski"]');
     await touchSkiChoice.waitFor({state:'visible',timeout:5000});
     await touchSkiChoice.evaluate(button=>button.click());
-    const touchTutorial=touchPage.locator('.session-tutorial:not([hidden])');
     await touchPage.waitForFunction(()=>(
       !!document.querySelector('.session-tutorial:not([hidden])')||
       ['countdown','playing'].includes(window.chimpionsSki?.().mode)
     ),null,{timeout:10000,polling:100});
-    if(await touchTutorial.isVisible().catch(()=>false)){
+    if(await touchPage.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])'))){
       await touchPage.keyboard.press('Enter');
-      await touchTutorial.waitFor({state:'hidden',timeout:5000});
+      await touchPage.waitForFunction(
+        ()=>!document.querySelector('.session-tutorial:not([hidden])'),
+        null,
+        {timeout:5000,polling:100}
+      );
     }
     await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
 
