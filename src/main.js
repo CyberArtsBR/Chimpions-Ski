@@ -1279,7 +1279,7 @@ function update(dt,frameMs=dt*1000){
           rideMode:state.rideMode
         });
         const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
-        trailTimer=Math.max(.018,.038-state.speed*.00028)*trailQualityScale;
+        trailTimer=Math.max(.012,.027-state.speed*.00018)*trailQualityScale;
       }
     }else{
       trailTimer=0;
