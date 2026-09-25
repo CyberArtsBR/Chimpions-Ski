@@ -109,11 +109,21 @@ jobs:
               const values=[];
               let last=performance.now();
               const began=last;
+              let settled=false;
+              const finish=()=>{
+                if(settled)return;
+                settled=true;
+                resolve(values.slice(1));
+              };
+              const timeout=setTimeout(finish,duration+750);
               const tick=stamp=>{
+                if(settled)return;
                 values.push(stamp-last);
                 last=stamp;
-                if(stamp-began>=duration)resolve(values.slice(1));
-                else requestAnimationFrame(tick);
+                if(stamp-began>=duration){
+                  clearTimeout(timeout);
+                  finish();
+                }else requestAnimationFrame(tick);
               };
               requestAnimationFrame(tick);
             }),durationMs);
