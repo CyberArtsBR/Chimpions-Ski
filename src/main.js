@@ -1165,7 +1165,7 @@ function update(dt,frameMs=dt*1000){
     }
     if(steerSign)state.lastSteerSign=steerSign;
 
-    const carveStep=stepCarving(state,rideControls,controlDt);
+    const carveStep=stepCarving(state,rideControls,controlDt,dt);
     if(carveStep?.edgeScrape){
       const edgeFeedback=feedback.onEdgeContact(carveStep.edgeScrape.intensity,state.time);
       if(edgeFeedback?.play)haptics.edgeScrape?.(edgeFeedback.hapticStrength);
@@ -1294,7 +1294,10 @@ function update(dt,frameMs=dt*1000){
           edge:state.edge,
           spacing:riderController.trackSpacing??.245,
           skis:riderController.trailContacts,
-          rideMode:state.rideMode
+          rideMode:state.rideMode,
+          skidAmount:state.skidRatio,
+          brakeAmount:state.brakeAmount,
+          snowDisplacementScale:getRideProfile(state.rideMode).snowDisplacementScale
         });
         const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
         trailTimer=Math.max(.012,.027-state.speed*.00018)*trailQualityScale;
@@ -1408,16 +1411,17 @@ function update(dt,frameMs=dt*1000){
           state.lastMistakeTime=state.time;
           breakSkillCombo(state);
           state.oilSlipTime=SKI_TUNING.OIL_SLIP_SECONDS;
-          state.landingGripLoss=Math.max(state.landingGripLoss||0,.82);
+          state.landingGripLoss=Math.max(state.landingGripLoss||0,.68);
           const slipDirection=Math.sign(state.x-item.position.x)||Math.sign(state.vx)||1;
-          state.vx+=slipDirection*2.15;
+          const slipImpulse=Math.min(1.25,Math.max(.55,state.speed*.015));
+          state.vx+=slipDirection*slipImpulse;
           state.heading=THREE.MathUtils.clamp(
-            state.heading+slipDirection*.055,
+            state.heading+slipDirection*.025,
             -SKI_TUNING.HEADING_LIMIT_HIGH,
             SKI_TUNING.HEADING_LIMIT_HIGH
           );
           const rideProfile=getRideProfile(state.rideMode);
-          state.speed=Math.max(rideProfile.baseSpeed*.92,state.speed*.94);
+          state.speed=Math.max(rideProfile.baseSpeed*.92,state.speed*.975);
           audio.play('oil',.34);
           haptics.oil();
         }
