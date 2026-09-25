@@ -133,7 +133,7 @@ function addTruss(parent,material,y,z,width=7.65){
 function addFloodlight(parent,housingMaterial,lightMaterial,x,y,z,side=1){
   const g=new THREE.Group();
   g.position.set(x,y,z);
-  g.rotation.y=side<0?.30:-.30;
+  g.rotation.y=side<0 ? .30 : -.30;
   parent.add(g);
   addMesh(g,new RoundedBoxGeometry(.86,.58,.22,3,.06),housingMaterial,{position:[0,0,0],cast:true});
   addMesh(g,new RoundedBoxGeometry(.68,.40,.025,3,.045),lightMaterial,{position:[0,0,-.13],name:'start-floodlight-emitter'});
