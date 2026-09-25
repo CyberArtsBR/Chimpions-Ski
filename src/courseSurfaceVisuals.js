@@ -32,22 +32,23 @@ function oilSurface(){
 export function createOilVisual(){return (oilPrototype??=oilSurface()).clone();}
 
 function rampSurface(){
-  const root=new THREE.Group(),deck=[],chassis=[],cores=[],glows=[],markings=[],underglow=[];
+  const root=new THREE.Group(),deck=[],chassis=[],cores=[],glows=[],markings=[],underglow=[],bloom=[];
   const slope=.18,angle=Math.atan(slope),height=z=>.45-z*slope;
   const box=(parts,w,h,d,x,y,z,tilt=0,ry=0)=>{const g=new THREE.BoxGeometry(w,h,d);if(ry)g.rotateY(ry);if(tilt)g.rotateX(tilt);g.translate(x,y,z);parts.push(g);};
   const addMerged=(parts,material,{cast=false,renderOrder=0}={})=>{const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=cast;mesh.receiveShadow=true;mesh.renderOrder=renderOrder;root.add(mesh);};
   box(deck,2.30,.11,3.04,0,height(0)-.055,0,angle);
   for(let i=0;i<13;i++){const z=1.42-i*.228;box(deck,2.16,.016,.032,0,height(z)+.012,z,angle);}
-  for(const side of [-1,1]){box(chassis,.14,.20,3.24,side*1.15,.35,0,angle);box(chassis,.085,.115,3.05,side*1.055,height(0)-.13,0,angle);for(const z of [-1.30,-.66,.02,.70,1.25]){const h=Math.max(.10,height(z)-.10);box(chassis,.12,h,.15,side*1.08,h*.5,z);box(glows,.075,Math.max(.08,h*.62),.055,side*1.115,h*.55,z);box(cores,.025,Math.max(.06,h*.58),.026,side*1.124,h*.55,z);}box(glows,.20,.10,2.96,side*1.19,height(0)+.038,0,angle);box(cores,.052,.040,2.98,side*1.20,height(0)+.041,0,angle);}
-  box(glows,2.24,.085,.17,0,height(-1.47)+.043,-1.47,angle);box(cores,2.19,.034,.078,0,height(-1.47)+.048,-1.47,angle);box(glows,2.22,.070,.14,0,height(1.48)+.038,1.48,angle);box(cores,2.18,.028,.064,0,height(1.48)+.042,1.48,angle);box(chassis,2.24,.105,.12,0,.13,-1.35);box(underglow,1.72,.035,2.46,0,.16,-.04,angle);
-  for(const z of [.78,.18,-.42,-1.02])for(const side of [-1,1]){const g=new THREE.BoxGeometry(.56,.018,.070);g.rotateY(side*-.54);g.rotateX(angle);g.translate(side*.23,height(z)+.024,z);markings.push(g);}
+  for(const side of [-1,1]){box(chassis,.14,.20,3.24,side*1.15,.35,0,angle);box(chassis,.085,.115,3.05,side*1.055,height(0)-.13,0,angle);for(const z of [-1.30,-.66,.02,.70,1.25]){const h=Math.max(.10,height(z)-.10);box(chassis,.12,h,.15,side*1.08,h*.5,z);box(glows,.075,Math.max(.08,h*.62),.055,side*1.115,h*.55,z);box(cores,.025,Math.max(.06,h*.58),.026,side*1.124,h*.55,z);box(bloom,.014,Math.max(.06,h*.57),.014,side*1.092,h*.55,z);}box(glows,.20,.10,2.96,side*1.19,height(0)+.038,0,angle);box(cores,.052,.040,2.98,side*1.20,height(0)+.041,0,angle);box(bloom,.021,.018,2.98,side*1.195,height(0)+.069,0,angle);}
+  box(glows,2.24,.085,.17,0,height(-1.47)+.043,-1.47,angle);box(cores,2.19,.034,.078,0,height(-1.47)+.048,-1.47,angle);box(bloom,2.18,.014,.021,0,height(-1.47)+.071,-1.47,angle);box(glows,2.22,.070,.14,0,height(1.48)+.038,1.48,angle);box(cores,2.18,.028,.064,0,height(1.48)+.042,1.48,angle);box(bloom,2.17,.014,.021,0,height(1.48)+.064,1.48,angle);box(chassis,2.24,.105,.12,0,.13,-1.35);box(underglow,1.72,.035,2.46,0,.16,-.04,angle);
+  for(const z of [.78,.18,-.42,-1.02])for(const side of [-1,1]){const g=new THREE.BoxGeometry(.56,.018,.070);g.rotateY(side*-.54);g.rotateX(angle);g.translate(side*.23,height(z)+.024,z);markings.push(g);const filament=new THREE.BoxGeometry(.40,.024,.040);filament.rotateY(side*-.54);filament.rotateX(angle);filament.translate(side*.23,height(z)+.039,z);bloom.push(filament);}
   const deckMaterial=new THREE.MeshPhysicalMaterial({color:0x12232d,roughness:.31,metalness:.72,clearcoat:.32,clearcoatRoughness:.22});
   const chassisMaterial=new THREE.MeshStandardMaterial({color:0x06141d,roughness:.23,metalness:.92,emissive:0x020b10,emissiveIntensity:.46});
-  const ledMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.28,1.02),toneMapped:false,fog:false});
-  const glowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.48),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const underglowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.006,.055,.32),transparent:true,opacity:.12,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const markingMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.08,.36,.94),toneMapped:false,fog:false});
-  addMerged(deck,deckMaterial,{cast:true});addMerged(chassis,chassisMaterial,{cast:true});addMerged(underglow,underglowMaterial,{renderOrder:4});addMerged(glows,glowMaterial,{renderOrder:5});addMerged(cores,ledMaterial,{renderOrder:6});addMerged(markings,markingMaterial,{renderOrder:6});
-  root.userData.visualPrototype='competition-tech-kicker-v5-hdr';return root;
+  const ledMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.018,.43,1.72),toneMapped:false,fog:false});
+  const glowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.16,.95),transparent:true,opacity:.35,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const underglowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.006,.11,.67),transparent:true,opacity:.24,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const markingMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.07,.48,1.42),toneMapped:false,fog:false});
+  const bloomMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.018,2.5,23),toneMapped:false,fog:false});
+  addMerged(deck,deckMaterial,{cast:true});addMerged(chassis,chassisMaterial,{cast:true});addMerged(underglow,underglowMaterial,{renderOrder:4});addMerged(glows,glowMaterial,{renderOrder:5});addMerged(cores,ledMaterial,{renderOrder:6});addMerged(markings,markingMaterial,{renderOrder:6});addMerged(bloom,bloomMaterial,{renderOrder:7});
+  root.userData.visualPrototype='competition-tech-kicker-v6-hdr';return root;
 }
 export function createRampVisual(){return (rampPrototype??=rampSurface()).clone();}

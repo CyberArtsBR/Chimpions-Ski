@@ -33,8 +33,8 @@ export function createSkiAudio(){
 
   const settings={
     master:readNumber('chimpions-ski-master',.82),
-    sfx:readNumber('chimpions-ski-sfx',.78),
-    music:readNumber('chimpions-ski-music',.36),
+    sfx:readNumber('chimpions-ski-sfx',.25),
+    music:readNumber('chimpions-ski-music',.25),
     sfxEnabled:readBool('chimpions-ski-sfx-enabled',true),
     musicEnabled:readBool('chimpions-ski-music-enabled',true)
   };

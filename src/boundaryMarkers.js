@@ -10,8 +10,8 @@ const footGeometry=new THREE.CylinderGeometry(.25,.21,.18,16);
 const railGeometry=new RoundedBoxGeometry(.32,.26,1,2,.045);
 const ledRailGeometry=new RoundedBoxGeometry(.060,.090,1,2,.020);
 const ledGlowGeometry=new RoundedBoxGeometry(.205,.235,1,2,.048);
-const postLedGeometry=new RoundedBoxGeometry(.060,1.30,.060,2,.018);
-const postGlowGeometry=new RoundedBoxGeometry(.17,1.42,.13,2,.035);
+const postLedGeometry=new RoundedBoxGeometry(.060,1.75,.060,2,.018);
+const postGlowGeometry=new RoundedBoxGeometry(.17,1.88,.13,2,.035);
 const plateGeometry=new RoundedBoxGeometry(.032,.34,.22,2,.012);
 const hash=n=>{const x=Math.sin(n*12.9898)*43758.5453;return x-Math.floor(x);};
 function put(mesh,i,x,y,z,rx=0,ry=0,rz=0,sx=1,sy=1,sz=1){dummy.position.set(x,y,z);dummy.rotation.set(rx,ry,rz);dummy.scale.set(sx,sy,sz);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);}
@@ -22,13 +22,13 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const railMaterial=new THREE.MeshStandardMaterial({color:0x071a24,roughness:.24,metalness:.88,emissive:0x03131c,emissiveIntensity:.42});
   const capMaterial=new THREE.MeshStandardMaterial({color:0x183644,roughness:.28,metalness:.74});
   const iron=new THREE.MeshStandardMaterial({color:0x6d8794,roughness:.29,metalness:.88});
-  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.28,1.05),toneMapped:false,fog:false});
-  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.48),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.035,.25,.88),toneMapped:false,fog:false});
-  const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.08,.40),transparent:true,opacity:.14,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
-  // Only the hairline catches the HDR bloom pass; the broad LED stays saturated blue.
-  const bloomCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,1.05,11.6),toneMapped:false,fog:false});
-  const bloomPostGeometry=new RoundedBoxGeometry(.014,1.22,.014,2,.006);
+  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.018,.42,1.72),toneMapped:false,fog:false});
+  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.16,.95),transparent:true,opacity:.34,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.38,1.55),toneMapped:false,fog:false});
+  const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.14,.82),transparent:true,opacity:.30,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  // The thin HDR filament carries bloom at long range; broad LEDs stay blue.
+  const bloomCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.018,2.5,23),toneMapped:false,fog:false});
+  const bloomPostGeometry=new RoundedBoxGeometry(.014,1.78,.014,2,.006);
   const bloomRailGeometry=new RoundedBoxGeometry(.017,.019,1,2,.007);
   const n=countPerSide*2;
   const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n),caps=new THREE.InstancedMesh(capGeometry,capMaterial,n),feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
@@ -53,6 +53,6 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
     for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
   function reset(){travel=0;pulseTime=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
-  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);strapGlowMaterial.opacity=.14+Math.sin(pulseTime*2.1)*.025;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
+  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);strapGlowMaterial.opacity=.30+Math.sin(pulseTime*2.1)*.035;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
   reset();return {update,reset,limit,postMaterial,railMaterial,ledCoreMaterial,ledGlowMaterial,setDecorativeShadows,setShadowEnabled:setDecorativeShadows,blueMaterial:ledCoreMaterial,redMaterial:ledCoreMaterial};
 }

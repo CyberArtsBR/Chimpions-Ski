@@ -24,12 +24,13 @@ varying float vSide;
 void main(){
   if(vAlpha<=0.001)discard;
   float side=clamp(abs(vSide),0.0,1.0);
-  float trough=1.0-smoothstep(.12,.56,side);
-  float berm=smoothstep(.55,.76,side)*(1.0-smoothstep(.81,1.0,side));
-  vec3 shadow=vec3(.69,.81,.90),packed=vec3(.89,.94,.98),snowEdge=vec3(.99,1.0,1.0);
-  vec3 color=mix(packed,shadow,trough*.68);
-  color=mix(color,snowEdge,berm*.90);
-  float feather=1.0-smoothstep(.78,1.0,side)*.65;
+  float trough=1.0-smoothstep(.18,.58,side);
+  float berm=smoothstep(.62,.76,side)*(1.0-smoothstep(.80,.89,side));
+  vec3 shadow=vec3(.53,.67,.76),packed=vec3(.86,.92,.97);
+  vec3 color=mix(packed,shadow,trough*.85);
+  // A narrow snow-white crest adds depth and a soft HDR sparkle to each groove.
+  color=mix(color,vec3(2.35,2.55,2.75),berm*.88);
+  float feather=1.0-smoothstep(.83,1.0,side)*.82;
   gl_FragColor=vec4(color,vAlpha*feather);
 }
 `;
@@ -115,17 +116,17 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
       :(.047+carve*.010+outside*.008);
     const normalX=-dz/length,normalZ=dx/length;
     const outerWidth=halfWidth*(snowboard?1.8:2.0);
-    const bermHeight=(snowboard?.065:.025)+carve*(snowboard?.075:.032);
+    const bermHeight=(snowboard?.085:.040)+carve*(snowboard?.080:.045);
     const strength=snowboard
-      ?.68+carve*.18
-      :.52+carve*.19+outside*.09;
+      ?.82+carve*.11
+      :.73+carve*.14+outside*.07;
     const v=index*VERTICES_PER_SEGMENT;
     for(let row=0;row<2;row++){
       const cx=row?x:prevX[skiIndex],cz=row?z:prevZ[skiIndex];
       for(let col=0;col<PROFILE.length;col++){
         const side=PROFILE[col],edgeDistance=Math.abs(side);
         const px=cx+normalX*side*outerWidth,pz=cz+normalZ*side*outerWidth;
-        const broken=.72+.28*Math.sin(px*19.7+(pz-travel)*10.3+skiIndex*2.7);
+        const broken=.86+.14*Math.sin(px*19.7+(pz-travel)*10.3+skiIndex*2.7);
         const crest=edgeDistance>.70&&edgeDistance<.85?bermHeight*broken:0;
         const wall=edgeDistance>.50&&edgeDistance<.70?bermHeight*.24:0;
         setVertex(v+row*PROFILE.length+col,px,terrainHeight(px,pz-travel)+TRACK_Y_OFFSET+.018+crest+wall,pz,strength);
