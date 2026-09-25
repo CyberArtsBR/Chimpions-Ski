@@ -107,6 +107,19 @@ function simulate({
   assert(oil.grip<clean.grip,'oil did not reduce grip');
 }
 
+// Banana Power may accelerate control feel, but simulation timers must remain slowed.
+{
+  const state=makeState('ski');
+  state.oilSlipTime=T.OIL_SLIP_SECONDS;
+  const controlDt=1/60;
+  const simulationDt=controlDt*.35;
+  stepCarving(state,{steer:.6},controlDt,simulationDt);
+  assert(
+    Math.abs(state.oilSlipTime-(T.OIL_SLIP_SECONDS-simulationDt))<1e-9,
+    'oil timer advanced in control/real time instead of simulation time'
+  );
+}
+
 // Rapid reversals at maximum speed remain bounded and finite.
 {
   const state=simulate({
