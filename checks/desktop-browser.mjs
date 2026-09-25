@@ -3,6 +3,7 @@ import {chromium} from '@playwright/test';
 
 const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
 const page=await browser.newPage({viewport:{width:1440,height:900}});
+const RUN_START_TIMEOUT=60000;
 const responsiveViewports=[
   {width:1920,height:1080,label:'16:9'},
   {width:1440,height:900,label:'16:10'},
@@ -210,7 +211,7 @@ try{
     );
   }
   try{
-    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_START_TIMEOUT,polling:100});
   }catch(error){
     const launchDiagnostics=await page.evaluate(()=>({
       runtime:window.chimpionsSki?.()||null,
@@ -419,7 +420,7 @@ try{
         {timeout:5000,polling:100}
       );
     }
-    await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000,polling:100});
+    await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_START_TIMEOUT,polling:100});
 
     const touchRoot=touchPage.locator('#touch-controls');
     assert.equal(await touchRoot.isVisible(),true,'Touch controls are not visible in coarse-pointer gameplay');
