@@ -38,7 +38,7 @@ Built-in GLBs remain lazy: startup loads only metadata/portraits and the procedu
 
 `config/asset-source.json` pins the audited source commit (`c4d445569584e792981bada3d71689473dfc42d2`) and the expected byte size of every original GLB. `assets:optimize` materializes those exact source files with `git show`, builds temporary candidates, validates them, and only then writes production GLBs. This keeps the high-quality source immutable in Git history without deploying a duplicate 42+ MB raw roster under `public/`.
 
-The optimizer requires the pinned commit to be available locally. CI uses `actions/checkout` with `fetch-depth: 0`; a shallow local clone should fetch the pinned commit before running `npm run assets:optimize`. Source byte totals are verified before any production output is accepted.
+The optimizer requires the pinned commit to be available locally. CI keeps checkout shallow and fetches only the pinned source commit by SHA; a shallow local clone should likewise fetch that commit before running `npm run assets:optimize`. Source byte totals are verified before any production output is accepted.
 
 The asset workflow runs the optimizer, verification, the repository check/build suite, the canonical roster test, a local browser production smoke, a 20-case built-in browser matrix covering all 10 Chimpions in SKI and SNOWBOARD, and an additional standard local-GLB upload/load case. The workflow commits only measured optimized assets, budgets, and reports back to `perf/ski-asset-pipeline`; it never merges to `main`.
 
