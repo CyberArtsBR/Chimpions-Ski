@@ -35,6 +35,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     trickOpen:0,
     trickSpin:0,
     crash:0,
+    crashDirection:0,
     oil:0,
     toeEdge:0,
     heelEdge:0,
@@ -92,6 +93,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     pose.trickOpen=trickActive*clamp((trickProgress-.72)/.28);
     pose.trickSpin=trickActive*(backflip?0:trickArc);
     pose.crash=state.state===RIDER_ANIMATION_STATE.CRASH?clamp(frame.crashSeverity??1):0;
+    pose.crashDirection=(Math.sign(Number(frame.crashDirection)||1)||1)*pose.crash;
     pose.oil=state.state===RIDER_ANIMATION_STATE.OIL_SLIP?clamp((Number(frame.oilSlipTime)||0)/1.2):0;
     pose.ikWeight=frame.air||pose.crash?.12:1;
     pose.secondaryWeight=secondaryScale;
@@ -101,7 +103,8 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
       pose.toeEdge=clamp(pose.carve,0,1);
       pose.heelEdge=clamp(-pose.carve,0,1);
       pose.hipLean*=1.12;
-      pose.torsoCounter*=.58;
+      pose.hipFlex+=pose.toeEdge*.032+pose.heelEdge*.016;
+      pose.torsoCounter=pose.torsoCounter*.58+pose.toeEdge*.018-pose.heelEdge*.012;
       pose.headLook*=.72;
     }else{
       pose.toeEdge=0;
