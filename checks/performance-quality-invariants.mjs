@@ -6,7 +6,10 @@ import {createCollisionBroadphase} from '../src/collisionBroadphase.js';
 
 const required=[
   'profile','dprCap','snowSurfaceDetailDensity','environmentDecorationDensity',
-  'distantSceneryDetail','distantSceneryUpdateHz'
+  'distantSceneryDetail','distantSceneryUpdateHz','postProcessing','renderTargetType',
+  'msaaSamples','postResolutionScale','bloomEnabled','bloomStrength','bloomRadius',
+  'bloomThreshold','shadows','shadowMapSize','shadowRadius','particleDensity',
+  'exposure','maxAnisotropy'
 ];
 
 assert.deepEqual([...QUALITY_PROFILE_NAMES],['auto','high','max','medium','low'],'quality values changed unexpectedly');
@@ -21,7 +24,19 @@ for(const name of ['high','max','medium','low']){
 }
 assert(QUALITY_PROFILES.low.dprCap<QUALITY_PROFILES.medium.dprCap);
 assert(QUALITY_PROFILES.medium.dprCap<QUALITY_PROFILES.high.dprCap);
-assert(QUALITY_PROFILES.high.dprCap<QUALITY_PROFILES.max.dprCap,'MAX should only extend premium DPR headroom');
+assert(QUALITY_PROFILES.high.dprCap<QUALITY_PROFILES.max.dprCap,'MAX must extend premium DPR headroom');
+assert(QUALITY_PROFILES.high.environmentDecorationDensity<QUALITY_PROFILES.max.environmentDecorationDensity,'MAX must increase environment detail beyond HIGH');
+assert(QUALITY_PROFILES.high.snowSurfaceDetailDensity<QUALITY_PROFILES.max.snowSurfaceDetailDensity,'MAX must increase snow detail beyond HIGH');
+assert(QUALITY_PROFILES.max.msaaSamples>QUALITY_PROFILES.high.msaaSamples,'MAX must use a stronger offscreen AA budget than HIGH');
+assert(QUALITY_PROFILES.high.msaaSamples>QUALITY_PROFILES.medium.msaaSamples,'HIGH must use a stronger offscreen AA budget than MEDIUM');
+assert.equal(QUALITY_PROFILES.low.postProcessing,false,'LOW should bypass post processing');
+assert.equal(QUALITY_PROFILES.low.bloomEnabled,false,'LOW should not pay for bloom');
+assert.equal(QUALITY_PROFILES.medium.shadows,false,'MEDIUM should not pay for realtime shadows');
+assert.equal(QUALITY_PROFILES.low.shadows,false,'LOW should not pay for realtime shadows');
+assert.equal(QUALITY_PROFILES.max.shadows,true,'MAX must enable bounded realtime shadows');
+assert(QUALITY_PROFILES.max.shadowMapSize>QUALITY_PROFILES.high.shadowMapSize,'MAX shadow map must exceed HIGH');
+assert(QUALITY_PROFILES.max.bloomStrength>QUALITY_PROFILES.high.bloomStrength,'MAX bloom quality must exceed HIGH');
+assert(QUALITY_PROFILES.high.bloomStrength>QUALITY_PROFILES.medium.bloomStrength,'HIGH bloom quality must exceed MEDIUM');
 assert(QUALITY_PROFILES.low.environmentDecorationDensity<QUALITY_PROFILES.high.environmentDecorationDensity);
 assert.equal(resolveQualityProfile('reduced'),'medium','legacy reduced profile must map to medium');
 assert.equal(resolveQualityProfile('bogus'),'auto');
@@ -77,6 +92,7 @@ assert.equal(broadphase.getDiagnostics().broadphaseBuckets,0);
 const runner=readFileSync(new URL('../scripts/benchmark-ski-runtime.mjs',import.meta.url),'utf8');
 const core=readFileSync(new URL('../scripts/benchmark/core.mjs',import.meta.url),'utf8');
 const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+const pipeline=readFileSync(new URL('../src/renderPipeline.js',import.meta.url),'utf8');
 const workflow=readFileSync(new URL('../.github/workflows/performance-quality-profiles.yml',import.meta.url),'utf8');
 assert((runner+core).includes('QUALITY_PROFILE'),'benchmark must support explicit quality profiles');
 assert(core.includes('longTasks'),'benchmark must capture long main-thread tasks');
@@ -87,6 +103,13 @@ assert(core.includes('rendererPixelRatio'),'benchmark must sample effective rend
 assert(core.includes('activeSnowLayerParticles'),'benchmark must sample effective environment workload');
 assert(main.includes('createCollisionBroadphase'),'main runtime must use longitudinal collision broadphase');
 assert(main.includes('quality.observeFrame'),'AUTO quality must observe runtime frame timing');
+assert(main.includes('createRenderPipeline'),'main runtime must use the profile-aware rendering pipeline');
+assert(main.includes("staticReason:startScreen.isActive?'start-screen'"),'start-screen render throttling hook is missing');
+assert(!main.includes('composer.render(dt)'),'main runtime must not hard-wire composer rendering');
+assert(pipeline.includes("EXT_disjoint_timer_query_webgl2"),'GPU timer-query support is missing');
+assert(pipeline.includes("settings.postProcessing"),'profile-aware direct/composer path is missing');
+assert(pipeline.includes("staticFrameSkips"),'static-frame render throttling telemetry is missing');
+assert(pipeline.includes("shadow.camera.left=-radius"),'bounded shadow camera configuration is missing');
 assert(!workflow.includes('$(run_preview'),'workflow must not start a long-lived preview inside command substitution');
 assert(workflow.includes('continue-on-error: true'),'benchmark profiles should preserve partial results');
 assert(workflow.includes('if: always()'),'benchmark artifacts must survive partial profile failures');
