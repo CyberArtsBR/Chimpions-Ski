@@ -21,6 +21,9 @@ export function createRiderClipLayer(gltf,model){
   const clips=Array.isArray(gltf?.animations)?gltf.animations.filter(clip=>clip?.tracks?.length):[];
   if(!model||!clips.length)return null;
   const mixer=new THREE.AnimationMixer(model);
+  const rootPosition=model.position.clone();
+  const rootQuaternion=model.quaternion.clone();
+  const rootScale=model.scale.clone();
   const byState=new Map();
   const actions=new Set();
   for(const [state,pattern] of STATE_PATTERNS){
@@ -46,6 +49,9 @@ export function createRiderClipLayer(gltf,model){
     for(const action of actions)action.setEffectiveWeight(action===next?targetWeight:0);
     active=next;
     mixer.update(Math.max(0,Math.min(.1,Number(dt)||0)));
+    model.position.copy(rootPosition);
+    model.quaternion.copy(rootQuaternion);
+    model.scale.copy(rootScale);
     return !!active;
   }
   function dispose(){
