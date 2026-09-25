@@ -164,9 +164,11 @@ assert(memory.growthSecondHalf<45,'pool high-water kept growing like an unbounde
 
 const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const scoringSource=readFileSync(new URL('../src/airborneScoring.js',import.meta.url),'utf8');
+const collisionRuntimeSource=readFileSync(new URL('../src/collisionRuntime.js',import.meta.url),'utf8');
 assert(mainSource.includes("createCourseRenderBatches"),'course batching integration is missing');
 assert(mainSource.includes("createCollisionBroadphase"),'collision broadphase integration is missing');
-assert(mainSource.includes("COLLISION_QUERY_HALF_Z=3.5"),'collision broadphase safety window changed unexpectedly');
+assert(/queryHalfZ\s*=\s*3\.5/.test(collisionRuntimeSource),'collision broadphase safety window changed unexpectedly');
+assert(/broadphase\.query\(localPlayerZ\s*,\s*queryHalfZ\s*,\s*scratch\)/.test(collisionRuntimeSource),'collision runtime stopped using the configured broadphase safety window');
 assert(mainSource.includes("removeCourseAt(i);"),'swap-remove course recycling is missing');
 assert(!mainSource.includes("course.splice(i,1);"),'splice returned to the course traversal hot path');
 assert(!mainSource.includes("world.remove(item);"),'pooled course objects still churn the scene graph');
