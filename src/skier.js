@@ -158,11 +158,14 @@ function createSkiAssets(topColor=0x1977a5){
     emissive:0x07131a,
     emissiveIntensity:.05
   });
+  const powerBloomMaterial=new THREE.MeshBasicMaterial({
+    color:new THREE.Color().setRGB(.025,1.05,11.6),toneMapped:false,fog:false
+  });
 
   return {
     edgeGeometry,deckGeometry,stripeGeometry,motifGeometry,
     toeGeometry,heelGeometry,bindingBridgeGeometry,
-    edgeMaterial,topMaterial,graphicMaterial,bindingMaterial,bindingAccentMaterial
+    edgeMaterial,topMaterial,graphicMaterial,bindingMaterial,bindingAccentMaterial,powerBloomMaterial
   };
 }
 
@@ -181,6 +184,11 @@ function createStyledSki(assets){
   const stripe=new THREE.Mesh(assets.stripeGeometry,assets.graphicMaterial);
   stripe.position.set(0,.045,.12);
   ski.add(stripe);
+
+  const powerBloomMesh=new THREE.Mesh(new THREE.BoxGeometry(.014,.006,1.22),assets.powerBloomMaterial);
+  powerBloomMesh.position.set(0,.058,.12);
+  powerBloomMesh.visible=false;
+  ski.add(powerBloomMesh);
 
   for(const side of [-1,1]){
     const motif=new THREE.Mesh(assets.motifGeometry,assets.bindingAccentMaterial);
@@ -204,12 +212,14 @@ function createStyledSki(assets){
   bridge.castShadow=true;
   ski.add(bridge);
   ski.userData.powerGlowMaterials=[assets.topMaterial,assets.graphicMaterial,assets.bindingAccentMaterial];
+  ski.userData.powerBloomMesh=powerBloomMesh;
 
   return ski;
 }
 
 function createEquipmentPowerGlow(skis=[],snowboard=null){
   const materials=[],seen=new Set();
+  const bloomStrips=skis.map(ski=>ski?.userData?.powerBloomMesh).filter(Boolean);
   for(const ski of skis){
     for(const mat of ski?.userData?.powerGlowMaterials||[]){
       if(!mat||seen.has(mat)||!mat.emissive)continue;
@@ -220,9 +230,10 @@ function createEquipmentPowerGlow(skis=[],snowboard=null){
   const glowColor=new THREE.Color(0x1b7be5);
   return (level=0,time=0)=>{
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
+    for(const strip of bloomStrips)strip.visible=strength>.001;
     materials.forEach(({mat,baseEmissive,baseIntensity},index)=>{
       mat.emissive.copy(baseEmissive).lerp(glowColor,strength);
-      mat.emissiveIntensity=baseIntensity+strength*(index===0?.72:1.15);
+      mat.emissiveIntensity=baseIntensity+strength*(index===0?1.05:1.50);
     });
     snowboard?.setPowerGlow?.(strength,time);
     return strength;
