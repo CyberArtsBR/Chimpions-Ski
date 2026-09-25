@@ -19,9 +19,9 @@ function makeSeeds(count){const seeds=new Float32Array(count*3);for(let i=0;i<se
 export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,settings}){
   let time=0;
   const sunDirection=new THREE.Vector3(-.55,.7,-.65).normalize(),targetDirection=new THREE.Vector3(),white=new THREE.Color(0xe9f4ff);
-  const skyMaterial=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{top:{value:new THREE.Color()},horizon:{value:new THREE.Color()},sunColor:{value:new THREE.Color()},direction:{value:sunDirection},clouds:{value:cloudTexture()},time:{value:0},cover:{value:0},night:{value:0},flash:{value:0}},
+  const skyMaterial=new THREE.ShaderMaterial({side:THREE.BackSide,depthWrite:false,uniforms:{top:{value:new THREE.Color()},horizon:{value:new THREE.Color()},sunColor:{value:new THREE.Color()},direction:{value:sunDirection},clouds:{value:cloudTexture()},time:{value:0},cover:{value:0},night:{value:0},flash:{value:0},wind:{value:0}},
     vertexShader:'varying vec3 vDirection;void main(){vDirection=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);}',
-    fragmentShader:`varying vec3 vDirection;uniform vec3 top,horizon,sunColor,direction;uniform sampler2D clouds;uniform float time,cover,night,flash;
+    fragmentShader:`varying vec3 vDirection;uniform vec3 top,horizon,sunColor,direction;uniform sampler2D clouds;uniform float time,cover,night,flash,wind;
       float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
       void main(){
         vec3 d=normalize(vDirection);float elevation=max(0.,d.y);
@@ -33,10 +33,10 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
         vec2 starGrid=sphereUV*vec2(900.,450.);float starSeed=hash(floor(starGrid));
         float star=(1.-smoothstep(.04,.20,length(fract(starGrid)-.5)))*step(.996,starSeed);
         color+=vec3(.7,.82,1.)*star*night*(1.-cover)*smoothstep(.07,.3,d.y)*.7;
-        vec2 uv=d.xz/(max(.08,d.y)+.28)*.15+vec2(time*.0021,time*.00035);
+        vec2 uv=d.xz/(max(.08,d.y)+.28)*.15+vec2(time*(.00175+abs(wind)*.00085),time*(.00030+wind*.00016));
         float shape=texture2D(clouds,uv).r,detail=texture2D(clouds,uv*2.7+vec2(.4,-time*.0007)).r;
         float cloud=smoothstep(.72-cover*.38,.88-cover*.28,shape*.82+detail*.18);
-        vec2 highUv=d.xz/(max(.10,d.y)+.42)*.085+vec2(-time*.00075,time*.00016);
+        vec2 highUv=d.xz/(max(.10,d.y)+.42)*.085+vec2(-time*(.00062+abs(wind)*.00025),time*(.00014+wind*.00007));
         float highShape=texture2D(clouds,highUv+vec2(.17,.33)).r;
         float highCloud=smoothstep(.66-cover*.22,.90-cover*.12,highShape)*(.28+.34*cover);
         float edge=texture2D(clouds,uv+direction.xz*.012).r-shape;
@@ -115,6 +115,7 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
   const boltMaterial=new THREE.LineBasicMaterial({color:0xd7e7ff,transparent:true,opacity:0,depthWrite:false,toneMapped:false});
   const bolt=new THREE.LineSegments(boltGeometry,boltMaterial);bolt.frustumCulled=false;scene.add(bolt);
   const boltGlow=new THREE.Sprite(new THREE.SpriteMaterial({map:softSprite(),color:0x9ebcff,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false}));boltGlow.scale.set(22,30,1);scene.add(boltGlow);
+  const lightningLight=new THREE.PointLight(0xa8c6ff,0,115,1.7);lightningLight.castShadow=false;scene.add(lightningLight);
   function strike(serial){
     const side=serial%2?-1:1,x=side*(19+rand(serial)*16),z=-80-rand(serial+1)*32;
     let px=x,py=45,pz=z,index=0;
@@ -124,20 +125,20 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
       if(i%3===1){boltPositions.set([nx,ny,nz,nx+side*(2+rand(i)*3),ny-1.5,nz+.2],index);index+=6;}
       px=nx;py=ny;pz=nz;
     }
-    boltGeometry.setDrawRange(0,index/3);boltGeometry.attributes.position.needsUpdate=true;boltGlow.position.set(x,30,z);
+    boltGeometry.setDrawRange(0,index/3);boltGeometry.attributes.position.needsUpdate=true;boltGlow.position.set(x,30,z);lightningLight.position.set(x,14,z+9);
   }
   function setQuality(next){settings=next;snowGeometry.setDrawRange(0,next.snowCount);rainGeometry.instanceCount=next.rainCount;mistGeometry.instanceCount=next.mistCount;splashes.count=next.splashCount;}
   setQuality(settings);
   function update(dt,state,w){
     time+=dt;common.time.value=time;common.travel.value=state.travel;common.center.value.set(camera.position.x*.75,0,camera.position.z-10.5);common.wind.value=w.wind;common.tint.value.copy(w.snow).lerp(white,.2+w.flash*.5);common.pixelRatio.value=renderer.getPixelRatio();
-    sky.position.copy(camera.position);skyMaterial.uniforms.time.value=time;skyMaterial.uniforms.top.value.copy(w.top);skyMaterial.uniforms.horizon.value.copy(w.horizon);skyMaterial.uniforms.sunColor.value.copy(w.sun);skyMaterial.uniforms.cover.value=w.cloud;skyMaterial.uniforms.night.value=w.night;skyMaterial.uniforms.flash.value=w.flash;
+    sky.position.copy(camera.position);skyMaterial.uniforms.time.value=time;skyMaterial.uniforms.top.value.copy(w.top);skyMaterial.uniforms.horizon.value.copy(w.horizon);skyMaterial.uniforms.sunColor.value.copy(w.sun);skyMaterial.uniforms.cover.value=w.cloud;skyMaterial.uniforms.night.value=w.night;skyMaterial.uniforms.flash.value=w.flash;skyMaterial.uniforms.wind.value=w.wind;
     const lowSun=w.preset==='sunset'?.30:.7;sunDirection.lerp(targetDirection.set(-.55,lowSun,-.65).normalize(),1-Math.exp(-dt*.55)).normalize();
     sun.color.copy(w.sun).lerp(white,w.flash*.75);sun.intensity=w.key+w.flash*2.5;
     sun.position.copy(sunDirection).multiplyScalar(24);sun.position.x+=state.x*.45;sun.position.z-=5;sun.target.position.set(state.x*.45,0,-5);
     ambient.color.copy(w.ambient);ambient.groundColor.setHex(0x566479);ambient.intensity=w.fill+w.flash*.25;
-    rim.color.copy(w.ambient);rim.intensity=.22+w.night*.25;
+    rim.color.copy(w.ambient).lerp(white,w.flash*.16);rim.intensity=.22+w.night*.25+w.flash*.34;
     scene.background.copy(w.fog);scene.fog.color.copy(w.fog).lerp(white,w.flash*.13);if(scene.fog.isFogExp2)scene.fog.density=w.fogDensity;else{scene.fog.near=48-w.rain*12;scene.fog.far=Math.max(155,Math.min(280,2.2/w.fogDensity));}renderer.toneMappingExposure=w.exposure;
-    scene.environmentIntensity=.55-w.night*.30;
+    scene.environmentIntensity=.55-w.night*.30+w.flash*.08;
     snowMaterial.uniforms.amount.value=w.snowfall;snow.visible=w.snowfall>.01;
     rainMaterial.uniforms.amount.value=w.rain;rain.visible=w.rain>.01;
     mistMaterial.uniforms.amount.value=Math.max(w.rain,w.snowfall*.4);mist.visible=mistMaterial.uniforms.amount.value>.12;
@@ -151,7 +152,7 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
       splashes.instanceMatrix.needsUpdate=true;splashGeometry.attributes.splashFade.needsUpdate=true;
     }
     if(w.strike&&!w.reducedFlashes)strike(w.strikeSerial);
-    bolt.visible=!w.reducedFlashes&&w.flash>.02;boltMaterial.opacity=Math.min(1,w.flash*1.6);boltGlow.visible=bolt.visible;boltGlow.material.opacity=w.flash*.27*settings.glow;
+    bolt.visible=!w.reducedFlashes&&w.flash>.02;boltMaterial.opacity=Math.min(1,w.flash*1.6);boltGlow.visible=bolt.visible;boltGlow.material.opacity=w.flash*.27*settings.glow;lightningLight.visible=bolt.visible;lightningLight.intensity=bolt.visible?w.flash*62*settings.glow:0;
   }
   return {update,setQuality};
 }
