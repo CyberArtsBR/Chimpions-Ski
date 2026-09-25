@@ -529,6 +529,8 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   const riderForward=new THREE.Vector3();
   const upperArmTarget=new THREE.Vector3();
   const forearmTarget=new THREE.Vector3();
+  const sideKeys=['left','right'];
+  const sideSigns=[-1,1];
   let currentRideMode=RIDE_MODE.SKI;
   let snowboardSideSign=1;
 
@@ -608,7 +610,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     poseDt=Math.max(0,Math.min(.1,dt));
     currentRideMode=normalizeRideMode(requestedRideMode);
     poseController.setRideMode(currentRideMode);
-    poseController.update({...frame,dt:poseDt,steer,air,landing,speed,time,verticalVelocity,jumpSource,rideMode:currentRideMode});
+    poseController.update(frame);
     const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,poseDt*60));
 
@@ -649,7 +651,8 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     riderUp.set(0,1,0).applyQuaternion(riderWorldQ).normalize();
     riderForward.set(0,0,1).applyQuaternion(riderWorldQ).normalize();
 
-    for(const [side,sideSign] of [['left',-1],['right',1]]){
+    for(let sideIndex=0;sideIndex<2;sideIndex++){
+      const side=sideKeys[sideIndex],sideSign=sideSigns[sideIndex];
       const authoredOutSign=armOutwardSigns.get(side)??sideSign;
       const outside=Math.max(0,carve*-sideSign);
       const inside=Math.max(0,carve*sideSign);
@@ -710,7 +713,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       applyArmRestDelta(side+'Hand',0,0,0,.28);
     }
 
-    const ik=terrainIK.update({leftGround,rightGround,centerGround,groundPitch,groundRoll,air,weight:pose.ikWeight});
+    const ik=terrainIK.update(frame,pose.ikWeight);
     if(rig.hips&&ik.pelvisRoll)rig.hips.quaternion.multiply(delta.setFromAxisAngle(axisZ,ik.pelvisRoll));
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004*pose.secondaryWeight+pose.visualLift+ik.pelvisOffsetY-pose.landingAbsorb*.018+airBlend*.006+apex*.006*airScale;
   };
@@ -827,8 +830,8 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       if(requestedMode!==currentRideMode)setRideMode(requestedMode);
       const dt=state.dt??1/60;
       const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
-      clipLayer?.update(updateRig?.pose?.state,dt,{weight:.16,reducedMotion:!!state.reducedMotion});
-      updateRig?.({...state,rideMode:currentRideMode});
+      clipLayer?.update(updateRig?.pose?.state,dt,.16,!!state.reducedMotion);
+      updateRig?.(state);
       const pose=updateRig?.pose;
       root.userData.animationState=pose?.state||'';
       const carve=pose?.carve??THREE.MathUtils.clamp(state.steer||0,-1,1);
