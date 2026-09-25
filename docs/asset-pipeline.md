@@ -1,0 +1,42 @@
+# Chimpions Ski asset pipeline
+
+This branch adds a reproducible production pipeline for the 10 built-in Chimpion GLBs without changing gameplay, physics, course generation, scoring, rider-control semantics, or camera behavior.
+
+## Commands
+
+```sh
+npm install
+npm run assets:audit
+npm run assets:optimize
+npm run assets:verify
+```
+
+`assets:audit` inspects every built-in GLB and writes `reports/assets/asset-audit.json` plus `asset-manifest.json`. The audit records transfer bytes/SHA-256, mesh and skinned-mesh counts, vertices, triangles, materials, textures, maximum texture dimensions, skeleton joints, animation clips, estimated decoded geometry/texture memory, texture semantic/color-space intent, and compression extensions.
+
+`assets:optimize` creates temporary Meshopt candidates with the pinned glTF Transform CLI. A candidate is accepted only when the structural/rig fingerprint is unchanged, skinned-mesh/bone/animation counts stay unchanged, and transfer size clears the configured savings threshold. Accepted candidates replace production GLBs only after validation. It then regenerates measured budgets and reports.
+
+`assets:verify` enforces the canonical 10-avatar roster, total/per-avatar byte budgets, geometry/material/texture/animation/bone ceilings, texture dimensions, supported compression extensions, required Meshopt extensions, skinned meshes, skeleton presence, and committed manifest hashes.
+
+## Compression decision
+
+**Adopted: Meshopt.** It compresses geometry and animation payloads while Three.js provides a compatible runtime decoder. The loader registers `MeshoptDecoder` but still accepts ordinary uncompressed GLBs, preserving local user uploads.
+
+**Not adopted: Draco.** Running Draco alongside Meshopt adds a second decoder path and runtime complexity without a demonstrated need for this roster.
+
+**Deferred: KTX2/Basis.** KTX2 can reduce texture transfer/GPU memory, but requires KTX2Loader renderer support detection, Basis transcoder deployment, browser fallback validation, and visual inspection of faces, alpha, normals, roughness/metalness and emissive content. No blind KTX2 conversion is performed in this pass.
+
+**No blanket texture resizing.** Base-color/emissive textures remain sRGB; normal/roughness/metalness/AO remain linear. The audit records semantic usage and dimensions, but this pass does not automatically force all textures to 1024/2048 or apply lossy recompression.
+
+## Runtime behavior preserved
+
+Built-in GLBs remain lazy: startup loads only metadata/portraits and the procedural fallback rider. Character fetches keep browser `force-cache` behavior. Selection retains AbortController plus request-generation race protection. Replaced avatars continue to dispose geometries, materials, textures and skeletons. Local GLBs continue through the ordinary GLTFLoader path and are not forced through production optimization.
+
+## Source safety and reproducibility
+
+Production GLBs stay versioned in Git. Optimization is performed through temporary candidates; originals are replaced only after structural and savings checks. A clean checkout of the pre-optimization commit is the immutable source for rollback. Do not deploy duplicate raw and optimized copies under `public/`.
+
+The asset workflow runs the optimizer, verification, the repository check/build suite, the canonical roster test, a local browser production smoke, and a 20-case browser matrix covering all 10 Chimpions in SKI and SNOWBOARD. The workflow commits only measured optimized assets, budgets, and reports back to `perf/ski-asset-pipeline`; it never merges to `main`.
+
+## Manual visual sign-off
+
+Automated structural tests cannot prove appearance. Before merge, inspect all 10 Chimpions at gameplay camera distance in both ride modes and check face/detail sharpness, alpha edges, normals/tangents, skin deformation, material/emissive response, ski/snowboard placement and first-person body visibility. Texture conversion should only be added later with measured browser/GPU-memory benefit and side-by-side visual evidence.
