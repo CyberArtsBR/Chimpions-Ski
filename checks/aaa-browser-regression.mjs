@@ -50,8 +50,14 @@ async function startRun(page,ride='ski'){
   const selector=page.locator('#chimpion-selector');await selector.waitFor({state:'visible',timeout:10000});
   const card=selector.locator('.chimpion-card:not(.is-upload-avatar):not([aria-disabled="true"])').first();await card.waitFor({state:'visible',timeout:10000});await card.evaluate(el=>el.click());
   const rideButton=selector.locator(`.ride-mode-card[data-ride-mode="${ride}"]`);await rideButton.waitFor({state:'visible',timeout:10000});await rideButton.evaluate(el=>el.click());
+  await selector.waitFor({state:'hidden',timeout:60000});
+  await page.waitForFunction(()=>{
+    const tutorial=document.querySelector('.session-tutorial:not([hidden])');
+    const mode=window.chimpionsSki?.().mode;
+    return !!tutorial||mode==='countdown'||mode==='playing';
+  },null,{timeout:15000});
   await dismissTutorial(page);
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:60000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:30000});
 }
 async function ensurePlaying(page){
   let mode=(await diagnostics(page))?.mode;
