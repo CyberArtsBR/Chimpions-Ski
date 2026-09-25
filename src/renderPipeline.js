@@ -241,7 +241,7 @@ export function createRenderPipeline({
   function applyRendererResolution(){
     const dpr=quality.getPixelRatio(globalThis.devicePixelRatio||1);
     if(Math.abs(renderer.getPixelRatio()-dpr)>.005)renderer.setPixelRatio(dpr);
-    renderer.setSize(viewportWidth,viewportHeight,false);
+    renderer.setSize(viewportWidth,viewportHeight,true);
     if(composer){
       const postScale=clamp(Number(settings.postResolutionScale)||1,.5,1);
       const nextComposerDpr=Math.max(.5,dpr*postScale);
@@ -258,7 +258,10 @@ export function createRenderPipeline({
     disposePostPipeline();
     if(!settings.postProcessing)return;
 
-    const canHdr=renderer.capabilities.isWebGL2&&settings.renderTargetType==='half-float';
+    const gl=renderer.getContext();
+    const canHdr=renderer.capabilities.isWebGL2&&
+      settings.renderTargetType==='half-float'&&
+      !!gl.getExtension('EXT_color_buffer_float');
     const targetType=canHdr?THREE.HalfFloatType:THREE.UnsignedByteType;
     rootTarget=new THREE.WebGLRenderTarget(viewportWidth,viewportHeight,{
       type:targetType,
@@ -267,8 +270,9 @@ export function createRenderPipeline({
       depthBuffer:true,
       stencilBuffer:false
     });
+    const maxSamples=Math.max(0,Math.min(4,Number(renderer.capabilities.maxSamples)||4));
     rootTarget.samples=renderer.capabilities.isWebGL2
-      ?Math.max(0,Math.min(4,Math.trunc(Number(settings.msaaSamples)||0)))
+      ?Math.max(0,Math.min(maxSamples,Math.trunc(Number(settings.msaaSamples)||0)))
       :0;
 
     composer=new EffectComposer(renderer,rootTarget);
