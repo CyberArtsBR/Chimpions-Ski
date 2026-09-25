@@ -26,6 +26,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     torsoCounter:0,
     headLook:0,
     armBalance:0,
+    polePlant:0,
     takeoffExtend:0,
     jumpTuck:0,
     landingAbsorb:0,
@@ -65,6 +66,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
 
     const landingQuality=String(frame.landingQuality||'none');
     const landingScale=landingQuality==='hard'?1.35:landingQuality==='rough'?1.15:1;
+    const startCompression=state.state===RIDER_ANIMATION_STATE.START_COMPRESSION?1:0;
     const jumpAnticipation=state.state===RIDER_ANIMATION_STATE.JUMP_ANTICIPATION?1:0;
     const takeoff=(state.state===RIDER_ANIMATION_STATE.START_RELEASE||state.state===RIDER_ANIMATION_STATE.TAKEOFF||state.state===RIDER_ANIMATION_STATE.ASCENT)?1:0;
     const landingState=(state.state===RIDER_ANIMATION_STATE.LANDING||state.state===RIDER_ANIMATION_STATE.LANDING_RECOVERY)?1:0;
@@ -75,7 +77,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     const reduced=!!frame.reducedMotion;
     const secondaryScale=reduced?.35:1;
 
-    const baseFlex=.075+pose.speed*.050+jumpAnticipation*.075+pose.descent*.055;
+    const baseFlex=.075+pose.speed*.050+startCompression*.090+jumpAnticipation*.075+pose.descent*.055;
     const carveFlex=pose.hardCarve*.055*(1-pose.reversal*.72);
     pose.hipFlex=baseFlex+carveFlex+pose.landing*.13*landingScale-trickActive*pose.ascent*.025;
     pose.hipLean=pose.carve*(.075+pose.hardCarve*.105)*(1-pose.reversal*.82);
@@ -84,6 +86,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     pose.torsoCounter=-pose.carve*(.030+pose.hardCarve*.045)*(1-pose.air*.65);
     pose.headLook=-pose.carve*(.045+pose.hardCarve*.055)*(1-pose.air*.45);
     pose.armBalance=-pose.carve*(.10+pose.hardCarve*.16)*(1-pose.reversal*.35);
+    pose.polePlant=state.state===RIDER_ANIMATION_STATE.EDGE_REVERSAL?(state.edgeSign||Math.sign(targetCarve))*pose.reversal:0;
     pose.takeoffExtend=takeoff*clamp(.32+pose.ascent*.68)*airScale;
     pose.jumpTuck=clamp(pose.apex*.40+pose.descent*.70+trickActive*trickArc*(backflip?.72:.44));
     pose.landingAbsorb=clamp(Math.max(pose.landing,landingState*.35)*landingScale);
