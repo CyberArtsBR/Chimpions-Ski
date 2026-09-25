@@ -37,6 +37,8 @@ assert.equal(QUALITY_PROFILES.max.shadows,true,'MAX must enable bounded realtime
 assert(QUALITY_PROFILES.max.shadowMapSize>QUALITY_PROFILES.high.shadowMapSize,'MAX shadow map must exceed HIGH');
 assert(QUALITY_PROFILES.max.bloomStrength>QUALITY_PROFILES.high.bloomStrength,'MAX bloom quality must exceed HIGH');
 assert(QUALITY_PROFILES.high.bloomStrength>QUALITY_PROFILES.medium.bloomStrength,'HIGH bloom quality must exceed MEDIUM');
+assert(QUALITY_PROFILES.max.bloomThreshold>=1.55,'MAX bloom threshold must keep non-HDR blue cores out of bloom');
+assert(QUALITY_PROFILES.max.bloomStrength<1,'MAX bloom must not use clipping-level strength as fake lighting');
 assert(QUALITY_PROFILES.low.environmentDecorationDensity<QUALITY_PROFILES.high.environmentDecorationDensity);
 assert.equal(resolveQualityProfile('reduced'),'medium','legacy reduced profile must map to medium');
 assert.equal(resolveQualityProfile('bogus'),'auto');
