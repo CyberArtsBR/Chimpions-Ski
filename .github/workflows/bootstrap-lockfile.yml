@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   lockfile:
@@ -18,9 +18,24 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: npm install --package-lock-only --ignore-scripts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: package-lock-bootstrap
-          path: package-lock.json
-          if-no-files-found: error
+      - name: Check for lockfile
+        id: lock
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Generate lockfile
+        if: steps.lock.outputs.missing == 'true'
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit lockfile
+        if: steps.lock.outputs.missing == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "build: lock npm dependencies"
+          git push origin HEAD:fix/ski-ci-course-contract
