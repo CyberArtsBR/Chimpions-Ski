@@ -190,7 +190,7 @@ function createStyledSki(assets){
   stripe.position.set(0,.045,.12);
   ski.add(stripe);
 
-  const powerBloomMesh=new THREE.Mesh(new THREE.BoxGeometry(.014,.006,1.22),assets.powerBloomMaterial);
+  const powerBloomMesh=new THREE.Mesh(new THREE.BoxGeometry(.035,.008,1.48),assets.powerBloomMaterial);
   powerBloomMesh.position.set(0,.058,.12);
   powerBloomMesh.visible=false;
   ski.add(powerBloomMesh);
@@ -232,13 +232,13 @@ function createEquipmentPowerGlow(skis=[],snowboard=null){
       materials.push({mat,baseEmissive:mat.emissive.clone(),baseIntensity:mat.emissiveIntensity||0});
     }
   }
-  const glowColor=new THREE.Color(0x1b7be5);
+  const glowColor=new THREE.Color().setRGB(.08,.68,1);
   return (level=0,time=0)=>{
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
     for(const strip of bloomStrips)strip.visible=strength>.001;
     materials.forEach(({mat,baseEmissive,baseIntensity},index)=>{
       mat.emissive.copy(baseEmissive).lerp(glowColor,strength);
-      mat.emissiveIntensity=baseIntensity+strength*(index===0?1.05:1.50);
+      mat.emissiveIntensity=baseIntensity+strength*(index===0?3.6:4.6);
     });
     snowboard?.setPowerGlow?.(strength,time);
     return strength;

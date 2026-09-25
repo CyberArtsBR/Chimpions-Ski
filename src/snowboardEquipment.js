@@ -58,13 +58,13 @@ export function createSnowboardEquipment({
   const buckleMaterial=new THREE.MeshStandardMaterial({color:0x8fa8b5,roughness:.24,metalness:.72});
   const powerMaterials=[deckMaterial,graphicMaterial,accentMaterial];
   const powerBase=powerMaterials.map(mat=>({emissive:mat.emissive.clone(),intensity:mat.emissiveIntensity||0}));
-  const powerColor=new THREE.Color(0x1b7be5);
+  const powerColor=new THREE.Color().setRGB(.08,.68,1);
   const powerBloomMaterial=new THREE.MeshBasicMaterial({
     color:new THREE.Color().setRGB(.025,1.05,11.6),toneMapped:false,fog:false
   });
   const bloomStrips=[];
   for(const side of [-1,1]){
-    const strip=new THREE.Mesh(new THREE.BoxGeometry(.014,.006,1.38),powerBloomMaterial);
+    const strip=new THREE.Mesh(new THREE.BoxGeometry(.032,.008,1.62),powerBloomMaterial);
     strip.position.set(side*.245,.070,0);
     strip.visible=false;
     root.add(strip);
@@ -75,8 +75,8 @@ export function createSnowboardEquipment({
     for(const strip of bloomStrips)strip.visible=strength>.001;
     powerMaterials.forEach((mat,index)=>{
       const base=powerBase[index];
-      mat.emissive.copy(base.emissive).lerp(powerColor,strength*(index===0?.82:1));
-      mat.emissiveIntensity=base.intensity+strength*(index===0?1.08:1.55);
+      mat.emissive.copy(base.emissive).lerp(powerColor,strength);
+      mat.emissiveIntensity=base.intensity+strength*(index===0?3.6:4.6);
     });
     root.userData.powerGlow=strength;
     return strength;

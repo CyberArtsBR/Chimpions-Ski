@@ -533,6 +533,8 @@ const getRuntimeDiagnostics=createRuntimeDiagnostics({
   riderController
 });
 function updateBananaPowerVisual(time=0){
+  // Hold the equipment emission while charged, including pauses, then through
+  // the complete special. Only consumption/expiry or a run reset clears it.
   const charged=state.specialReady||state.specialActiveTime>0;
   riderController.rider?.userData?.setPowerGlow?.(charged?1:0,time);
 }
