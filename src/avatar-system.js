@@ -28,6 +28,11 @@ export function randomAvatar(catalog){
 
 export function disposeAvatarObject(root){
   if(!root)return;
+  const disposeRiderAnimation=root.userData?.disposeRiderAnimation;
+  if(typeof disposeRiderAnimation==='function'){
+    root.userData.disposeRiderAnimation=null;
+    disposeRiderAnimation();
+  }
   const geometries=new Set(),materials=new Set(),textures=new Set(),skeletons=new Set();
   root.traverse?.(object=>{
     if(object.geometry?.dispose)geometries.add(object.geometry);
