@@ -4,33 +4,106 @@ const PROFILE_ORDER=Object.freeze(['high','medium','low']);
 const HIGH=Object.freeze({
   profile:'high',
   dprCap:1.50,
+  snowSurfaceDetailDensity:.92,
+  environmentDecorationDensity:.90,
+  distantSceneryDetail:.92,
+  distantSceneryUpdateHz:45,
+  postProcessing:true,
+  renderTargetType:'half-float',
+  msaaSamples:2,
+  postResolutionScale:.92,
+  bloomEnabled:true,
+  bloomStrength:.52,
+  bloomRadius:.44,
+  bloomThreshold:1.65,
+  shadows:true,
+  shadowMapSize:1024,
+  shadowRadius:26,
+  shadowBias:-.00035,
+  shadowNormalBias:.028,
+  particleDensity:1,
+  exposure:1.03,
+  maxAnisotropy:8
+});
+
+const MAX=Object.freeze({
+  profile:'max',
+  dprCap:2,
   snowSurfaceDetailDensity:1,
   environmentDecorationDensity:1,
   distantSceneryDetail:1,
-  distantSceneryUpdateHz:0
+  distantSceneryUpdateHz:0,
+  postProcessing:true,
+  renderTargetType:'half-float',
+  msaaSamples:4,
+  postResolutionScale:1,
+  bloomEnabled:true,
+  bloomStrength:.72,
+  bloomRadius:.50,
+  bloomThreshold:1.55,
+  shadows:true,
+  shadowMapSize:2048,
+  shadowRadius:34,
+  shadowBias:-.00028,
+  shadowNormalBias:.022,
+  particleDensity:1.18,
+  exposure:1.02,
+  maxAnisotropy:16
 });
 
 const MEDIUM=Object.freeze({
   profile:'medium',
   dprCap:1.15,
-  snowSurfaceDetailDensity:.72,
-  environmentDecorationDensity:.72,
-  distantSceneryDetail:.74,
-  distantSceneryUpdateHz:30
+  snowSurfaceDetailDensity:.70,
+  environmentDecorationDensity:.68,
+  distantSceneryDetail:.72,
+  distantSceneryUpdateHz:30,
+  postProcessing:true,
+  renderTargetType:'unsigned-byte',
+  msaaSamples:0,
+  postResolutionScale:.82,
+  bloomEnabled:true,
+  bloomStrength:.28,
+  bloomRadius:.36,
+  bloomThreshold:1.80,
+  shadows:false,
+  shadowMapSize:0,
+  shadowRadius:0,
+  shadowBias:0,
+  shadowNormalBias:0,
+  particleDensity:.70,
+  exposure:1.03,
+  maxAnisotropy:4
 });
 
 const LOW=Object.freeze({
   profile:'low',
-  dprCap:.90,
-  snowSurfaceDetailDensity:.48,
-  environmentDecorationDensity:.48,
-  distantSceneryDetail:.52,
-  distantSceneryUpdateHz:18
+  dprCap:.88,
+  snowSurfaceDetailDensity:.42,
+  environmentDecorationDensity:.42,
+  distantSceneryDetail:.46,
+  distantSceneryUpdateHz:15,
+  postProcessing:false,
+  renderTargetType:'default',
+  msaaSamples:0,
+  postResolutionScale:1,
+  bloomEnabled:false,
+  bloomStrength:0,
+  bloomRadius:0,
+  bloomThreshold:Infinity,
+  shadows:false,
+  shadowMapSize:0,
+  shadowRadius:0,
+  shadowBias:0,
+  shadowNormalBias:0,
+  particleDensity:.42,
+  exposure:1.01,
+  maxAnisotropy:2
 });
 
 export const QUALITY_PROFILES=Object.freeze({
   high:HIGH,
-  max:Object.freeze({...HIGH,profile:'max',dprCap:2}),
+  max:MAX,
   medium:MEDIUM,
   low:LOW
 });
@@ -91,8 +164,28 @@ function clamp(value,min,max){
 function autoResolutionFloor(profile=active){
   return AUTO_RESOLUTION_FLOOR[profile]??1;
 }
+function getEffectiveSettings(){
+  const base=QUALITY_PROFILES[active];
+  if(current!=='auto')return base;
+  const floor=autoResolutionFloor(active);
+  const span=Math.max(.001,1-floor);
+  const pressure=clamp((1-autoResolutionScale)/span,0,1);
+  if(pressure<=.001)return base;
+  const scaledShadow=base.shadowMapSize>0
+    ?(pressure>.62?Math.max(512,Math.round(base.shadowMapSize*.5)):base.shadowMapSize)
+    :0;
+  return Object.freeze({
+    ...base,
+    snowSurfaceDetailDensity:clamp(base.snowSurfaceDetailDensity*(1-pressure*.14),.35,1),
+    environmentDecorationDensity:clamp(base.environmentDecorationDensity*(1-pressure*.20),.35,1),
+    distantSceneryDetail:clamp(base.distantSceneryDetail*(1-pressure*.12),.40,1),
+    postResolutionScale:clamp(base.postResolutionScale*(1-pressure*.12),.65,1),
+    particleDensity:clamp(base.particleDensity*(1-pressure*.28),.35,1.2),
+    shadowMapSize:scaledShadow
+  });
+}
 function notify(){
-  const settings=QUALITY_PROFILES[active];
+  const settings=getEffectiveSettings();
   for(const listener of listeners)listener(settings,current);
 }
 function notifyResolution(){
@@ -108,6 +201,7 @@ function setAutoResolutionScale(next,reason,stamp=now()){
   lastResolutionChangeAt=stamp;
   slowScore=0;
   fastScore=0;
+  notify();
   notifyResolution();
   return true;
 }
@@ -134,7 +228,7 @@ function switchAutoProfile(next,reason,stamp=now(),nextResolutionScale=autoResol
 export const quality={
   get current(){return current;},
   get active(){return active;},
-  getSettings(){return QUALITY_PROFILES[active];},
+  getSettings(){return getEffectiveSettings();},
   getResolutionScale(){return current==='auto'?autoResolutionScale:1;},
   getPixelRatio(nativeDpr=1){
     const native=Math.max(.5,Number(nativeDpr)||1);
