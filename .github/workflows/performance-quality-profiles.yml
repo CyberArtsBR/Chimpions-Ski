@@ -84,11 +84,11 @@ jobs:
             BASE_DEPENDENCIES="baseline-lockfile"
           else
             # Legacy commits predate package-lock.json. Reuse the current locked
-            # dependencies only when package.json is byte-identical; otherwise
-            # reject the comparison instead of silently mixing dependency graphs.
-            cmp package.json /tmp/chimpions-ski-base/package.json
+            # dependencies only when dependency declarations are identical;
+            # script/metadata changes do not change the install graph.
+            node -e "const fs=require('fs');const a=JSON.parse(fs.readFileSync('package.json'));const b=JSON.parse(fs.readFileSync('/tmp/chimpions-ski-base/package.json'));const keys=['dependencies','devDependencies','optionalDependencies','peerDependencies'];for(const k of keys){if(JSON.stringify(a[k]||{})!==JSON.stringify(b[k]||{})){console.error('dependency manifest mismatch in '+k);process.exit(1)}}"
             ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
-            BASE_DEPENDENCIES="current-lock-compatible-manifest"
+            BASE_DEPENDENCIES="current-lock-compatible-dependencies"
           fi
           export BASE_DEPENDENCIES
           (cd /tmp/chimpions-ski-base && npm run build)
