@@ -2,13 +2,12 @@ import {frameMark,frameSummarySince,pending,round} from './core.mjs';
 
 export async function openSelector(page){
   const mark=await frameMark(page);
-  const opened=await page.evaluate(async()=>{
+  const started=Date.now();
+  const opened=await page.evaluate(()=>{
     const button=document.querySelector('#choose');
     if(!button||button.disabled)return {ok:false,reason:'Choose Chimpion control unavailable or disabled'};
-    const started=performance.now();
     button.click();
-    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-    return {ok:true,openTimeMs:performance.now()-started};
+    return {ok:true};
   });
   if(!opened.ok)return {status:'PENDING',reason:opened.reason};
   try{
@@ -18,7 +17,7 @@ export async function openSelector(page){
   }
   const dom=await selectorDomMetrics(page);
   const frames=await frameSummarySince(page,mark);
-  return {status:'PASS',openTimeMs:round(opened.openTimeMs,3),frames,...dom};
+  return {status:'PASS',openTimeMs:round(Date.now()-started,3),frames,...dom};
 }
 export async function selectorDomMetrics(page){
   return page.evaluate(()=>{
@@ -49,13 +48,12 @@ export async function closeSelector(page){
 export async function benchmarkSearch(page,terms){
   const results=[];
   for(const term of terms){
-    const result=await page.evaluate(async searchTerm=>{
+    const result=await page.evaluate(searchTerm=>{
       const input=document.querySelector('#chimpion-search');
       if(!input)return {status:'PENDING',term:searchTerm,reason:'#chimpion-search unavailable'};
       const started=performance.now();
       input.value=searchTerm;
       input.dispatchEvent(new Event('input',{bubbles:true}));
-      await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
       const dialog=document.querySelector('#chimpion-selector');
       return {
         status:'PASS',
