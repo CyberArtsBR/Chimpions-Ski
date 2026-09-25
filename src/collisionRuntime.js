@@ -1,7 +1,9 @@
+export const COLLISION_QUERY_HALF_Z=3.5;
+
 export function createCollisionRuntime({
   broadphase,
   telemetry=null,
-  queryHalfZ=3.5,
+  queryHalfZ=COLLISION_QUERY_HALF_Z,
   scratch=[]
 }={}){
   if(!broadphase)throw new Error('createCollisionRuntime requires a broadphase');
