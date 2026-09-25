@@ -371,6 +371,8 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.type='';
     snapshot.progress=0;
     snapshot.rotation=0;
+    snapshot.targetRotation=0;
+    snapshot.landingAlignmentError=0;
     snapshot.startTime=0;
     snapshot.source='';
     snapshot.completed=false;
