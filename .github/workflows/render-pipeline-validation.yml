@@ -35,7 +35,10 @@ jobs:
           node checks/performance-quality-invariants.mjs
           node checks/blue-bloom-invariants.mjs
           npm run check:performance
-          npm run check:visual
+          node checks/rider-pose-invariants.mjs
+          node checks/mountain-visual-invariants.mjs
+          node checks/powder-snow-invariants.mjs
+          node checks/avatar-compatibility-invariants.mjs
       - run: npm run build
       - run: node checks/assets.mjs
       - run: npx playwright install --with-deps chromium
