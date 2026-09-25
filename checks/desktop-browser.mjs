@@ -252,6 +252,8 @@ try{
   await page.keyboard.press('ArrowDown');
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'quality-profile','Settings navigation missed quality profile');
   await page.keyboard.press('ArrowDown');
+  assert.equal(await page.evaluate(()=>document.activeElement?.id),'camera-view','Settings navigation missed camera view');
+  await page.keyboard.press('ArrowDown');
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'camera-motion','Settings navigation missed camera motion');
   await page.keyboard.press('ArrowDown');
   assert.equal(await page.evaluate(()=>document.activeElement?.id),'toggle-haptics','Settings navigation missed haptics');
