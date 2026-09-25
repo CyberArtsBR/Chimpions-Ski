@@ -21,12 +21,14 @@ varying float vSide;
 void main(){
   if(vAlpha<=0.001)discard;
   float side=clamp(abs(vSide),0.0,1.0);
-  float edge=pow(side,1.55);
-  float compressed=1.0-smoothstep(.18,.62,side);
-  float berm=smoothstep(.52,.78,side)*(1.0-smoothstep(.84,1.0,side));
-  vec3 groove=vec3(.39,.42,.44),packed=vec3(.66,.69,.70),snowEdge=vec3(.94,.96,.97);
-  vec3 color=mix(groove,snowEdge,edge*.68);color=mix(color,packed,compressed*.34);color+=snowEdge*berm*.12;
-  float feather=1.0-smoothstep(.80,1.0,side)*.48;
+  float packedCenter=1.0-smoothstep(.14,.58,side);
+  float berm=smoothstep(.55,.77,side)*(1.0-smoothstep(.88,1.0,side));
+  // A compressed blue-white track with a thin rim of displaced snow.
+  vec3 groove=vec3(.55,.68,.78),packed=vec3(.77,.86,.92),snowEdge=vec3(.96,.985,1.0);
+  vec3 color=mix(groove,packed,smoothstep(.06,.65,side));
+  color=mix(color,snowEdge,berm*.78);
+  color=mix(color,packed,packedCenter*.23);
+  float feather=1.0-smoothstep(.80,1.0,side)*.58;
   gl_FragColor=vec4(color,vAlpha*feather);
 }
 `;

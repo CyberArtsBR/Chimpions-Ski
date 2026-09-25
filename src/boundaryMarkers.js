@@ -3,7 +3,7 @@ import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js'
 import {makeBarkTexture} from './alpineArt.js';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
 
-const dummy=new THREE.Object3D(),tint=new THREE.Color(),ledTint=new THREE.Color();
+const dummy=new THREE.Object3D(),tint=new THREE.Color(),ledTint=new THREE.Color(),strapTint=new THREE.Color(0xffffff);
 const postGeometry=new THREE.CylinderGeometry(.15,.21,1.90,16,4);
 const capGeometry=new THREE.CylinderGeometry(.175,.17,.09,16);
 const footGeometry=new THREE.CylinderGeometry(.25,.21,.18,16);
@@ -24,9 +24,11 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const iron=new THREE.MeshStandardMaterial({color:0x6d8794,roughness:.29,metalness:.88});
   const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.62,7.80),toneMapped:false,fog:false});
   const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.72,4.10),transparent:true,opacity:.36,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(3.4,3.7,4.2),toneMapped:false,fog:false});
+  const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.78,.92,1.18),transparent:true,opacity:.24,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
   const n=countPerSide*2;
   const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n),caps=new THREE.InstancedMesh(capGeometry,capMaterial,n),feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
-  const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2),ledRails=new THREE.InstancedMesh(ledRailGeometry,ledCoreMaterial,n*2),ledGlows=new THREE.InstancedMesh(ledGlowGeometry,ledGlowMaterial,n*2);
+  const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2),ledRails=new THREE.InstancedMesh(ledRailGeometry,strapCoreMaterial,n*2),ledGlows=new THREE.InstancedMesh(ledGlowGeometry,strapGlowMaterial,n*2);
   const postLeds=new THREE.InstancedMesh(postLedGeometry,ledCoreMaterial,n),postGlows=new THREE.InstancedMesh(postGlowGeometry,ledGlowMaterial,n);
   const plates=new THREE.InstancedMesh(plateGeometry,iron,n*2);
   const meshes=[posts,caps,feet,rails,ledRails,ledGlows,postLeds,postGlows,plates];
@@ -34,7 +36,7 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   ledRails.receiveShadow=ledGlows.receiveShadow=postLeds.receiveShadow=postGlows.receiveShadow=false;ledGlows.renderOrder=postGlows.renderOrder=5;ledRails.renderOrder=postLeds.renderOrder=6;
   function setDecorativeShadows(enabled=true){for(const m of [posts,caps,feet,rails])m.castShadow=!!enabled;return !!enabled;}setDecorativeShadows(decorativeShadows);
   ledTint.setRGB(.36,.82,1);
-  for(let i=0;i<n;i++){const shade=.88+hash(i+14)*.12;tint.setRGB(shade,shade,shade);for(const mesh of [posts,caps,feet])mesh.setColorAt(i,tint);rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);postLeds.setColorAt(i,ledTint);postGlows.setColorAt(i,ledTint);for(const mesh of [ledRails,ledGlows]){mesh.setColorAt(i*2,ledTint);mesh.setColorAt(i*2+1,ledTint);}}
+  for(let i=0;i<n;i++){const shade=.88+hash(i+14)*.12;tint.setRGB(shade,shade,shade);for(const mesh of [posts,caps,feet])mesh.setColorAt(i,tint);rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);postLeds.setColorAt(i,ledTint);postGlows.setColorAt(i,ledTint);for(const mesh of [ledRails,ledGlows]){mesh.setColorAt(i*2,strapTint);mesh.setColorAt(i*2+1,strapTint);}}
   for(const mesh of [posts,caps,feet,rails,ledRails,ledGlows,postLeds,postGlows])if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
   const positions=new Float32Array(countPerSide);let travel=0,pulseTime=0;
   function refresh(){for(let i=0;i<countPerSide;i++)for(let sideIndex=0;sideIndex<2;sideIndex++){const side=sideIndex===0?-1:1,idx=sideIndex*countPerSide+i,z=positions[i],x=side*(limit+.28),ground=terrainHeight(x,z-travel),lean=(hash(idx+19)-.5)*.020,scale=.98+hash(idx+61)*.04;
@@ -45,6 +47,6 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
     for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
   function reset(){travel=0;pulseTime=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
-  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);ledGlowMaterial.opacity=.34+Math.sin(pulseTime*2.1)*.045;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
+  function update(dt,speed){pulseTime+=Math.max(0,Number(dt)||0);strapGlowMaterial.opacity=.24+Math.sin(pulseTime*2.1)*.035;if(!speed)return;const dz=speed*dt;travel+=dz;for(let i=0;i<countPerSide;i++){positions[i]+=dz;while(positions[i]>18)positions[i]-=countPerSide*spacing;}refresh();}
   reset();return {update,reset,limit,postMaterial,railMaterial,ledCoreMaterial,ledGlowMaterial,setDecorativeShadows,setShadowEnabled:setDecorativeShadows,blueMaterial:ledCoreMaterial,redMaterial:ledCoreMaterial};
 }
