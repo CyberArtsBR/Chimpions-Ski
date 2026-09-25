@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generatedAt": "2026-09-25T17:44:11.181Z",
   "mode": "apply",
   "strategy": {
@@ -224,5 +224,10 @@
       "beforeTextureBytes": 95070892,
       "afterTextureBytes": 95070892
     }
-  ]
+  ],
+  "source": {
+    "commit": "c4d445569584e792981bada3d71689473dfc42d2",
+    "directory": "public/model/characters",
+    "expectedTotalBytes": 44801960
+  }
 }
