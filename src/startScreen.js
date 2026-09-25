@@ -67,14 +67,19 @@ export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-
     closing=true;
     audio?.unlock?.();
     root.classList.add('is-leaving');
+
+    // The 300 ms delay is presentation only. Commit the semantic transition
+    // immediately so a busy software/WebGL frame cannot delay opening the
+    // rider selector or make input appear unresponsive.
+    const started=onStart?.();
+    if(started===false){
+      closing=false;
+      root.classList.remove('is-leaving');
+      refreshReady();
+      return;
+    }
+
     setTimeout(()=>{
-      const started=onStart?.();
-      if(started===false){
-        closing=false;
-        root.classList.remove('is-leaving');
-        refreshReady();
-        return;
-      }
       root.hidden=true;
       document.body.classList.remove('start-screen-active');
       previousButtons=[];
