@@ -37,6 +37,7 @@ export function createGameFeedback({audio,ui,haptics}){
   function onCrash(crash={}){
     const feedback=calculateCrashFeedback(crash);
     audio.play('crash',feedback.audioGain,feedback.rateScale);
+    audio.play('deathCry',Math.min(.94,.58+(Number(feedback.intensity)||0)*.28),1);
     return remember('crash',feedback);
   }
 
