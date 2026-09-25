@@ -602,7 +602,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   const update=(frame={})=>{
     const {
       dt=1/60,steer=0,air=false,landing=0,speed=12,time=0,
-      verticalVelocity=0,jumpSource='',rideMode=currentRideMode:requestedRideMode,
+      verticalVelocity=0,jumpSource='',rideMode:requestedRideMode=currentRideMode,
       groundPitch=0,groundRoll=0,leftGround=0,rightGround=0,centerGround=0
     }=frame;
     poseDt=Math.max(0,Math.min(.1,dt));
@@ -740,7 +740,6 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     const rigResolution=resolveAvatarRig(model,compatibility);
     const rigCapabilities=getAvatarRigCapabilities(rigResolution);
     const updateRig=makeRigController(model,compatibility,rigResolution);
-    const clipLayer=createRiderClipLayer(gltf,model);
     if(!updateRig&&(isCatalogAvatarUrl(url)||requireGameplayRig)){
       throw new AvatarCompatibilityError(`${compatibility.name||'Avatar'} cannot satisfy the gameplay rig contract.`,{
         code:'AVATAR_RIG_UNSUPPORTED',
@@ -754,6 +753,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
         }
       });
     }
+    const clipLayer=createRiderClipLayer(gltf,model);
     const root=new THREE.Group();loadedRoot=root;
 
     // Dedicated visual root: future tricks can rotate rider/equipment without
