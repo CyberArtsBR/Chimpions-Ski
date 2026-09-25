@@ -4,6 +4,29 @@ const [baselinePath='benchmark-baseline.json',highPath='benchmark-high.json',low
 
 async function load(path){return JSON.parse(await readFile(path,'utf8'));}
 
+const REQUIRED_BENCHMARK_PHASES=Object.freeze([
+  'E_gameplayFirst30Seconds',
+  'F_extendedGameplay',
+  'G_repeatedRestart',
+  'I_skiMode',
+  'J_snowboardMode',
+  'K_trickHeavy'
+]);
+
+function assertBenchmarkComplete(label,report){
+  if(report?.fatal)throw new Error(label+' benchmark reported fatal: '+String(report.fatal.message||report.fatal));
+  for(const phaseName of REQUIRED_BENCHMARK_PHASES){
+    const status=report?.phases?.[phaseName]?.status;
+    if(status!=='PASS'){
+      const reason=report?.phases?.[phaseName]?.reason;
+      throw new Error(
+        label+' benchmark phase '+phaseName+' did not run successfully: '+
+        String(status||'MISSING')+(reason?' ('+reason+')':'')
+      );
+    }
+  }
+}
+
 function phaseSummary(report,name){
   const phase=report?.phases?.[name];
   const samples=Array.isArray(phase?.samples)?phase.samples:[];
@@ -58,6 +81,9 @@ function summarize(report){
 }
 
 const [baseline,high,low]=await Promise.all([load(baselinePath),load(highPath),load(lowPath)]);
+assertBenchmarkComplete('baseline',baseline);
+assertBenchmarkComplete('high',high);
+assertBenchmarkComplete('low',low);
 const comparison={
   schemaVersion:1,
   generatedAt:new Date().toISOString(),

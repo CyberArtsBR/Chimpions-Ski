@@ -7,6 +7,7 @@ const here=path.dirname(fileURLToPath(import.meta.url));
 const root=path.resolve(here,'..');
 const runnerPath=path.join(root,'scripts','benchmark-ski-runtime.mjs');
 const guidePath=path.join(root,'docs','runtime-benchmark-guide.md');
+const comparatorPath=path.join(root,'scripts','compare-performance-results.mjs');
 const runnerFiles=[
   runnerPath,
   path.join(root,'scripts','benchmark','core.mjs'),
@@ -15,6 +16,7 @@ const runnerFiles=[
 ];
 const runner=runnerFiles.map(file=>readFileSync(file,'utf8')).join('\n');
 const guide=readFileSync(guidePath,'utf8');
+const comparator=readFileSync(comparatorPath,'utf8');
 
 assert(runner.includes("process.env.BASE_URL"),'Runner must accept BASE_URL');
 assert(runner.includes("DEFAULT_BASE_URL='http://localhost:4173'"),'Runner must have a local default target');
@@ -31,6 +33,12 @@ assert(runner.includes("courseDrawCallsEstimate"),'Course draw-call diagnostics 
 assert(runner.includes("data-ride-mode"),'Future ride-mode controls must be feature-detected');
 assert(runner.includes("trickState"),'Future trick diagnostics must be feature-detected');
 assert(runner.includes("ArrowDown")&&runner.includes("Space"),'Future 360 workload must be triggerable without runtime changes');
+
+assert(comparator.includes('REQUIRED_BENCHMARK_PHASES'),'Benchmark comparison must declare required measured gameplay phases');
+for(const phase of ['E_gameplayFirst30Seconds','F_extendedGameplay','G_repeatedRestart','I_skiMode','J_snowboardMode','K_trickHeavy']){
+  assert(comparator.includes("'"+phase+"'"),'Benchmark comparison must require '+phase);
+}
+assert(comparator.includes("status!=='PASS'"),'Benchmark comparison must reject PENDING/failed required phases');
 
 assert(guide.includes('BASE_URL=http://localhost:4173'),'Guide must document local mode');
 assert(guide.includes('BASE_URL="$PRODUCTION_URL"'),'Guide must document configurable public deployment mode');
