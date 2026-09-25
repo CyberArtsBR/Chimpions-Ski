@@ -201,6 +201,7 @@ function setAutoResolutionScale(next,reason,stamp=now()){
   lastResolutionChangeAt=stamp;
   slowScore=0;
   fastScore=0;
+  notify();
   notifyResolution();
   return true;
 }
