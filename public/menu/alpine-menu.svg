@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="sky" x2="0" y2="1">
+      <stop stop-color="#a8c8de"/>
+      <stop offset=".53" stop-color="#c8dce9"/>
+      <stop offset="1" stop-color="#edf6f9"/>
+    </linearGradient>
+    <radialGradient id="light">
+      <stop stop-color="#ffffff" stop-opacity=".72"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="snow" x2="0" y2="1">
+      <stop stop-color="#f7fdff"/>
+      <stop offset="1" stop-color="#a8cddd"/>
+    </linearGradient>
+    <path id="pine" d="M0 -48 -21 -10 -12 -10 -29 19 -17 19 -36 47 36 47 17 19 29 19 12 -10 21 -10Z"/>
+  </defs>
+  <path fill="url(#sky)" d="M0 0h1600v900H0z"/>
+  <circle cx="1130" cy="244" r="352" fill="url(#light)"/>
+  <path fill="#839fb5" d="M0 584 115 440 224 512 389 306 570 548 750 378 916 546 1100 285 1320 540 1484 404 1600 526v374H0z"/>
+  <path fill="#d9edf3" d="m0 584 115-144 109 72 165-206 181 242 180-170 166 168 184-261 220 255 164-136 116 122v374H0z" opacity=".64"/>
+  <path fill="#aac4d5" d="m389 306 64 144 117 98-93-160-48-42Zm361 72 67 117 99 51-79-111-51-34Zm350-93 77 143 143 112-114-178-57-44Z" opacity=".72"/>
+  <path fill="#f5fcff" d="m250 479 139-173 132 176-67-32-65-86-76 104Zm670 47 180-241 161 185-84-42-77-87-95 125Zm433-70 131-52 116 122-116-65-65 4Z"/>
+  <path fill="#86b0c3" d="M0 702 190 564 354 657 530 518 725 678 905 514 1070 641 1238 509 1420 655 1600 552v348H0z"/>
+  <path fill="url(#snow)" d="M0 738 186 642 357 704 529 589 725 732 903 596 1072 698 1238 588 1424 714 1600 632v268H0z"/>
+  <path fill="#ffffff" opacity=".72" d="M0 819q193-71 371-15t380-8q209-57 394 20t455-26v110H0z"/>
+  <g fill="#315c75" opacity=".6">
+    <use href="#pine" transform="translate(50 699) scale(2.1)"/>
+    <use href="#pine" transform="translate(132 706) scale(1.35)"/>
+    <use href="#pine" transform="translate(226 740) scale(1.9)"/>
+    <use href="#pine" transform="translate(1345 740) scale(1.8)"/>
+    <use href="#pine" transform="translate(1462 703) scale(2.3)"/>
+    <use href="#pine" transform="translate(1564 745) scale(1.55)"/>
+  </g>
+  <g fill="#eef7fa" opacity=".88">
+    <path d="m50 598-24 53 24-10 24 10Zm82 51-17 36 17-7 17 7Zm94 8-22 47 22-8 22 8Zm1119 0-21 45 21-8 21 8Zm117-59-26 55 26-10 26 10Zm102 74-18 38 18-7 18 7Z"/>
+  </g>
+  <g fill="#fff" opacity=".64">
+    <circle cx="106" cy="172" r="3"/><circle cx="274" cy="91" r="2"/><circle cx="409" cy="224" r="3"/>
+    <circle cx="621" cy="142" r="2"/><circle cx="790" cy="253" r="3"/><circle cx="1008" cy="90" r="2"/>
+    <circle cx="1290" cy="163" r="3"/><circle cx="1511" cy="95" r="2"/><circle cx="1414" cy="301" r="3"/>
+  </g>
+</svg>

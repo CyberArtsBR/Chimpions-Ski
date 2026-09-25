@@ -48,15 +48,15 @@ function createBannerTexture(){
     ctx.beginPath();ctx.moveTo(24,56);ctx.lineTo(510,56);ctx.moveTo(w-510,56);ctx.lineTo(w-24,56);ctx.stroke();
     ctx.beginPath();ctx.moveTo(24,h-56);ctx.lineTo(510,h-56);ctx.moveTo(w-510,h-56);ctx.lineTo(w-24,h-56);ctx.stroke();
 
-    ctx.fillStyle='#ffd969';
-    ctx.strokeStyle='#071928';
-    ctx.lineWidth=18;
-    ctx.font='900 182px Impact,Arial Black,sans-serif';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.shadowColor='rgba(0,0,0,.48)';ctx.shadowBlur=18;ctx.shadowOffsetY=10;
-    ctx.strokeText('START',w/2,h/2+3);ctx.fillText('START',w/2,h/2+3);
-
-    ctx.shadowColor='transparent';
+    const plateGlow=ctx.createLinearGradient(w*.31,0,w*.69,0);
+    plateGlow.addColorStop(0,'rgba(55,210,255,.08)');
+    plateGlow.addColorStop(.5,'rgba(255,222,110,.14)');
+    plateGlow.addColorStop(1,'rgba(55,210,255,.08)');
+    ctx.fillStyle=plateGlow;
+    ctx.fillRect(w*.31,66,w*.38,h-132);
+    ctx.strokeStyle='rgba(120,235,255,.32)';
+    ctx.lineWidth=6;
+    ctx.strokeRect(w*.31,66,w*.38,h-132);
     for(const x of [18,w-18]){
       ctx.fillStyle='#f9dd75';
       ctx.beginPath();ctx.arc(x,12,5,0,Math.PI*2);ctx.fill();
