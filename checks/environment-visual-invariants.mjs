@@ -47,9 +47,12 @@ assert(
   'shared premium ramp readability prototype or runtime wiring missing'
 );
 assert(
-  premium.includes('log:makeLog(false),wideLog:makeLog(true)')&&
-  premium.includes('return library??='),
-  'shared log prototypes are missing'
+  premium.includes('const logs=Array.from({length:3},(_,i)=>makeLog(false,i));')&&
+  premium.includes('const wideLogs=Array.from({length:3},(_,i)=>makeLog(true,i));')&&
+  premium.includes('library={trees:Array.from({length:4}')&&
+  premium.includes('logs,wideLogs,log:logs[0],wideLog:wideLogs[0]')&&
+  premium.includes("group.userData.visualPrototype='premium-'+(wide?'wide-':'')+'log-v'+variant"),
+  'shared premium log variant prototypes are missing'
 );
 assert(!premium.includes('_logKnotGeometry'),'per-log knot component geometry returned');
 assert(!premium.includes('_logBandGeometry'),'per-log band component geometry returned');
