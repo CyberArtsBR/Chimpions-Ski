@@ -476,5 +476,9 @@ export async function sampleRuntime(page){
 }
 
 export async function waitUntilReady(page){
-  await page.waitForFunction(()=>typeof window.chimpionsSki==='function'&&window.chimpionsSki()?.ready===true,undefined,{timeout:CONFIG.readyTimeoutMs});
+  await page.waitForFunction(
+    ()=>typeof window.chimpionsSki==='function'&&window.chimpionsSki()?.ready===true,
+    undefined,
+    {timeout:CONFIG.readyTimeoutMs,polling:100}
+  );
 }

@@ -12,7 +12,7 @@ export async function openSelector(page){
   });
   if(!opened.ok)return {status:'PENDING',reason:opened.reason};
   try{
-    await page.waitForFunction(()=>document.querySelector('#chimpion-selector')?.open===true,undefined,{timeout:5000});
+    await page.waitForFunction(()=>document.querySelector('#chimpion-selector')?.open===true,undefined,{timeout:5000,polling:100});
   }catch{
     return pending('Choose control did not open #chimpion-selector');
   }
@@ -42,7 +42,7 @@ export async function closeSelector(page){
     dialog.close();
     return {closed:true};
   });
-  try{await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,undefined,{timeout:3000});}catch{}
+  try{await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,undefined,{timeout:3000,polling:100});}catch{}
   const after=await selectorDomMetrics(page);
   return {...state,after};
 }

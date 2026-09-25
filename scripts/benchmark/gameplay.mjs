@@ -6,7 +6,7 @@ async function completeStartSelectionIfNeeded(page){
     await page.waitForFunction(()=>{
       const d=window.chimpionsSki?.();
       return d?.mode==='playing'||document.querySelector('#chimpion-selector')?.open===true;
-    },undefined,{timeout:5000});
+    },undefined,{timeout:5000,polling:100});
   }catch{return {status:'PENDING',reason:'Start flow did not reach gameplay or open the selector'};}
 
   const mode=await readDiagnostics(page);
@@ -26,7 +26,7 @@ async function completeStartSelectionIfNeeded(page){
     await page.waitForFunction(()=>{
       const step=document.querySelector('#ride-mode-step');
       return !!step&&!step.hidden;
-    },undefined,{timeout:5000});
+    },undefined,{timeout:5000,polling:100});
   }catch{return {status:'PENDING',reason:'Ride-mode step did not open after selecting a Chimpion'};}
 
   const ride=await page.evaluate(()=>{
@@ -42,7 +42,40 @@ async function completeStartSelectionIfNeeded(page){
     return {ok:true,rideMode};
   });
   if(!ride.ok)return {status:'PENDING',reason:ride.reason};
+  try{
+    await page.waitForFunction(
+      ()=>!document.querySelector('#chimpion-selector')?.open,
+      undefined,
+      {timeout:CONFIG.readyTimeoutMs,polling:100}
+    );
+  }catch{
+    return {status:'PENDING',reason:'Selected rider did not finish loading and close the selector'};
+  }
   return {status:'PASS',selectionRequired:true,avatarId:avatar.avatarId,rideMode:ride.rideMode};
+}
+
+async function dismissSessionTutorialIfNeeded(page){
+  try{
+    await page.waitForFunction(()=>{
+      const tutorial=document.querySelector('.session-tutorial:not([hidden])');
+      const mode=window.chimpionsSki?.().mode;
+      return !!tutorial||mode==='countdown'||mode==='playing';
+    },undefined,{timeout:CONFIG.readyTimeoutMs,polling:100});
+  }catch{
+    return false;
+  }
+
+  const tutorialVisible=await page.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])'));
+  if(!tutorialVisible)return false;
+  await page.keyboard.press('Enter');
+  try{
+    await page.waitForFunction(
+      ()=>!document.querySelector('.session-tutorial:not([hidden])'),
+      undefined,
+      {timeout:5000,polling:100}
+    );
+  }catch{}
+  return true;
 }
 
 async function clickStart(page){
@@ -64,8 +97,9 @@ async function clickStart(page){
     ?await completeStartSelectionIfNeeded(page)
     :{status:'PASS',selectionRequired:false};
   if(selection.status!=='PASS')return selection;
+  await dismissSessionTutorialIfNeeded(page);
   try{
-    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs,polling:100});
   }catch{
     return pending('Start control was invoked but gameplay did not reach mode=playing');
   }
@@ -104,7 +138,7 @@ async function recoverCrash(page){
   });
   if(!clicked)return false;
   try{
-    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});
+    await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs,polling:100});
     return true;
   }catch{return false;}
 }
@@ -203,7 +237,7 @@ export async function benchmarkRestarts(page,iterations){
     const mark=await frameMark(page);
     const before=await runtimeSnapshot(page,`restart-${i+1}-before`);
     await page.keyboard.press('Escape');
-    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='paused',undefined,{timeout:3000});}catch{}
+    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='paused',undefined,{timeout:3000,polling:100});}catch{}
     const wall=Date.now();
     const clicked=await page.evaluate(()=>{
       const button=document.querySelector('#restart-pause');
@@ -212,7 +246,7 @@ export async function benchmarkRestarts(page,iterations){
       return true;
     });
     if(!clicked)return pending('Pause/restart control unavailable during restart cycle');
-    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs});}catch{return pending('Restart did not return to playing state');}
+    try{await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',undefined,{timeout:CONFIG.readyTimeoutMs,polling:100});}catch{return pending('Restart did not return to playing state');}
     const after=await runtimeSnapshot(page,`restart-${i+1}-after`);
     cycles.push({iteration:i+1,restartToPlayingMs:Date.now()-wall,before,after,frames:await frameSummarySince(page,mark)});
   }
@@ -243,7 +277,7 @@ export async function selectRideMode(page,rideMode){
       const step=document.querySelector('#ride-mode-step');
       const button=document.querySelector(`.ride-mode-card[data-ride-mode="${mode}"]`);
       return !!button&&step&&!step.hidden;
-    },rideMode,{timeout:3000});
+    },rideMode,{timeout:3000,polling:100});
   }catch{
     await closeSelector(page);
     return pending(`Ride-mode step did not become visible for ${rideMode}`);
@@ -254,7 +288,7 @@ export async function selectRideMode(page,rideMode){
       const dialog=document.querySelector('#chimpion-selector');
       const d=window.chimpionsSki?.();
       return !dialog?.open&&String(d?.rideMode||'').toLowerCase()===mode;
-    },rideMode,{timeout:CONFIG.readyTimeoutMs});
+    },rideMode,{timeout:CONFIG.readyTimeoutMs,polling:100});
   }catch{
     return pending(`Selecting ${rideMode} did not produce matching rideMode diagnostics`);
   }
