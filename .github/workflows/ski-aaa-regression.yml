@@ -1,0 +1,211 @@
+name: Chimpions Ski AAA regression
+
+on:
+  push:
+    branches:
+      - test/ski-aaa-regression
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      cross_browser:
+        description: Run Firefox and WebKit regression jobs
+        type: boolean
+        required: false
+        default: false
+      extended_soak:
+        description: Run the 30-minute Chromium soak
+        type: boolean
+        required: false
+        default: false
+  schedule:
+    - cron: '17 3 * * *'
+
+permissions:
+  contents: read
+
+jobs:
+  core-regression:
+    name: Core deterministic regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Existing authoritative checks
+        id: existing_checks
+        continue-on-error: true
+        run: npm run check
+      - name: Production build
+        id: production_build
+        continue-on-error: true
+        run: npm run build
+      - name: Asset validation
+        id: assets
+        continue-on-error: true
+        run: node checks/assets.mjs
+      - name: AAA deterministic regression matrix
+        id: aaa_core
+        continue-on-error: true
+        env:
+          AAA_SEEDS: 64
+          AAA_SECTIONS: 200
+          AAA_ARTIFACT_DIR: artifacts/qa
+        run: node scripts/run-aaa-regression.mjs
+      - name: Upload core QA report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ski-aaa-core-regression
+          path: artifacts/qa/
+          if-no-files-found: warn
+      - name: Core regression gate
+        if: always()
+        env:
+          EXISTING: ${{ steps.existing_checks.outcome }}
+          BUILD: ${{ steps.production_build.outcome }}
+          ASSETS: ${{ steps.assets.outcome }}
+          AAA: ${{ steps.aaa_core.outcome }}
+        run: |
+          printf 'existing=%s build=%s assets=%s aaa=%s\n' "$EXISTING" "$BUILD" "$ASSETS" "$AAA"
+          test "$EXISTING" = success
+          test "$BUILD" = success
+          test "$ASSETS" = success
+          test "$AAA" = success
+
+  chromium-browser-regression:
+    name: Chromium browser + release smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start local production preview
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-ski-vite.log 2>&1 &
+          echo $! > /tmp/chimpions-ski-vite.pid
+          for i in $(seq 1 60); do
+            if curl -fsS 'http://127.0.0.1:4173/?test=1' >/dev/null; then exit 0; fi
+            if [ "$i" = 60 ]; then cat /tmp/chimpions-ski-vite.log || true; exit 1; fi
+            sleep 1
+          done
+      - name: AAA Chromium runtime regression
+        env:
+          AAA_BROWSER: chromium
+          AAA_SOAK_SECONDS: 20
+          AAA_ARTIFACT_DIR: artifacts/qa
+        run: node checks/aaa-browser-regression.mjs
+      - name: Existing production release smoke
+        run: npm run smoke:production
+      - name: Upload Chromium QA artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ski-aaa-chromium-regression
+          path: artifacts/qa/
+          if-no-files-found: warn
+      - name: Stop local preview
+        if: always()
+        run: |
+          if [ -f /tmp/chimpions-ski-vite.pid ]; then
+            kill "$(cat /tmp/chimpions-ski-vite.pid)" 2>/dev/null || true
+          fi
+
+  cross-browser:
+    name: Cross-browser regression (${{ matrix.browser }})
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.cross_browser) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps ${{ matrix.browser }}
+      - name: Start local production preview
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-ski-vite.log 2>&1 &
+          echo $! > /tmp/chimpions-ski-vite.pid
+          for i in $(seq 1 60); do
+            if curl -fsS 'http://127.0.0.1:4173/?test=1' >/dev/null; then exit 0; fi
+            if [ "$i" = 60 ]; then cat /tmp/chimpions-ski-vite.log || true; exit 1; fi
+            sleep 1
+          done
+      - name: Browser regression
+        env:
+          AAA_BROWSER: ${{ matrix.browser }}
+          AAA_SOAK_SECONDS: 15
+          AAA_ARTIFACT_DIR: artifacts/qa
+        run: node checks/aaa-browser-regression.mjs
+      - name: Upload browser artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ski-aaa-${{ matrix.browser }}-regression
+          path: artifacts/qa/
+          if-no-files-found: warn
+      - name: Stop local preview
+        if: always()
+        run: |
+          if [ -f /tmp/chimpions-ski-vite.pid ]; then
+            kill "$(cat /tmp/chimpions-ski-vite.pid)" 2>/dev/null || true
+          fi
+
+  extended-soak:
+    name: Extended 30-minute Chromium soak
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.extended_soak) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start local production preview
+        run: |
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-ski-vite.log 2>&1 &
+          echo $! > /tmp/chimpions-ski-vite.pid
+          for i in $(seq 1 60); do
+            if curl -fsS 'http://127.0.0.1:4173/?test=1' >/dev/null; then exit 0; fi
+            if [ "$i" = 60 ]; then cat /tmp/chimpions-ski-vite.log || true; exit 1; fi
+            sleep 1
+          done
+      - name: Extended runtime soak
+        env:
+          AAA_BROWSER: chromium
+          AAA_SOAK_SECONDS: 1800
+          AAA_ARTIFACT_DIR: artifacts/qa
+        run: node checks/aaa-browser-regression.mjs
+      - name: Upload extended-soak artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ski-aaa-extended-soak
+          path: artifacts/qa/
+          if-no-files-found: warn
+      - name: Stop local preview
+        if: always()
+        run: |
+          if [ -f /tmp/chimpions-ski-vite.pid ]; then
+            kill "$(cat /tmp/chimpions-ski-vite.pid)" 2>/dev/null || true
+          fi
