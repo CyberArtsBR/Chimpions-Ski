@@ -8,6 +8,11 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      baseline_sha:
+        description: Optional comparison commit. Manual runs default to the retained historical anchor.
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -21,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE_SHA: 744819df9486208e52dc9d922ce5732ec7c131b8
+      HISTORICAL_BASE_SHA: 744819df9486208e52dc9d922ce5732ec7c131b8
       BENCH_ENV: "GAMEPLAY_SECONDS=30 LONG_RUN_SECONDS=60 MODE_RUN_SECONDS=15 TRICK_RUN_SECONDS=15 RESTART_ITERATIONS=2 SELECTOR_ITERATIONS=2 SAMPLE_INTERVAL_MS=500"
     steps:
       - uses: actions/checkout@v7
@@ -30,7 +35,41 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 22
-      - run: npm install
+          cache: npm
+
+      - name: Resolve comparison baseline
+        shell: bash
+        env:
+          REQUESTED_BASE_SHA: ${{ github.event.inputs.baseline_sha }}
+          PR_BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          if [ -n "${REQUESTED_BASE_SHA:-}" ]; then
+            BASE_SHA="$REQUESTED_BASE_SHA"
+            BASELINE_MODE="explicit"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            git fetch --no-tags origin "$PR_BASE_REF"
+            BASE_SHA="$(git merge-base HEAD "origin/$PR_BASE_REF")"
+            BASELINE_MODE="pull-request-merge-base"
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            git fetch --no-tags origin main
+            BASE_SHA="$(git merge-base HEAD origin/main)"
+            BASELINE_MODE="main-merge-base"
+          else
+            BASE_SHA="$HISTORICAL_BASE_SHA"
+            BASELINE_MODE="historical-anchor"
+          fi
+          git cat-file -e "$BASE_SHA^{commit}"
+          echo "BASE_SHA=$BASE_SHA" >> "$GITHUB_ENV"
+          echo "BASELINE_MODE=$BASELINE_MODE" >> "$GITHUB_ENV"
+          {
+            echo "### Performance baseline"
+            echo "- mode: $BASELINE_MODE"
+            echo "- baseline: `$BASE_SHA`"
+            echo "- retained historical anchor: `$HISTORICAL_BASE_SHA`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - run: npm ci
       - run: npm run check
       - run: npm run build
       - run: npx playwright install --with-deps chromium
@@ -40,8 +79,20 @@ jobs:
           set -euo pipefail
           mkdir -p benchmark-artifacts
           git worktree add --detach /tmp/chimpions-ski-base "$BASE_SHA"
-          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
+          if [ -f /tmp/chimpions-ski-base/package-lock.json ]; then
+            (cd /tmp/chimpions-ski-base && npm ci)
+            BASE_DEPENDENCIES="baseline-lockfile"
+          else
+            # Legacy commits predate package-lock.json. Reuse the current locked
+            # dependencies only when package.json is byte-identical; otherwise
+            # reject the comparison instead of silently mixing dependency graphs.
+            cmp package.json /tmp/chimpions-ski-base/package.json
+            ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
+            BASE_DEPENDENCIES="current-lock-compatible-manifest"
+          fi
+          export BASE_DEPENDENCIES
           (cd /tmp/chimpions-ski-base && npm run build)
+          node -e "const fs=require('fs');fs.writeFileSync('benchmark-artifacts/baseline-metadata.json',JSON.stringify({head:process.env.GITHUB_SHA,baseline:process.env.BASE_SHA,mode:process.env.BASELINE_MODE,historicalAnchor:process.env.HISTORICAL_BASE_SHA,dependencies:process.env.BASE_DEPENDENCIES},null,2))"
 
       - name: Benchmark baseline
         id: baseline
