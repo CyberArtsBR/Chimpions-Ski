@@ -96,6 +96,7 @@ export function createRunState({mode='menu',rideMode,rideProfile,best=0}={}){
     maxRunSpeed:rideProfile.baseSpeed,
     baseSpeed:rideProfile.baseSpeed,
     targetSpeed:rideProfile.baseSpeed,
+    effectiveTargetSpeed:rideProfile.baseSpeed,
     maxSpeed:rideProfile.maxSpeed
   };
 }
@@ -110,6 +111,7 @@ export function createRunSession({state}={}){
       maxRunSpeed:rideProfile.baseSpeed,
       baseSpeed:rideProfile.baseSpeed,
       targetSpeed:rideProfile.baseSpeed,
+      effectiveTargetSpeed:rideProfile.baseSpeed,
       maxSpeed:rideProfile.maxSpeed
     });
     return state;
