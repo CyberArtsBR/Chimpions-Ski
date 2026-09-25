@@ -753,6 +753,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
     performanceTelemetry.recordAvatarLoad(performance.now()-avatarLoadStarted);
     if(request!==avatarRequest){disposeAvatarObject(nextSkier);return;}
     riderController.replace(nextSkier);
+    renderPipeline.refreshTextureQuality(riderController.rider);
     mountainWeather.setRider(riderController.rider);
     selectedAvatar=entry;
     avatarCommitted=true;
@@ -820,6 +821,7 @@ function installAvatarSelector(initialAvatar){
   const savedAvatarName=BUILTIN_AVATAR_NAMES.includes(userPreferences.avatarName)?userPreferences.avatarName:DEFAULT_AVATAR_NAME;
   const initialAvatar=catalog.find(entry=>entry?.name===savedAvatarName)||catalog.find(entry=>entry?.name===DEFAULT_AVATAR_NAME)||catalog[0]||createBuiltinAvatarEntry(DEFAULT_AVATAR_NAME);
   riderController.replace(createFallbackSkier({rideMode:selectedRideMode}),{disposePrevious:false});
+  renderPipeline.refreshTextureQuality(riderController.rider);
   mountainWeather.setRider(riderController.rider);
   selectedAvatar=initialAvatar;
   avatarCommitted=false;
@@ -1484,6 +1486,8 @@ function update(dt,frameMs=dt*1000){
   feedback.update(state,dt);
   performanceTelemetry.endFrame();
 }
+
+renderPipeline.refreshTextureQuality(scene);
 
 let renderFrameHandle=0;
 function render(now){
