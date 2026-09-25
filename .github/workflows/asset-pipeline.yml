@@ -61,6 +61,13 @@ jobs:
           ASSET_MIN_TOTAL_SAVINGS_PCT: "2"
         run: npm run assets:optimize
 
+      - name: Dry-run deterministic optimizer
+        if: github.event_name == 'pull_request'
+        env:
+          ASSET_MIN_SAVINGS_PCT: "1.5"
+          ASSET_MIN_TOTAL_SAVINGS_PCT: "2"
+        run: npm run assets:optimize -- --dry-run
+
       - name: Verify pipeline invariants
         run: node checks/asset-pipeline-invariants.mjs
 
