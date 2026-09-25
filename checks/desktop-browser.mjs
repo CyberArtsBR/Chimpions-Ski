@@ -27,15 +27,29 @@ async function assertElementWithinViewport(locator,label){
 }
 
 const browserErrors=[];
+const browserWarnings=[];
+const failedRequests=[];
 page.on('pageerror',error=>{
   const message='PAGEERROR '+(error?.stack||error?.message||String(error));
   browserErrors.push(message);
   console.error(message);
 });
 page.on('console',message=>{
-  if(message.type()!=='error')return;
-  const line='BROWSER_ERROR '+message.text();
-  browserErrors.push(line);
+  const type=message.type();
+  if(type==='error'){
+    const line='BROWSER_ERROR '+message.text();
+    browserErrors.push(line);
+    console.error(line);
+  }else if(type==='warning'){
+    const line='BROWSER_WARNING '+message.text();
+    browserWarnings.push(line);
+    console.warn(line);
+  }
+});
+page.on('requestfailed',request=>{
+  const failure=request.failure();
+  const line='REQUEST_FAILED '+request.method()+' '+request.url()+' '+(failure?.errorText||'unknown');
+  failedRequests.push(line);
   console.error(line);
 });
 
@@ -152,7 +166,32 @@ try{
   // release smoke depend on pointer hit-testing or transition stability.
   await skiChoice.evaluate(button=>button.click());
 
-  await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
+  try{
+    await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
+  }catch(error){
+    const selectorDiagnostics=await page.evaluate(()=>({
+      runtime:window.chimpionsSki?.()||null,
+      selectorOpen:!!document.querySelector('#chimpion-selector')?.open,
+      selectorBusy:document.querySelector('#chimpion-selector')?.getAttribute('aria-busy'),
+      selectorStatus:document.querySelector('#selector-status')?.textContent||'',
+      selectorStatusHidden:document.querySelector('#selector-status')?.hidden??null,
+      resourceEntries:performance.getEntriesByType('resource')
+        .filter(entry=>/\.glb(?:$|\?)/i.test(entry.name))
+        .map(entry=>({
+          name:entry.name,
+          duration:entry.duration,
+          transferSize:entry.transferSize,
+          encodedBodySize:entry.encodedBodySize,
+          decodedBodySize:entry.decodedBodySize
+        }))
+    }));
+    console.error('SELECTOR_TIMEOUT_DIAGNOSTICS '+JSON.stringify({
+      selectorDiagnostics,
+      browserWarnings,
+      failedRequests
+    }));
+    throw error;
+  }
   const sessionTutorial=page.locator('.session-tutorial:not([hidden])');
   if(await sessionTutorial.isVisible().catch(()=>false)){
     await page.keyboard.press('Enter');
