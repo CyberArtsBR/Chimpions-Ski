@@ -1,0 +1,111 @@
+name: Render pipeline branch validation
+
+on:
+  push:
+    branches:
+      - feat/ski-render-max-pipeline
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-pipeline-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install
+      - name: Syntax validation
+        run: |
+          node --check src/main.js
+          node --check src/renderQuality.js
+          node --check src/renderPipeline.js
+          node --check scripts/benchmark/core.mjs
+          node --check scripts/compare-performance-results.mjs
+      - name: Rendering and visual invariants
+        run: |
+          node checks/performance-quality-invariants.mjs
+          node checks/blue-bloom-invariants.mjs
+          npm run check:performance
+          npm run check:visual
+      - run: npm run build
+      - run: node checks/assets.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Local desktop browser validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-render-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true; wait $PREVIEW_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/?quality=max >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-render-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          node checks/desktop-browser.mjs
+      - name: Short four-profile benchmark
+        shell: bash
+        env:
+          BENCH_ENV: "IDLE_SECONDS=2 GAMEPLAY_SECONDS=8 LONG_RUN_SECONDS=8 MODE_RUN_SECONDS=5 TRICK_RUN_SECONDS=5 RESTART_ITERATIONS=1 SELECTOR_ITERATIONS=1 SAMPLE_INTERVAL_MS=500"
+        run: |
+          set -euo pipefail
+          mkdir -p render-benchmarks
+          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-benchmark-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill $PREVIEW_PID 2>/dev/null || true; wait $PREVIEW_PID 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-benchmark-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          for profile in max high medium low; do
+            env $BENCH_ENV QUALITY_PROFILE="$profile" BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/render-benchmarks/$profile.json" node scripts/benchmark-ski-runtime.mjs
+          done
+          node --input-type=module <<'NODE'
+          import {readFileSync} from 'node:fs';
+          const phase='E_gameplayFirst30Seconds';
+          const median=(samples,key)=>{
+            const values=samples.map(sample=>Number(sample[key])).filter(Number.isFinite).sort((a,b)=>a-b);
+            if(!values.length)return null;
+            const mid=Math.floor(values.length/2);
+            return values.length%2?values[mid]:(values[mid-1]+values[mid])/2;
+          };
+          const summary={};
+          for(const profile of ['max','high','medium','low']){
+            const report=JSON.parse(readFileSync('render-benchmarks/'+profile+'.json','utf8'));
+            const p=report.phases?.[phase]||{};
+            const samples=Array.isArray(p.samples)?p.samples:[];
+            summary[profile]={
+              frameP50Ms:p.frames?.p50FrameMs??null,
+              frameP95Ms:p.frames?.p95FrameMs??null,
+              frameP99Ms:p.frames?.p99FrameMs??null,
+              rendererCalls:median(samples,'rendererCalls'),
+              rendererTriangles:median(samples,'rendererTriangles'),
+              rendererPixelRatio:median(samples,'rendererPixelRatio'),
+              renderTargetSamples:median(samples,'renderTargetSamples'),
+              managedRenderTargets:median(samples,'managedRenderTargetCount'),
+              bloomStrength:median(samples,'bloomStrength'),
+              shadowMapSize:median(samples,'shadowMapSize'),
+              renderCpuP95Ms:median(samples,'renderCpuP95Ms'),
+              postProcessCpuP95Ms:median(samples,'postProcessCpuP95Ms'),
+              gpuFrameP95Ms:median(samples,'gpuFrameP95Ms'),
+              staticFrameSkips:median(samples,'staticFrameSkips')
+            };
+          }
+          console.log('RENDER_PROFILE_BENCHMARK '+JSON.stringify(summary));
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: render-pipeline-short-benchmarks
+          path: render-benchmarks/*.json
+          if-no-files-found: warn
