@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import {createRenderPipeline} from './renderPipeline.js';
 import './style.css';
 import './floatingUI.css';
+import './alpineMenus.css';
 import {createMountainWeather} from './mountainWeather.js';
 import {createFallbackSkier,loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
@@ -1563,6 +1564,7 @@ function render(now){
       if(!cameraMoving)startRaceCountdown();
     }else if(!startCountdownStarted)startRaceCountdown();
   }else if(state.mode!=='paused')skiCamera.update(state,dt);
+  if(riderController.rider)riderController.rider.visible=avatarCommitted&&!startScreen.isActive;
   const firstPersonBody=riderController.rider?.userData?.firstPersonBody;
   if(firstPersonBody)firstPersonBody.visible=cameraViewMode!==CAMERA_VIEW.FIRST_PERSON||
     (state.mode!=='playing'&&state.mode!=='paused'&&state.mode!=='crashed');

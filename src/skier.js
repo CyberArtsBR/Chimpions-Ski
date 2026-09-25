@@ -679,11 +679,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       applyArmRestDelta(side+'Shoulder',0,0,carve*.003,.24);
       rig[side+'Shoulder']?.updateWorldMatrix(true,true);
 
-      const upperOut=(snowboardMode ? .78 : .72)+Math.abs(pose.armBalance)*.07-pose.trickTuck*.12+pose.trickOpen*.08;
+      const upperOut=(snowboardMode ? .88 : .48)+inside*.18+airBlend*.12+Math.abs(pose.armBalance)*.09-pose.trickTuck*.12+pose.trickOpen*.08;
       const upperDown=snowboardMode
-        ?(.62+speedCrouch*.025+pose.landingAbsorb*.035-pose.trickTuck*.10)
-        :(.70+speedCrouch*.030+pose.landingAbsorb*.035-pose.trickTuck*.10);
-      const upperForward=.10+outside*.015-ascent*.015*airScale+pose.trickSpin*.07+polePlant*.08;
+        ?(.43+outside*.26-inside*.15+speedCrouch*.025+pose.landingAbsorb*.12-pose.trickTuck*.10)
+        :(.78+outside*.20-inside*.19+speedCrouch*.030+pose.landingAbsorb*.12-pose.trickTuck*.10);
+      const upperForward=(snowboardMode?.12:.25)+sideSign*carve*(snowboardMode?.32:.23)*pose.secondaryWeight+ascent*.08*airScale+pose.trickSpin*.07+polePlant*.20;
       upperArmTarget.copy(riderRight).multiplyScalar(authoredOutSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
         .addScaledVector(riderForward,upperForward)
@@ -697,11 +697,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
 
       // A stronger downward forearm vector creates a mild, readable elbow bend
       // instead of aiming both hands toward the chest.
-      const foreOut=(snowboardMode ? .50 : .45)+Math.abs(pose.armBalance)*.05-pose.trickTuck*.08;
+      const foreOut=(snowboardMode ? .66 : .22)+inside*.10+Math.abs(pose.armBalance)*.05-pose.trickTuck*.08;
       const foreDown=snowboardMode
-        ?(.87+speedCrouch*.020+pose.landingAbsorb*.030-pose.trickTuck*.12+polePlant*.06)
-        :(.90+speedCrouch*.025+pose.landingAbsorb*.030-pose.trickTuck*.12+polePlant*.06);
-      const foreForward=.16+inside*.012+descent*.010*airScale+pose.trickSpin*.055+polePlant*.10;
+        ?(.36+outside*.31-inside*.10+speedCrouch*.020+pose.landingAbsorb*.16-pose.trickTuck*.12+polePlant*.12)
+        :(.46+outside*.23-inside*.13+speedCrouch*.025+pose.landingAbsorb*.16-pose.trickTuck*.12+polePlant*.12);
+      const foreForward=(snowboardMode?.22:.66)+sideSign*carve*(snowboardMode?.28:.20)*pose.secondaryWeight+descent*.04*airScale+pose.trickSpin*.055+polePlant*.24;
       forearmTarget.copy(riderRight).multiplyScalar(authoredOutSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
         .addScaledVector(riderForward,foreForward)

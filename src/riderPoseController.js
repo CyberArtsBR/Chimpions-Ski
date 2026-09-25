@@ -82,10 +82,10 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     pose.hipFlex=baseFlex+carveFlex+pose.landing*.13*landingScale-trickActive*pose.ascent*.025;
     pose.hipLean=pose.carve*(.075+pose.hardCarve*.105)*(1-pose.reversal*.82);
     pose.outsideLoad=Math.abs(pose.carve)*(.48+pose.hardCarve*.52)*(1-pose.reversal*.72);
-    pose.insideFlex=Math.abs(pose.carve)*(.22+pose.hardCarve*.46)*(1-pose.reversal*.58);
-    pose.torsoCounter=-pose.carve*(.030+pose.hardCarve*.045)*(1-pose.air*.65);
+    pose.insideFlex=Math.abs(pose.carve)*(.34+pose.hardCarve*.52)*(1-pose.reversal*.58);
+    pose.torsoCounter=-pose.carve*(.075+pose.hardCarve*.085)*(1-pose.air*.65);
     pose.headLook=-pose.carve*(.045+pose.hardCarve*.055)*(1-pose.air*.45);
-    pose.armBalance=-pose.carve*(.10+pose.hardCarve*.16)*(1-pose.reversal*.35);
+    pose.armBalance=-pose.carve*(.20+pose.hardCarve*.25)*(1-pose.reversal*.35);
     pose.polePlant=state.state===RIDER_ANIMATION_STATE.EDGE_REVERSAL?(state.edgeSign||Math.sign(targetCarve))*pose.reversal:0;
     pose.takeoffExtend=takeoff*clamp(.32+pose.ascent*.68)*airScale;
     pose.jumpTuck=clamp(pose.apex*.40+pose.descent*.70+trickActive*trickArc*(backflip?.72:.44));
@@ -105,7 +105,7 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
       pose.heelEdge=clamp(-pose.carve,0,1);
       pose.hipLean*=1.12;
       pose.hipFlex+=pose.toeEdge*.032+pose.heelEdge*.016;
-      pose.torsoCounter=pose.torsoCounter*.58+pose.toeEdge*.018-pose.heelEdge*.012;
+      pose.torsoCounter=pose.torsoCounter*.85+pose.toeEdge*.035-pose.heelEdge*.025;
       pose.headLook*=.72;
     }else{
       pose.toeEdge=0;

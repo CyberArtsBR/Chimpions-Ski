@@ -13,74 +13,6 @@ function canvasTexture(width,height,draw){
   return texture;
 }
 
-function createBannerTexture(){
-  return canvasTexture(1536,320,(ctx,w,h)=>{
-    const bg=ctx.createLinearGradient(0,0,w,h);
-    bg.addColorStop(0,'#031e34');
-    bg.addColorStop(.24,'#073e63');
-    bg.addColorStop(.5,'#062b49');
-    bg.addColorStop(.76,'#073e63');
-    bg.addColorStop(1,'#031e34');
-    ctx.fillStyle=bg;ctx.fillRect(0,0,w,h);
-
-    const border=ctx.createLinearGradient(0,0,w,0);
-    border.addColorStop(0,'#d6a931');border.addColorStop(.5,'#ffe277');border.addColorStop(1,'#d6a931');
-    ctx.fillStyle=border;ctx.fillRect(0,0,w,24);ctx.fillRect(0,h-24,w,24);
-
-    ctx.fillStyle='rgba(37,214,255,.92)';
-    const drawChevron=(x,y,scale=1)=>{
-      ctx.beginPath();
-      ctx.moveTo(x,y);
-      ctx.lineTo(x+72*scale,y);
-      ctx.lineTo(x+122*scale,y+50*scale);
-      ctx.lineTo(x+72*scale,y+100*scale);
-      ctx.lineTo(x,y+100*scale);
-      ctx.lineTo(x+50*scale,y+50*scale);
-      ctx.closePath();
-      ctx.fill();
-    };
-    drawChevron(58,110,.72);drawChevron(170,110,.72);drawChevron(282,110,.72);
-    ctx.save();ctx.translate(w,0);ctx.scale(-1,1);
-    drawChevron(58,110,.72);drawChevron(170,110,.72);drawChevron(282,110,.72);
-    ctx.restore();
-
-    ctx.strokeStyle='rgba(91,235,255,.58)';ctx.lineWidth=8;
-    ctx.beginPath();ctx.moveTo(24,56);ctx.lineTo(510,56);ctx.moveTo(w-510,56);ctx.lineTo(w-24,56);ctx.stroke();
-    ctx.beginPath();ctx.moveTo(24,h-56);ctx.lineTo(510,h-56);ctx.moveTo(w-510,h-56);ctx.lineTo(w-24,h-56);ctx.stroke();
-
-    const plateGlow=ctx.createLinearGradient(w*.31,0,w*.69,0);
-    plateGlow.addColorStop(0,'rgba(55,210,255,.08)');
-    plateGlow.addColorStop(.5,'rgba(255,222,110,.14)');
-    plateGlow.addColorStop(1,'rgba(55,210,255,.08)');
-    ctx.fillStyle=plateGlow;
-    ctx.fillRect(w*.31,66,w*.38,h-132);
-    ctx.strokeStyle='rgba(120,235,255,.32)';
-    ctx.lineWidth=6;
-    ctx.strokeRect(w*.31,66,w*.38,h-132);
-
-    ctx.save();
-    ctx.textAlign='center';
-    ctx.textBaseline='middle';
-    ctx.shadowColor='rgba(30,210,255,.42)';
-    ctx.shadowBlur=20;
-    ctx.fillStyle='#effbff';
-    ctx.font='900 62px Inter, Arial, sans-serif';
-    ctx.fillText('CHIMPIONS SKI',w*.5,h*.36);
-    ctx.shadowColor='rgba(255,210,80,.42)';
-    ctx.shadowBlur=16;
-    ctx.fillStyle='#ffd95c';
-    ctx.font='1000 108px Inter, Arial, sans-serif';
-    ctx.fillText('START',w*.5,h*.66);
-    ctx.restore();
-
-    for(const x of [18,w-18]){
-      ctx.fillStyle='#f9dd75';
-      ctx.beginPath();ctx.arc(x,12,5,0,Math.PI*2);ctx.fill();
-      ctx.beginPath();ctx.arc(x,h-12,5,0,Math.PI*2);ctx.fill();
-    }
-  });
-}
-
 function createFenceTexture(){
   return canvasTexture(512,192,(ctx,w,h)=>{
     ctx.clearRect(0,0,w,h);
@@ -192,13 +124,13 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
   const centerGround=terrainHeight(0,z);
   const frameMaterial=new THREE.MeshStandardMaterial({color:0x092a47,roughness:.34,metalness:.62,envMapIntensity:.55});
   const frameDarkMaterial=new THREE.MeshStandardMaterial({color:0x05131e,roughness:.30,metalness:.74,envMapIntensity:.46});
-  const accentMaterial=new THREE.MeshStandardMaterial({color:0xe8bd3f,roughness:.42,metalness:.34,envMapIntensity:.45});
+  const accentMaterial=new THREE.MeshStandardMaterial({color:0x314f69,roughness:.42,metalness:.34,envMapIntensity:.45});
   const boltMaterial=new THREE.MeshStandardMaterial({color:0xaac0ca,roughness:.30,metalness:.72,envMapIntensity:.62});
   const snowMaterial=new THREE.MeshPhysicalMaterial({
     color:0xffffff,roughness:.94,metalness:0,clearcoat:.015,clearcoatRoughness:.90,
     sheen:.18,sheenColor:new THREE.Color(0xffffff),envMapIntensity:.08
   });
-  const cyanLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,.29,1.05),toneMapped:false,fog:false});
+  const cyanLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.12,2.5,4.6),toneMapped:false,fog:false});
   const amberLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(1,.43,.035),toneMapped:false,fog:false});
   const redLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(1,.075,.025),toneMapped:false,fog:false});
   const whiteLed=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.96,.83,.62),toneMapped:false,fog:false});
@@ -262,18 +194,18 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
   addSnowCluster(root,snowMaterial,-2.60,crossbarY+.39,z+.02,2.2,1.0);
   addSnowCluster(root,snowMaterial,2.75,crossbarY+.39,z-.03,2.0,1.0);
 
-  const bannerTexture=createBannerTexture();
-  const bannerMaterial=new THREE.MeshBasicMaterial({map:bannerTexture,side:THREE.DoubleSide,toneMapped:false,fog:false});
-  addMesh(root,new RoundedBoxGeometry(7.58,1.58,.12,4,.06),frameDarkMaterial,{
-    position:[0,centerGround+4.03,z-.28],cast:true,name:'start-banner-backplate'
-  });
-  const frameZ=z-.14;
-  addMesh(root,new RoundedBoxGeometry(7.62,.13,.16,3,.035),accentMaterial,{position:[0,centerGround+4.74,frameZ],cast:true});
-  addMesh(root,new RoundedBoxGeometry(7.62,.13,.16,3,.035),accentMaterial,{position:[0,centerGround+3.32,frameZ],cast:true});
-  addMesh(root,new RoundedBoxGeometry(.13,1.54,.16,3,.035),accentMaterial,{position:[-3.745,centerGround+4.03,frameZ],cast:true});
-  addMesh(root,new RoundedBoxGeometry(.13,1.54,.16,3,.035),accentMaterial,{position:[3.745,centerGround+4.03,frameZ],cast:true});
-  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z-.12],name:'start-banner-front'});
-  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z+.12],rotation:[0,Math.PI,0],name:'start-banner-rear'});
+  // Open LED portal, with no printed START banner obscuring the truss.
+  const violetLed=new THREE.MeshBasicMaterial({color:new THREE.Color(.9,.28,3.5),toneMapped:false,fog:false});
+  for(const face of [-1,1]){
+    const faceZ=z+face*.43;
+    addMesh(root,new RoundedBoxGeometry(9.15,.075,.045,2,.018),cyanLed,{position:[0,crossbarY,faceZ],name:'start-led-crossbar'});
+    addMesh(root,new RoundedBoxGeometry(7.85,.055,.045,2,.012),violetLed,{position:[0,centerGround+3.42,faceZ],name:'start-led-lower-truss'});
+    for(const side of [-1,1]){
+      const x=side*4.62,ground=terrainHeight(x,z);
+      addMesh(root,new RoundedBoxGeometry(.065,3.9,.045,2,.015),cyanLed,{position:[x,ground+2.46,faceZ],name:'start-led-tower'});
+      for(let i=0;i<3;i++)addMesh(root,new RoundedBoxGeometry(.06,.35,.04,2,.012),violetLed,{position:[side*(.34+i*.31),centerGround+4.02,faceZ],rotation:[0,0,-side*.55],name:'start-led-chevron'});
+    }
+  }
 
   const lineMaterials=[
     new THREE.MeshStandardMaterial({color:0xf9fcff,roughness:.84,metalness:0}),

@@ -49,8 +49,8 @@ void main(){
   vec3 shadow=vec3(.50,.64,.74),packed=vec3(.86,.92,.965);
   vec3 color=mix(packed,shadow,trough*(.72+.18*carve));
   color=mix(color,vec3(.76,.86,.93),boardCompression*.45+edgeGroove*.50);
-  // Keep crests bright but below the previous near-white HDR clipping level.
-  color=mix(color,vec3(1.38,1.50,1.62),berm*(.68+.20*carve));
+  // HDR emission is confined to the raised crest; packed snow stays readable.
+  color+=vec3(.38,3.8,5.4)*berm*(.85+.25*carve);
   float feather=1.0-smoothstep(.86,1.0,side)*.86;
   gl_FragColor=vec4(color,vAlpha*feather);
 }
