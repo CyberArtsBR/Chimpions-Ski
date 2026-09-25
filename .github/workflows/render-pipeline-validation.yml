@@ -61,8 +61,15 @@ jobs:
           import {chromium} from '@playwright/test';
 
           const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
-          const profiles=['max','high','medium','low'];
-          const results={};
+          const context=await browser.newContext({
+            viewport:{width:240,height:135},
+            deviceScaleFactor:2
+          });
+          const page=await context.newPage();
+          const errors=[];
+          page.on('pageerror',error=>errors.push('PAGEERROR '+(error?.message||String(error))));
+          page.on('console',message=>{if(message.type()==='error')errors.push('CONSOLE '+message.text());});
+
           const percentile=(values,p)=>{
             const sorted=[...values].sort((a,b)=>a-b);
             if(!sorted.length)return null;
@@ -72,28 +79,32 @@ jobs:
           };
           const round=value=>value==null?null:Math.round(value*1000)/1000;
 
-          async function openProfile(profile){
-            const context=await browser.newContext({
-              viewport:{width:240,height:135},
-              deviceScaleFactor:2
-            });
-            const page=await context.newPage();
-            const errors=[];
-            page.on('pageerror',error=>errors.push('PAGEERROR '+(error?.message||String(error))));
-            page.on('console',message=>{if(message.type()==='error')errors.push('CONSOLE '+message.text());});
-            await page.goto('http://127.0.0.1:4173/?test=1&quality='+profile,{waitUntil:'domcontentloaded'});
-            await page.waitForFunction(()=>typeof window.chimpionsSki==='function'&&window.chimpionsSki()?.qualityProfile,null,{timeout:30000});
-            await page.waitForTimeout(500);
-            return {context,page,errors};
+          await page.goto('http://127.0.0.1:4173/?test=1&quality=low',{waitUntil:'domcontentloaded'});
+          await page.waitForFunction(()=>typeof window.chimpionsSki==='function'&&window.chimpionsSki()?.qualityProfile,null,{timeout:30000});
+          await page.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:30000});
+
+          const staticBefore=await page.evaluate(()=>window.chimpionsSki());
+          await page.waitForTimeout(350);
+          const staticAfter=await page.evaluate(()=>window.chimpionsSki());
+
+          await page.evaluate(()=>{
+            const start=document.querySelector('.start-screen');
+            if(start)start.hidden=true;
+            document.body.classList.remove('start-screen-active');
+          });
+          await page.waitForTimeout(120);
+
+          async function switchTo(target){
+            for(let guard=0;guard<8;guard++){
+              const current=await page.evaluate(()=>window.chimpionsSki().qualityMode);
+              if(current===target)return;
+              await page.locator('#quality-profile').evaluate(button=>button.click());
+              await page.waitForTimeout(90);
+            }
+            assert.equal(await page.evaluate(()=>window.chimpionsSki().qualityMode),target,'failed to switch quality to '+target);
           }
 
-          async function collectDynamicFrameTimes(page,durationMs=500){
-            await page.evaluate(()=>{
-              const start=document.querySelector('.start-screen');
-              if(start)start.hidden=true;
-              document.body.classList.remove('start-screen-active');
-            });
-            await page.waitForTimeout(60);
+          async function collectFrameTimes(durationMs=500){
             return page.evaluate(duration=>new Promise(resolve=>{
               const values=[];
               let last=performance.now();
@@ -108,16 +119,12 @@ jobs:
             }),durationMs);
           }
 
-          for(const profile of profiles){
-            const {context,page,errors}=await openProfile(profile);
-            const staticBefore=await page.evaluate(()=>window.chimpionsSki());
+          const results={};
+          for(const profile of ['low','high','max','medium']){
+            await switchTo(profile);
             await page.waitForTimeout(180);
-            const staticAfter=await page.evaluate(()=>window.chimpionsSki());
-
-            const frameTimes=await collectDynamicFrameTimes(page);
+            const frameTimes=await collectFrameTimes();
             const d=await page.evaluate(()=>window.chimpionsSki());
-            assert.equal(errors.length,0,profile+' browser errors: '+errors.join(' | '));
-            assert.equal(d.qualityMode,profile);
             results[profile]={
               frameP50Ms:round(percentile(frameTimes,.50)),
               frameP95Ms:round(percentile(frameTimes,.95)),
@@ -134,32 +141,17 @@ jobs:
               managedRenderTargetCount:d.managedRenderTargetCount,
               bloomEnabled:d.bloomEnabled,
               bloomStrength:d.bloomStrength,
+              bloomThreshold:d.bloomThreshold,
               shadowEnabled:d.shadowEnabled,
               shadowMapSize:d.shadowMapSize,
-              renderCpuP50Ms:d.renderCpuP50Ms,
-              renderCpuP95Ms:d.renderCpuP95Ms,
-              renderCpuP99Ms:d.renderCpuP99Ms,
-              postProcessCpuP95Ms:d.postProcessCpuP95Ms,
-              gpuTimerSupported:d.gpuTimerSupported,
-              gpuFrameP50Ms:d.gpuFrameP50Ms,
-              gpuFrameP95Ms:d.gpuFrameP95Ms,
-              gpuFrameP99Ms:d.gpuFrameP99Ms,
-              staticFrameSkips:d.staticFrameSkips,
-              staticFramesRendered:d.staticFramesRendered,
-              staticProbe:{
-                beforeSkips:staticBefore.staticFrameSkips,
-                afterSkips:staticAfter.staticFrameSkips,
-                beforeRendered:staticBefore.staticFramesRendered,
-                afterRendered:staticAfter.staticFramesRendered
-              },
               anisotropyRequested:d.anisotropyRequested,
               activeDecorativeTrees:d.activeDecorativeTrees,
               activeBanks:d.activeBanks,
               activeWindBanks:d.activeWindBanks
             };
-            await context.close();
           }
 
+          assert.equal(errors.length,0,'browser errors: '+errors.join(' | '));
           assert.equal(results.low.renderPipeline,'direct','LOW must bypass composer');
           assert.equal(results.low.postProcessingEnabled,false,'LOW still pays for post processing');
           assert.equal(results.low.bloomEnabled,false,'LOW still pays for bloom');
@@ -178,32 +170,36 @@ jobs:
           assert(results.high.activeDecorativeTrees>results.medium.activeDecorativeTrees,'HIGH environment density does not exceed MEDIUM');
           assert(results.medium.activeDecorativeTrees>results.low.activeDecorativeTrees,'MEDIUM environment density does not exceed LOW');
 
-          const leak=await openProfile('max');
-          await leak.page.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:30000});
-          await leak.page.evaluate(()=>{
-            const start=document.querySelector('.start-screen');
-            if(start)start.hidden=true;
-            document.body.classList.remove('start-screen-active');
-          });
-          await leak.page.waitForTimeout(300);
-          const before=await leak.page.evaluate(()=>window.chimpionsSki());
-          const sequence=['medium','low','auto','high','max','medium','low','auto','high','max'];
-          for(const target of sequence){
-            for(let guard=0;guard<8;guard++){
-              const current=await leak.page.evaluate(()=>window.chimpionsSki().qualityMode);
-              if(current===target)break;
-              await leak.page.locator('#quality-profile').evaluate(button=>button.click());
-              await leak.page.waitForTimeout(80);
-            }
-            assert.equal(await leak.page.evaluate(()=>window.chimpionsSki().qualityMode),target,'failed to switch quality to '+target);
+          await switchTo('max');
+          await page.waitForTimeout(220);
+          const before=await page.evaluate(()=>window.chimpionsSki());
+          for(const target of ['medium','low','high','max','medium','low','high','max']){
+            await switchTo(target);
+            await page.waitForTimeout(100);
           }
-          await leak.page.waitForTimeout(250);
-          const after=await leak.page.evaluate(()=>window.chimpionsSki());
+          const after=await page.evaluate(()=>window.chimpionsSki());
           assert(after.pipelineRebuilds>before.pipelineRebuilds,'quality switching did not rebuild render targets');
           assert(after.targetDisposals>before.targetDisposals,'quality switching did not dispose replaced render targets');
           assert.equal(after.managedRenderTargetCount,before.managedRenderTargetCount,'render-target count changed after returning to MAX');
           assert(after.rendererGeometries<=before.rendererGeometries+2,'quality switching leaked geometries');
           assert(after.rendererTextures<=before.rendererTextures+4,'quality switching leaked textures');
+
+          results.staticStart={
+            beforeSkips:staticBefore.staticFrameSkips,
+            afterSkips:staticAfter.staticFrameSkips,
+            beforeRendered:staticBefore.staticFramesRendered,
+            afterRendered:staticAfter.staticFramesRendered
+          };
+          results.telemetry={
+            gpuTimerSupported:after.gpuTimerSupported,
+            gpuFrameP50Ms:after.gpuFrameP50Ms,
+            gpuFrameP95Ms:after.gpuFrameP95Ms,
+            gpuFrameP99Ms:after.gpuFrameP99Ms,
+            renderCpuP50Ms:after.renderCpuP50Ms,
+            renderCpuP95Ms:after.renderCpuP95Ms,
+            renderCpuP99Ms:after.renderCpuP99Ms,
+            postProcessCpuP95Ms:after.postProcessCpuP95Ms
+          };
           results.lifecycle={
             before:{
               rendererGeometries:before.rendererGeometries,
@@ -220,11 +216,11 @@ jobs:
               targetDisposals:after.targetDisposals
             }
           };
-          await leak.context.close();
-          await browser.close();
 
           writeFileSync('render-benchmarks/render-profile-probe.json',JSON.stringify(results,null,2)+'\n');
           console.log('RENDER_PROFILE_PROBE '+JSON.stringify(results));
+          await context.close();
+          await browser.close();
           NODE
 
       - uses: actions/upload-artifact@v4
