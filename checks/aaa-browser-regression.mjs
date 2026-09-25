@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {mkdir,writeFile} from 'node:fs/promises';
+import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {chromium,firefox,webkit} from '@playwright/test';
 
@@ -9,7 +9,8 @@ const browserType={chromium,firefox,webkit}[browserName]||chromium;
 const soakSeconds=Math.max(5,Number(process.env.AAA_SOAK_SECONDS||20));
 const artifactDir=resolve(process.cwd(),process.env.AAA_ARTIFACT_DIR||'artifacts/qa',browserName);
 await mkdir(artifactDir,{recursive:true});
-const report={schemaVersion:1,browser:browserName,base,soakSeconds,status:'PASS',quality:{},screenshots:[],samples:[],restart:[],qualitySwitch:[],notTestableInCi:[],errors:[]};
+const report={schemaVersion:1,browser:browserName,base,soakSeconds,status:'PASS',quality:{},screenshots:[],avatarMatrix:[],samples:[],restart:[],qualitySwitch:[],notTestableInCi:[],errors:[]};
+const builtinAvatars=JSON.parse(await readFile(resolve(process.cwd(),'public/avatars.json'),'utf8'));
 const browserErrors=[];
 const launchOptions={headless:true};
 if(browserName==='chromium')launchOptions.args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'];
@@ -18,6 +19,7 @@ const browser=await browserType.launch(launchOptions);
 // asserted from diagnostics/settings; visual checkpoints do not need 5.2MP
 // 2x-DPR readbacks to catch black screens, missing world/rider/equipment, etc.
 const context=await browser.newContext({viewport:{width:1100,height:700},deviceScaleFactor:1});
+await context.addInitScript(()=>localStorage.setItem('chimpions-ski-tutorial-seen-v2','1'));
 
 function diagnostics(page){return page.evaluate(()=>window.chimpionsSki?.()||null);}
 async function readyPage(query=''){
@@ -74,6 +76,42 @@ function assertRuntimeHealth(s,label){
   assert.equal(s.courseBatchOverflow,0,`${label}: course batch overflow can create invisible collidable hazards`);
   if((s.courseLegacyDrawCallsEstimate||0)>0)assert((s.courseDrawCallsEstimate||0)<=s.courseLegacyDrawCallsEstimate,`${label}: batching costs more draw calls than legacy estimate`);
 }
+async function probeBuiltinAvatar(entry,ride){
+  const page=await readyPage(`?test=1&seed=qa-avatar-${entry.id}-${ride}&quality=low`);
+  try{
+    await page.getByRole('button',{name:/start game/i}).evaluate(el=>el.click());
+    const selector=page.locator('#chimpion-selector');
+    await selector.waitFor({state:'visible',timeout:10000});
+    const card=selector.locator(`.chimpion-card[data-avatar-id="${entry.id}"]`);
+    await card.waitFor({state:'visible',timeout:10000});
+    await card.evaluate(el=>el.click());
+    const rideButton=selector.locator(`.ride-mode-card[data-ride-mode="${ride}"]`);
+    await rideButton.waitFor({state:'visible',timeout:10000});
+    await rideButton.evaluate(el=>el.click());
+    await selector.waitFor({state:'hidden',timeout:60000});
+    const expectedEquipment=ride==='snowboard'?'snowboard':'skis';
+    const expectedPose=ride==='snowboard'?'snowboard-side-stance':'ski-a-pose';
+    await page.waitForFunction(
+      ({equipment,pose})=>{
+        const d=window.chimpionsSki?.();
+        return !!(d?.ready&&d.riderAttached&&!d.skierFallback&&d.rigReady&&d.equipmentType===equipment&&d.poseMode===pose);
+      },
+      {equipment:expectedEquipment,pose:expectedPose},
+      {timeout:60000}
+    );
+    const selectedName=(await page.locator('#selected-avatar-name').textContent())?.trim();
+    assert.equal(selectedName,entry.name,`${entry.name} ${ride}: selected-avatar presentation drifted`);
+    await page.waitForTimeout(120);
+    const d=await snapshotWithMemory(page);
+    assert.equal(d.equipmentType,expectedEquipment,`${entry.name} ${ride}: wrong equipment`);
+    assert.equal(d.poseMode,expectedPose,`${entry.name} ${ride}: animation/pose mode did not initialize`);
+    assert.equal(d.skierFallback,false,`${entry.name} ${ride}: unexpectedly fell back to procedural rider`);
+    assert.equal(d.rigReady,true,`${entry.name} ${ride}: gameplay rig was not ready`);
+    report.avatarMatrix.push({name:entry.name,id:entry.id,ride,equipmentType:d.equipmentType,poseMode:d.poseMode,rigReady:d.rigReady,rendererGeometries:d.rendererGeometries,rendererTextures:d.rendererTextures});
+  }finally{
+    await page.close();
+  }
+}
 
 try{
   for(const profile of ['auto','max','high','medium','low']){
@@ -85,6 +123,12 @@ try{
   assert(report.quality.max.qualitySettings.dprCap>report.quality.high.qualitySettings.dprCap,'MAX must expose more DPR headroom than HIGH');
   assert(report.quality.low.qualitySettings.dprCap<report.quality.high.qualitySettings.dprCap,'LOW must be cheaper than HIGH');
   assert(report.quality.low.rendererPixelRatio<report.quality.max.rendererPixelRatio,'LOW effective renderer DPR must be below MAX at the CI device scale factor');
+
+  for(const entry of builtinAvatars){
+    await probeBuiltinAvatar(entry,'ski');
+    await probeBuiltinAvatar(entry,'snowboard');
+  }
+  assert.equal(report.avatarMatrix.length,builtinAvatars.length*2,'all built-in Chimpions must load in both ride modes');
 
   const page=await readyPage('?test=1&seed=qa-runtime-fixed&quality=high');
   await startRun(page,'ski');
@@ -126,6 +170,19 @@ try{
   assert(resourceRange(report.qualitySwitch,'rendererGeometries')<=24,'quality switching leaked geometries');
   assert(resourceRange(report.qualitySwitch,'rendererTextures')<=24,'quality switching leaked textures');
   await page.locator('#settings-close').evaluate(el=>el.click());
+  await page.close();
+
+  const snowboardPage=await readyPage('?test=1&seed=qa-snowboard-fixed&quality=high');
+  await startRun(snowboardPage,'snowboard');
+  let snowboardDiag=await snapshotWithMemory(snowboardPage);
+  assert.equal(snowboardDiag.rideMode,'snowboard');
+  assert.equal(snowboardDiag.equipmentType,'snowboard');
+  assert.equal(snowboardDiag.poseMode,'snowboard-side-stance');
+  assertRuntimeHealth(snowboardDiag,'snowboard start');
+  await shot(snowboardPage,'snowboard-neutral');
+  await snowboardPage.keyboard.down('a');await snowboardPage.waitForTimeout(650);await snowboardPage.keyboard.up('a');await shot(snowboardPage,'snowboard-left-carve');
+  await snowboardPage.keyboard.down('d');await snowboardPage.waitForTimeout(650);await snowboardPage.keyboard.up('d');await shot(snowboardPage,'snowboard-right-carve');
+  await snowboardPage.close();
 
   report.notTestableInCi.push(
     'True Gamepad API/controller hardware behavior: browser automation cannot validate physical controller timing/haptics reliably.',
@@ -136,10 +193,10 @@ try{
   );
   report.browserErrors=browserErrors;
   assert.equal(browserErrors.length,0,'browser console/page errors: '+browserErrors.join('\n'));
-  await page.close();
+  
 }catch(error){report.status='FAIL';report.errors.push({message:String(error?.message||error),stack:error?.stack||null});process.exitCode=1;}
 finally{
   await browser.close();report.completedAt=new Date().toISOString();
   await writeFile(resolve(artifactDir,'aaa-browser-report.json'),JSON.stringify(report,null,2)+'\n');
-  console.log(JSON.stringify({check:'aaa-browser-regression',status:report.status,browser:browserName,soakSeconds,screenshots:report.screenshots.length,samples:report.samples.length,restarts:report.restart.length,qualitySwitches:report.qualitySwitch.length,notTestableInCi:report.notTestableInCi,errors:report.errors},null,2));
+  console.log(JSON.stringify({check:'aaa-browser-regression',status:report.status,browser:browserName,soakSeconds,screenshots:report.screenshots.length,samples:report.samples.length,restarts:report.restart.length,qualitySwitches:report.qualitySwitch.length,avatarLoads:report.avatarMatrix.length,notTestableInCi:report.notTestableInCi,errors:report.errors},null,2));
 }
