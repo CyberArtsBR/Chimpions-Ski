@@ -830,23 +830,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     }
     const costOf=item=>estimateThreatCost(item,currentSpeed,plan);
     let estimatedCost=placements.reduce((sum,item)=>sum+costOf(item),0);
-    const reservedPostMaxHazards=placements.filter(item=>
-      PHYSICAL_HAZARDS.has(item.kind)&&
-      item.postMaxPressure&&
-      item.safetyOptional&&
-      !item.commitmentDecision&&
-      !item.landingProtected&&
-      !item.jumpTarget
-    );
-    // Dedicated post-300 fillers are an intentional bounded escalation above
-    // the normal section threat budget. Reserve their exact count/cost so the
-    // budget pass cannot add four fillers and immediately delete four ordinary
-    // hazards, which would make the density ramp a no-op. Corridor validation
-    // still retains authority to remove any unsafe filler afterwards.
-    const postMaxReserveCount=reservedPostMaxHazards.length;
-    const postMaxReserveCost=reservedPostMaxHazards.reduce((sum,item)=>sum+costOf(item),0);
-    const effectiveMaxCost=budget.maxCost+postMaxReserveCost;
-    const effectiveMaxOptionalHazards=budget.maxOptionalHazards+postMaxReserveCount;
     let optionalHazards=placements.filter(item=>
       PHYSICAL_HAZARDS.has(item.kind)&&
       item.safetyOptional&&
@@ -864,8 +847,8 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
 
     let removed=0;
     while(optionalHazards.length&&(
-      estimatedCost>effectiveMaxCost||
-      optionalHazards.length>effectiveMaxOptionalHazards
+      estimatedCost>budget.maxCost||
+      optionalHazards.length>budget.maxOptionalHazards
     )){
       const victim=optionalHazards.shift();
       const index=placements.indexOf(victim);
@@ -877,14 +860,10 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
 
     return {
       target:budget.target,
-      maxCost:effectiveMaxCost,
-      baseMaxCost:budget.maxCost,
+      maxCost:budget.maxCost,
       estimatedCost:Math.max(0,estimatedCost),
       removed,
       optionalHazards:placements.filter(item=>PHYSICAL_HAZARDS.has(item.kind)&&item.safetyOptional).length,
-      baseMaxOptionalHazards:budget.maxOptionalHazards,
-      postMaxReserveCount,
-      postMaxReserveCost,
       reactionSpacingScale:budget.reactionSpacingScale,
       routeCommitment:budget.routeCommitment
     };
@@ -1550,18 +1529,21 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         postMaxPressure
       );
 
-      // Once 300 km/h has been reached, fill remaining sparse longitudinal
-      // patches gradually on top of the irregular base field.
-      addSparseGapPressure(
+    }
+
+    const threatBudgetResult=applyThreatBudget(placements,runPlan,currentSpeed);
+
+    if(type!=='RAMP'&&type!=='LOG JUMP'&&type!=='RECOVERY'){
+      threatBudgetResult.postMaxAdded=addSparseGapPressure(
         placements,
         startZ,
         length,
         safeRoute.previousSafeX,
         postMaxPressure
       );
+    }else{
+      threatBudgetResult.postMaxAdded=0;
     }
-
-    const threatBudgetResult=applyThreatBudget(placements,runPlan,currentSpeed);
 
     pruneExcessiveOverlap(placements);
 
