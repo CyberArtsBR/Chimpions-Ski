@@ -759,6 +759,9 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     }
     const clipLayer=createRiderClipLayer(gltf,model);
     const root=new THREE.Group();loadedRoot=root;
+    // Register cleanup immediately so any later equipment/setup exception cannot
+    // strand an AnimationMixer or its actions.
+    root.userData.disposeRiderAnimation=()=>clipLayer?.dispose();
 
     // Dedicated visual root: future tricks can rotate rider/equipment without
     // touching the gameplay transform, collision or camera root.
@@ -819,7 +822,6 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     root.userData.localAvatarComplexity=localAvatarComplexity;
     root.userData.animationClipCount=Array.isArray(gltf.animations)?gltf.animations.length:0;
     root.userData.optionalClipLayer=!!clipLayer;
-    root.userData.disposeRiderAnimation=()=>clipLayer?.dispose();
     root.userData.riderVisual=riderVisual;
     root.userData.firstPersonBody=modelCarrier;
     root.userData.skis=skis;
