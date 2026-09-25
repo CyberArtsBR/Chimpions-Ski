@@ -20,7 +20,7 @@ The QA suite does not loosen that threshold or create a second magic-number jump
 | RAMP / LOG JUMP | Approach/metadata, protected landing corridor, recovery sequencing, route reachability |
 | Physics | Existing physics invariants plus 30/60/120 render-frame equivalence over a 180 Hz physics substep model |
 | Tricks / scoring | Existing trick, trick-system, airborne-scoring, input/collision suites included in aggregate runner |
-| Built-in Chimpions | Existing roster/compatibility/release smoke retained; browser run selects a real built-in |
+| Built-in Chimpions | Static rig audit plus browser matrix exercises all 10 built-ins in both ski and snowboard modes (20 loads) |
 | Local GLB | Existing production smoke validates invalid and valid local GLBs without remote GLB traffic |
 | Quality profiles | AUTO/MAX/HIGH/MEDIUM/LOW contract, AUTO degradation/recovery/hysteresis, runtime DPR comparison |
 | Render/collision parity | Browser runtime fails on any course InstancedMesh overflow in the visible gameplay window |
@@ -32,7 +32,7 @@ The QA suite does not loosen that threshold or create a second magic-number jump
 | Performance | Existing p50/p95/p99/max telemetry consumed via runtime diagnostics; batching and resource budgets |
 | Browser | Chromium on every branch push; Firefox/WebKit scheduled or manually requested |
 | Long-run | Short Chromium soak on branch pushes; 30-minute scheduled/manual Chromium soak |
-| Release smoke | Existing production smoke executed after the new Chromium runtime regression |
+| Release smoke | Custom Chromium regression, existing desktop browser audit, and existing production smoke run independently before a final browser gate |
 
 ## Commands
 
@@ -68,10 +68,13 @@ AAA_BROWSER=chromium AAA_SOAK_SECONDS=1800 node checks/aaa-browser-regression.mj
 
 ## Current audited findings
 
-At the audited `c4d445569584e792981bada3d71689473dfc42d2` production baseline, the deterministic matrix currently isolates two product-level failures:
+At the audited `c4d445569584e792981bada3d71689473dfc42d2` production baseline, the deterministic matrix currently isolates three product-level failures:
 
 1. **Course length contract:** `RAMP 283.5567383947582m` exceeds the authoritative `20–281m` invariant. The QA branch does not loosen or duplicate this contract.
-2. **Landing presentation contract:** `src/gameFeedback.js` still calls the landing-text UI path and `src/ui.js` can emit `CLEAN LANDING` for a dramatic clean landing. `checks/airborne-scoring-invariants.mjs` intentionally remains red until the owning gameplay/presentation change resolves that contract.
+2. **Late-game dedicated side pressure:** the sustained max-speed stress test requires at least 40 explicitly tagged `sidePressure` hazards per 160-section seed, but the worst deterministic seed currently produces only 2. Far-left/right threat totals remain high, so general edge pressure exists; the dedicated side-pressure insertion path is being starved by dense placement constraints and remains a real course-generation regression for the owning gameplay/course branch.
+3. **Landing presentation contract:** `src/gameFeedback.js` still calls the landing-text UI path and `src/ui.js` can emit `CLEAN LANDING` for a dramatic clean landing. `checks/airborne-scoring-invariants.mjs` intentionally remains red until the owning gameplay/presentation change resolves that contract.
+
+One stale visual QA assertion was repaired without changing production code: ramp rendering now lives in `src/courseSurfaceVisuals.js` as `competition-tech-kicker-v6-hdr`, wired through `createRampVisual()`, rather than the older `readable-ramp-v2` marker in `environment.js`.
 
 The expanded QA checks themselves are otherwise green in the latest core run: deterministic course stress, course runtime/performance simulation, render/collision parity, physics, 30/60/120 FPS equivalence, input/touch/camera, tricks, ride modes, all built-in rig audits, local-GLB validation, performance/quality, weather, QA branch-scope guard, and long-run static allocation checks.
 
