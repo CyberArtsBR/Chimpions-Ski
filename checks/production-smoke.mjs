@@ -11,7 +11,7 @@ async function dismissTutorial(page){
     !!document.querySelector('.session-tutorial:not([hidden])')||
     ['countdown','playing'].includes(window.chimpionsSki?.().mode)
   ),null,{timeout:10000,polling:100}).catch(()=>{});
-  if(!await page.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])'))return false;
+  if(!await page.evaluate(()=>!!document.querySelector('.session-tutorial:not([hidden])')))return false;
   await page.keyboard.press('Enter');
   await page.waitForFunction(
     ()=>!document.querySelector('.session-tutorial:not([hidden])'),
