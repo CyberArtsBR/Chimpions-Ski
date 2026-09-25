@@ -31,7 +31,7 @@ function qualityProfileEnv(){
   const value=String(process.env.QUALITY_PROFILE||'').trim().toLowerCase();
   if(!value)return null;
   if(value==='reduced')return 'medium';
-  if(!['auto','high','medium','low'].includes(value))throw new Error('QUALITY_PROFILE must be auto, high, medium or low');
+  if(!['auto','max','high','medium','low'].includes(value))throw new Error('QUALITY_PROFILE must be auto, max, high, medium or low');
   return value;
 }
 function normalizeBaseUrl(value){
