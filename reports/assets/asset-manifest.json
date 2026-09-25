@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-25T18:20:10.482Z",
+  "assets": [
+    {
+      "name": "The Archon",
+      "path": "public/model/characters/The Archon.glb",
+      "sha256": "0de2a2764e4fc4a658163693b1c9b3585aaa38f79c4c6ca1cb480c6fdce79d2f",
+      "bytes": 14111420,
+      "compression": []
+    },
+    {
+      "name": "The Heretic",
+      "path": "public/model/characters/The Heretic.glb",
+      "sha256": "fe31a984fe8b5fb400915698b3ebb4b4ed7118e55e367a70cfb8ed0250a589be",
+      "bytes": 1604068,
+      "compression": []
+    },
+    {
+      "name": "The Commodore",
+      "path": "public/model/characters/The Commodore.glb",
+      "sha256": "4b04e603c1b41e73ac20be1e83ac8930931de9c2fa1378fbf48e1e66e8d50560",
+      "bytes": 3843040,
+      "compression": []
+    },
+    {
+      "name": "The Pioneer",
+      "path": "public/model/characters/The Pioneer.glb",
+      "sha256": "966b5f67393d852ea3a0d5c0d09c7fc2bb53065677bcc97939aaf5aab2b69786",
+      "bytes": 2265988,
+      "compression": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ]
+    },
+    {
+      "name": "The Punk",
+      "path": "public/model/characters/The Punk.glb",
+      "sha256": "2c56be4430aa30f0deae73df42810d4d37fa4d4e51449d3e5eb9d5d1848c1fce",
+      "bytes": 594996,
+      "compression": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ]
+    },
+    {
+      "name": "The Street Fighter",
+      "path": "public/model/characters/The Street Fighter.glb",
+      "sha256": "869b3e715b10ba8a68ba24e35ae5b904095f02f9a6dff203d6298ff1e33d2068",
+      "bytes": 2151896,
+      "compression": []
+    },
+    {
+      "name": "The Bosun",
+      "path": "public/model/characters/The Bosun.glb",
+      "sha256": "c21423c10a91e71e6070f608accaf74a0479a9698b94dc6e19502cf553944d17",
+      "bytes": 4594172,
+      "compression": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ]
+    },
+    {
+      "name": "The Adolescent",
+      "path": "public/model/characters/The Adolescent.glb",
+      "sha256": "fdbd6e1047ff9e54e6e847bfbf2eb2b363533a46099623ec0ce0cf2cc8310e26",
+      "bytes": 2838612,
+      "compression": []
+    },
+    {
+      "name": "The Angsty",
+      "path": "public/model/characters/The Angsty.glb",
+      "sha256": "2ee6ce6c624168acfbb29d9d10df7cf48db7e12876f5997cbc63ea21e68623e1",
+      "bytes": 3362104,
+      "compression": []
+    },
+    {
+      "name": "The Apologetic",
+      "path": "public/model/characters/The Apologetic.glb",
+      "sha256": "7d30cf291e780a48b7b7905bcff21205fbdbc52e042fbaee4e1e3810d659865e",
+      "bytes": 5925040,
+      "compression": []
+    }
+  ]
+}

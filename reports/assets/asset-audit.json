@@ -1,0 +1,495 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-25T18:20:10.482Z",
+  "assetCount": 10,
+  "totals": {
+    "bytes": 41291336,
+    "vertexCount": 315962,
+    "triangleCount": 401501,
+    "estimatedGeometryMemory": 18561090,
+    "estimatedTextureMemory": 710235488,
+    "estimatedDecodedGpuBytes": 728796578
+  },
+  "assets": [
+    {
+      "name": "The Archon",
+      "path": "public/model/characters/The Archon.glb",
+      "bytes": 14111420,
+      "sha256": "0de2a2764e4fc4a658163693b1c9b3585aaa38f79c4c6ca1cb480c6fdce79d2f",
+      "meshCount": 3,
+      "primitiveCount": 3,
+      "skinnedMeshCount": 1,
+      "vertexCount": 62182,
+      "triangleCount": 52264,
+      "materialCount": 3,
+      "textureCount": 4,
+      "maxTextureDimension": 4096,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 4377448,
+      "estimatedTextureMemory": 223696216,
+      "estimatedDecodedGpuBytes": 228073664,
+      "compressionExtensions": [],
+      "extensionsUsed": [
+        "KHR_materials_ior",
+        "KHR_materials_specular"
+      ],
+      "textures": [
+        {
+          "name": "tripo_mat_2f25a13e_Diffuse",
+          "mimeType": "image/jpeg",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 1602876,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_2f25a13e"
+            }
+          ]
+        },
+        {
+          "name": "tripo_node_2e26ff2a-cb63-442c-88fa-9644a317b73e_Normal_Bake",
+          "mimeType": "image/jpeg",
+          "width": 2048,
+          "height": 2048,
+          "bytes": 304611,
+          "usage": [
+            {
+              "semantic": "normal",
+              "colorSpace": "linear",
+              "material": "tripo_mat_7df9a71a"
+            }
+          ]
+        },
+        {
+          "name": "tripo_node_2e26ff2a-cb63-442c-88fa-9644a317b73e_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 4904947,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_7df9a71a"
+            }
+          ]
+        },
+        {
+          "name": "tripo_node_1f55e017-0342-43ce-8e93-672bc0ce946d_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 3470777,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_82014bbe"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Heretic",
+      "path": "public/model/characters/The Heretic.glb",
+      "bytes": 1604068,
+      "sha256": "fe31a984fe8b5fb400915698b3ebb4b4ed7118e55e367a70cfb8ed0250a589be",
+      "meshCount": 6,
+      "primitiveCount": 6,
+      "skinnedMeshCount": 1,
+      "vertexCount": 25170,
+      "triangleCount": 38438,
+      "materialCount": 3,
+      "textureCount": 1,
+      "maxTextureDimension": 1024,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 1477728,
+      "estimatedTextureMemory": 5592406,
+      "estimatedDecodedGpuBytes": 7070134,
+      "compressionExtensions": [],
+      "extensionsUsed": [],
+      "textures": [
+        {
+          "name": "tripo_node_e4eb8784-cdb9-406e-a09f-52d13453ab56_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 101162,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_e80a424d"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Commodore",
+      "path": "public/model/characters/The Commodore.glb",
+      "bytes": 3843040,
+      "sha256": "4b04e603c1b41e73ac20be1e83ac8930931de9c2fa1378fbf48e1e66e8d50560",
+      "meshCount": 2,
+      "primitiveCount": 2,
+      "skinnedMeshCount": 1,
+      "vertexCount": 26246,
+      "triangleCount": 37231,
+      "materialCount": 2,
+      "textureCount": 2,
+      "maxTextureDimension": 4096,
+      "boneCount": 52,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 1564146,
+      "estimatedTextureMemory": 178956972,
+      "estimatedDecodedGpuBytes": 180521118,
+      "compressionExtensions": [],
+      "extensionsUsed": [],
+      "textures": [
+        {
+          "name": "tripo_node_4561de64-67c8-46e4-a785-4ebe2a7b6f73_Clone_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 1125249,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_844a4305"
+            }
+          ]
+        },
+        {
+          "name": "tripo_node_4561de64-67c8-46e4-a785-4ebe2a7b6f73_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 1137360,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_a14dae79"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Pioneer",
+      "path": "public/model/characters/The Pioneer.glb",
+      "bytes": 2265988,
+      "sha256": "966b5f67393d852ea3a0d5c0d09c7fc2bb53065677bcc97939aaf5aab2b69786",
+      "meshCount": 3,
+      "primitiveCount": 4,
+      "skinnedMeshCount": 1,
+      "vertexCount": 30381,
+      "triangleCount": 40221,
+      "materialCount": 3,
+      "textureCount": 2,
+      "maxTextureDimension": 4096,
+      "boneCount": 22,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 883302,
+      "estimatedTextureMemory": 95070892,
+      "estimatedDecodedGpuBytes": 95954194,
+      "compressionExtensions": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ],
+      "extensionsUsed": [
+        "EXT_meshopt_compression",
+        "KHR_materials_ior",
+        "KHR_materials_specular",
+        "KHR_mesh_quantization"
+      ],
+      "textures": [
+        {
+          "name": "texture_pbr_20250901",
+          "mimeType": "image/png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1006127,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "Material.001"
+            }
+          ]
+        },
+        {
+          "name": "tripo_node_9fcd9010-1610-4509-a196-da977aa3cf01_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 786029,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_fc4c4d58"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Punk",
+      "path": "public/model/characters/The Punk.glb",
+      "bytes": 594996,
+      "sha256": "2c56be4430aa30f0deae73df42810d4d37fa4d4e51449d3e5eb9d5d1848c1fce",
+      "meshCount": 1,
+      "primitiveCount": 1,
+      "skinnedMeshCount": 1,
+      "vertexCount": 24605,
+      "triangleCount": 34828,
+      "materialCount": 1,
+      "textureCount": 1,
+      "maxTextureDimension": 1024,
+      "boneCount": 52,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 802816,
+      "estimatedTextureMemory": 5592406,
+      "estimatedDecodedGpuBytes": 6395222,
+      "compressionExtensions": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ],
+      "extensionsUsed": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ],
+      "textures": [
+        {
+          "name": "tripo_node_0485a50c-102f-4b7a-a67a-6911bdf16ae9_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 155850,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "Fish Scale Tile 01"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Street Fighter",
+      "path": "public/model/characters/The Street Fighter.glb",
+      "bytes": 2151896,
+      "sha256": "869b3e715b10ba8a68ba24e35ae5b904095f02f9a6dff203d6298ff1e33d2068",
+      "meshCount": 2,
+      "primitiveCount": 2,
+      "skinnedMeshCount": 1,
+      "vertexCount": 27513,
+      "triangleCount": 36926,
+      "materialCount": 1,
+      "textureCount": 1,
+      "maxTextureDimension": 1024,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 2265036,
+      "estimatedTextureMemory": 5592406,
+      "estimatedDecodedGpuBytes": 7857442,
+      "compressionExtensions": [],
+      "extensionsUsed": [],
+      "textures": [
+        {
+          "name": "tripo_node_c70b5760-df54-493b-a525-3b89c1fb948d_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 184029,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_df04f083"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Bosun",
+      "path": "public/model/characters/The Bosun.glb",
+      "bytes": 4594172,
+      "sha256": "c21423c10a91e71e6070f608accaf74a0479a9698b94dc6e19502cf553944d17",
+      "meshCount": 2,
+      "primitiveCount": 8,
+      "skinnedMeshCount": 1,
+      "vertexCount": 36128,
+      "triangleCount": 43636,
+      "materialCount": 8,
+      "textureCount": 1,
+      "maxTextureDimension": 4096,
+      "boneCount": 53,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 1081520,
+      "estimatedTextureMemory": 89478486,
+      "estimatedDecodedGpuBytes": 90560006,
+      "compressionExtensions": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ],
+      "extensionsUsed": [
+        "EXT_meshopt_compression",
+        "KHR_mesh_quantization"
+      ],
+      "textures": [
+        {
+          "name": "tripo_node_be4644b2-94b4-4766-a636-43d4252dc966_Clone_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 3978286,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_6db335ad.001"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Adolescent",
+      "path": "public/model/characters/The Adolescent.glb",
+      "bytes": 2838612,
+      "sha256": "fdbd6e1047ff9e54e6e847bfbf2eb2b363533a46099623ec0ce0cf2cc8310e26",
+      "meshCount": 2,
+      "primitiveCount": 2,
+      "skinnedMeshCount": 1,
+      "vertexCount": 25888,
+      "triangleCount": 36888,
+      "materialCount": 1,
+      "textureCount": 1,
+      "maxTextureDimension": 1024,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 2034288,
+      "estimatedTextureMemory": 5592406,
+      "estimatedDecodedGpuBytes": 7626694,
+      "compressionExtensions": [],
+      "extensionsUsed": [
+        "KHR_materials_ior",
+        "KHR_materials_specular"
+      ],
+      "textures": [
+        {
+          "name": "tripo_mat_de919a2c_Diffuse",
+          "mimeType": "image/jpeg",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 782030,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_de919a2c"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Angsty",
+      "path": "public/model/characters/The Angsty.glb",
+      "bytes": 3362104,
+      "sha256": "2ee6ce6c624168acfbb29d9d10df7cf48db7e12876f5997cbc63ea21e68623e1",
+      "meshCount": 2,
+      "primitiveCount": 2,
+      "skinnedMeshCount": 1,
+      "vertexCount": 28260,
+      "triangleCount": 38253,
+      "materialCount": 1,
+      "textureCount": 1,
+      "maxTextureDimension": 1024,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 2320750,
+      "estimatedTextureMemory": 5592406,
+      "estimatedDecodedGpuBytes": 7913156,
+      "compressionExtensions": [],
+      "extensionsUsed": [],
+      "textures": [
+        {
+          "name": "aafaaaaay",
+          "mimeType": "image/png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 1344804,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_cb19523d.001"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "The Apologetic",
+      "path": "public/model/characters/The Apologetic.glb",
+      "bytes": 5925040,
+      "sha256": "7d30cf291e780a48b7b7905bcff21205fbdbc52e042fbaee4e1e3810d659865e",
+      "meshCount": 3,
+      "primitiveCount": 3,
+      "skinnedMeshCount": 1,
+      "vertexCount": 29589,
+      "triangleCount": 42816,
+      "materialCount": 2,
+      "textureCount": 2,
+      "maxTextureDimension": 4096,
+      "boneCount": 71,
+      "animationClipCount": 0,
+      "estimatedGeometryMemory": 1754056,
+      "estimatedTextureMemory": 95070892,
+      "estimatedDecodedGpuBytes": 96824948,
+      "compressionExtensions": [],
+      "extensionsUsed": [],
+      "textures": [
+        {
+          "name": "tripo_node_1f55e017-0342-43ce-8e93-672bc0ce946d_BaseColor",
+          "mimeType": "image/jpeg",
+          "width": 4096,
+          "height": 4096,
+          "bytes": 3470777,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "tripo_mat_82014bbe"
+            }
+          ]
+        },
+        {
+          "name": "Image_0",
+          "mimeType": "image/png",
+          "width": 1024,
+          "height": 1024,
+          "bytes": 676374,
+          "usage": [
+            {
+              "semantic": "baseColor",
+              "colorSpace": "srgb",
+              "material": "lambert1.001"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

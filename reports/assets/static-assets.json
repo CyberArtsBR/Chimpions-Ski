@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-09-25T18:20:15.624Z",
+  "scope": "public static assets excluding public/model/characters",
+  "totals": {
+    "files": 3,
+    "bytes": 5094346
+  },
+  "categories": {
+    "audio": {
+      "files": 1,
+      "bytes": 4260793
+    },
+    "image": {
+      "files": 2,
+      "bytes": 833553
+    }
+  },
+  "largest": [
+    {
+      "path": "public/audio/music-full.mp3",
+      "category": "audio",
+      "extension": ".mp3",
+      "bytes": 4260793,
+      "sha256": "18e24cefec0f28e787872a0bfae2ac4dc4ba1843703a1defa1a116e742d7f88c"
+    },
+    {
+      "path": "public/start/chimpions-ski-start.jpg",
+      "category": "image",
+      "extension": ".jpg",
+      "bytes": 830801,
+      "sha256": "d3a5237556ba4dfefcc85603a9c604dc93ef454ac21978561c2ab7e1605306ce"
+    },
+    {
+      "path": "public/menu/alpine-menu.svg",
+      "category": "image",
+      "extension": ".svg",
+      "bytes": 2752,
+      "sha256": "3a30a4cf69bbba4660fdbf01bf31058b0694100fdde10716901121b2d855ccaf"
+    }
+  ],
+  "duplicates": [],
+  "opportunities": [
+    {
+      "type": "large-audio",
+      "path": "public/audio/music-full.mp3",
+      "bytes": 4260793,
+      "note": "Review codec/bitrate and loop quality before recompression."
+    }
+  ]
+}

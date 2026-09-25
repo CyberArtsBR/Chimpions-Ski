@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "c4d445569584e792981bada3d71689473dfc42d2",
+  "sourceDirectory": "public/model/characters",
+  "expectedTotalBytes": 44801960,
+  "assets": {
+    "The Archon": { "bytes": 14111420 },
+    "The Heretic": { "bytes": 1604068 },
+    "The Commodore": { "bytes": 3843040 },
+    "The Pioneer": { "bytes": 3366924 },
+    "The Punk": { "bytes": 1662604 },
+    "The Street Fighter": { "bytes": 2151896 },
+    "The Bosun": { "bytes": 5936252 },
+    "The Adolescent": { "bytes": 2838612 },
+    "The Angsty": { "bytes": 3362104 },
+    "The Apologetic": { "bytes": 5925040 }
+  }
+}
