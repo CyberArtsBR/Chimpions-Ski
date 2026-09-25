@@ -26,14 +26,20 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.09,.48),transparent:true,opacity:.18,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
   const strapCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.035,.25,.88),toneMapped:false,fog:false});
   const strapGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.008,.08,.40),transparent:true,opacity:.14,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
+  // Only the hairline catches the HDR bloom pass; the broad LED stays saturated blue.
+  const bloomCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.025,1.05,11.6),toneMapped:false,fog:false});
+  const bloomPostGeometry=new RoundedBoxGeometry(.014,1.22,.014,2,.006);
+  const bloomRailGeometry=new RoundedBoxGeometry(.017,.019,1,2,.007);
   const n=countPerSide*2;
   const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n),caps=new THREE.InstancedMesh(capGeometry,capMaterial,n),feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
   const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2),ledRails=new THREE.InstancedMesh(ledRailGeometry,strapCoreMaterial,n*2),ledGlows=new THREE.InstancedMesh(ledGlowGeometry,strapGlowMaterial,n*2);
   const postLeds=new THREE.InstancedMesh(postLedGeometry,ledCoreMaterial,n),postGlows=new THREE.InstancedMesh(postGlowGeometry,ledGlowMaterial,n);
+  const bloomPosts=new THREE.InstancedMesh(bloomPostGeometry,bloomCoreMaterial,n),bloomRails=new THREE.InstancedMesh(bloomRailGeometry,bloomCoreMaterial,n*2);
   const plates=new THREE.InstancedMesh(plateGeometry,iron,n*2);
-  const meshes=[posts,caps,feet,rails,ledRails,ledGlows,postLeds,postGlows,plates];
+  const meshes=[posts,caps,feet,rails,ledRails,ledGlows,postLeds,postGlows,bloomPosts,bloomRails,plates];
   for(const mesh of meshes){mesh.receiveShadow=true;mesh.frustumCulled=false;mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);world.add(mesh);}
   ledRails.receiveShadow=ledGlows.receiveShadow=postLeds.receiveShadow=postGlows.receiveShadow=false;ledGlows.renderOrder=postGlows.renderOrder=5;ledRails.renderOrder=postLeds.renderOrder=6;
+  bloomPosts.receiveShadow=bloomRails.receiveShadow=false;bloomPosts.renderOrder=bloomRails.renderOrder=7;
   function setDecorativeShadows(enabled=true){for(const m of [posts,caps,feet,rails])m.castShadow=!!enabled;return !!enabled;}setDecorativeShadows(decorativeShadows);
   ledTint.setRGB(.55,.80,1);
   for(let i=0;i<n;i++){const shade=.88+hash(i+14)*.12;tint.setRGB(shade,shade,shade);for(const mesh of [posts,caps,feet])mesh.setColorAt(i,tint);rails.setColorAt(i*2,tint);rails.setColorAt(i*2+1,tint);postLeds.setColorAt(i,ledTint);postGlows.setColorAt(i,ledTint);for(const mesh of [ledRails,ledGlows]){mesh.setColorAt(i*2,strapTint);mesh.setColorAt(i*2+1,strapTint);}}
@@ -41,9 +47,9 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const positions=new Float32Array(countPerSide);let travel=0,pulseTime=0;
   function refresh(){for(let i=0;i<countPerSide;i++)for(let sideIndex=0;sideIndex<2;sideIndex++){const side=sideIndex===0?-1:1,idx=sideIndex*countPerSide+i,z=positions[i],x=side*(limit+.28),ground=terrainHeight(x,z-travel),lean=(hash(idx+19)-.5)*.020,scale=.98+hash(idx+61)*.04;
     put(posts,idx,x,ground+.95*scale,z,0,0,lean,1,scale,1);put(caps,idx,x-Math.sin(lean)*1.90*scale,ground+1.94*scale,z,0,0,lean);put(feet,idx,x,ground+.075,z);
-    const innerPostX=x-side*.19;put(postGlows,idx,innerPostX,ground+1.06*scale,z-side*.005,0,0,lean,1,scale,1);put(postLeds,idx,innerPostX-side*.008,ground+1.06*scale,z-side*.008,0,0,lean,1,scale,1);
+    const innerPostX=x-side*.19;put(postGlows,idx,innerPostX,ground+1.06*scale,z-side*.005,0,0,lean,1,scale,1);put(postLeds,idx,innerPostX-side*.008,ground+1.06*scale,z-side*.008,0,0,lean,1,scale,1);put(bloomPosts,idx,innerPostX-side*.045,ground+1.06*scale,z-side*.008,0,0,lean,1,scale,1);
     const railZ=z-spacing*.5,farGround=terrainHeight(x,z-spacing-travel),angle=Math.atan2(farGround-ground,spacing);
-    for(let level=0;level<2;level++){const h=.73+level*.57,railIndex=idx*2+level,railLength=Math.hypot(spacing,farGround-ground)+.22;put(rails,railIndex,x,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength);const innerX=x-side*.171;put(ledGlows,railIndex,innerX,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.987);put(ledRails,railIndex,innerX-side*.009,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.982);put(plates,railIndex,x-side*.157,ground+h,z);}}
+    for(let level=0;level<2;level++){const h=.73+level*.57,railIndex=idx*2+level,railLength=Math.hypot(spacing,farGround-ground)+.22;put(rails,railIndex,x,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength);const innerX=x-side*.171;put(ledGlows,railIndex,innerX,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.987);put(ledRails,railIndex,innerX-side*.009,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.982);put(bloomRails,railIndex,innerX-side*.045,ground+(farGround-ground)*.5+h,railZ,angle,0,0,1,1,railLength*.970);put(plates,railIndex,x-side*.157,ground+h,z);}}
     for(const mesh of meshes)mesh.instanceMatrix.needsUpdate=true;
   }
   function reset(){travel=0;pulseTime=0;for(let i=0;i<countPerSide;i++)positions[i]=-8-i*spacing;refresh();}
