@@ -809,3 +809,144 @@ html[data-camera-motion="reduced"] .presentation-actions button{
 /* Banana Power: restrained altered-time accent; gameplay remains fully readable. */
 body.bullet-time-active::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:7;background:radial-gradient(circle at 50% 54%,rgba(255,231,128,0) 36%,rgba(255,213,74,.055) 72%,rgba(255,194,46,.10) 100%);box-shadow:inset 0 0 86px rgba(255,215,86,.10);mix-blend-mode:screen;animation:bananaBulletTimePulse .72s ease-in-out infinite alternate}
 @keyframes bananaBulletTimePulse{from{opacity:.52}to{opacity:.88}}
+
+
+/* AAA alpine menu + start presentation patch */
+:root{
+  --menu-navy:#071b2d;
+  --menu-navy-2:#0b2e49;
+  --menu-ice:#eaf8ff;
+  --menu-blue:#2fc7ff;
+  --menu-gold:#ffd45a;
+}
+
+/* Full-screen menus use an opaque alpine art backdrop instead of transparent glass. */
+.overlay,
+.presentation-overlay{
+  background-image:
+    linear-gradient(180deg,rgba(4,18,31,.38),rgba(3,16,29,.70)),
+    url('/menu/alpine-menu.svg');
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
+  background-color:var(--menu-navy);
+}
+.overlay::after,
+.presentation-overlay::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 12%,rgba(119,220,255,.20),transparent 34%),
+    linear-gradient(90deg,rgba(1,11,21,.34),transparent 25%,transparent 75%,rgba(1,11,21,.34));
+  z-index:0;
+}
+.overlay>*,
+.presentation-overlay>*{position:relative;z-index:1}
+
+/* Menus are solid, readable themed panels with an image treatment behind controls. */
+.card,
+.presentation-card{
+  border:1px solid #a9e8ff;
+  background-image:
+    linear-gradient(155deg,rgba(8,35,55,.95),rgba(5,23,39,.97)),
+    url('/menu/alpine-menu.svg');
+  background-position:center 42%;
+  background-size:cover;
+  background-color:#071d30;
+  color:#f4fbff;
+  box-shadow:
+    0 34px 110px rgba(0,10,20,.52),
+    0 0 0 1px rgba(255,255,255,.10) inset,
+    0 1px 0 rgba(255,255,255,.18) inset;
+}
+.card::before{
+  background:linear-gradient(90deg,#26bceb,#b9efff,#ffd45a,#b9efff,#26bceb);
+  box-shadow:0 0 20px rgba(63,203,255,.28);
+}
+.logo,
+.presentation-card h2{color:#f4fbff;text-shadow:0 3px 20px rgba(0,14,27,.68)}
+.logo span{color:#68ddff;text-shadow:0 0 24px rgba(64,204,255,.38)}
+.tagline,.tip,.controller-hint{color:#c8e8f6}
+.badge,.eyebrow{
+  background:#123b58;
+  color:#bdefff;
+  border:1px solid #2e7699;
+}
+.selected-avatar,
+.control-legend,
+.result-grid>div{
+  background:#0d3049;
+  border-color:#2c607b;
+  color:#dff6ff;
+}
+.selected-avatar small,
+.control-legend,
+.result-grid small{color:#a6cadb}
+.selected-avatar strong,
+.control-legend b,
+.result-grid strong{color:#f4fbff}
+
+.primary{
+  background:linear-gradient(180deg,#1677a2,#0a466a);
+  border:1px solid #66dcff;
+  box-shadow:0 10px 26px rgba(0,17,30,.34),0 0 18px rgba(47,199,255,.12) inset;
+}
+.secondary,
+.toggle-button{
+  background:#123a55;
+  color:#edfaff;
+  border:1px solid #3c7897;
+  box-shadow:0 8px 20px rgba(0,13,24,.26);
+}
+.secondary:hover:not(:disabled),
+.toggle-button:hover:not(:disabled){
+  background:#174b6c;
+  border-color:#6ad9ff;
+}
+.toggle-button[aria-pressed="false"]{background:#172d3c;color:#9db8c7;border-color:#3c5667}
+
+/* Character selector receives the same opaque themed treatment. */
+.selector-dialog{
+  background:#071d30;
+  color:#eefaff;
+  border:1px solid #87dfff;
+  box-shadow:0 36px 120px rgba(0,9,18,.60);
+}
+.selector-dialog::backdrop{
+  background-image:
+    linear-gradient(180deg,rgba(3,15,27,.50),rgba(2,12,23,.78)),
+    url('/menu/alpine-menu.svg');
+  background-position:center;
+  background-size:cover;
+  background-color:#071b2d;
+}
+.selector-shell{
+  background-image:
+    linear-gradient(155deg,rgba(7,29,47,.96),rgba(4,20,34,.98)),
+    url('/menu/alpine-menu.svg');
+  background-position:center;
+  background-size:cover;
+}
+.selector-head small,
+.selector-featured small,
+.selector-featured em,
+.selector-help{color:#9bc6da}
+.selector-head h2,
+.selector-featured strong{color:#f1fbff}
+.selector-close{background:#123a55;color:#eafaff;border:1px solid #3c7897}
+.selector-featured{background:#0d3049;border-color:#315f76}
+.selector-search{background:#071f33;color:#f4fbff;border-color:#3b7593}
+.selector-search::placeholder{color:#85aabd}
+.chimpion-card{background:#0c2a40;border-color:#315f76;color:#eefaff}
+.chimpion-card strong{color:#f4fbff}
+.chimpion-card small{color:#9fc4d5}
+.chimpion-card:hover{box-shadow:0 12px 30px rgba(0,10,20,.42);border-color:#67d9ff}
+.chimpion-card.is-selected{border-color:#5ad7ff;box-shadow:inset 0 0 0 2px rgba(90,215,255,.22),0 0 22px rgba(35,185,238,.14)}
+.portrait,.selector-preview-portrait{background:#dff6ff}
+
+/* Keep the themed menu surfaces fully opaque on browsers without backdrop filtering. */
+@supports not (backdrop-filter:blur(1px)){
+  .card,.presentation-card,.selector-dialog,.selector-shell{background-color:#071d30}
+}
