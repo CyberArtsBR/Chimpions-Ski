@@ -121,6 +121,7 @@ try{
   await start.evaluate(button=>button.click());
   const selector=page.locator('#chimpion-selector');
   await selector.waitFor({state:'visible',timeout:10000});
+  await page.locator('.start-screen').waitFor({state:'hidden',timeout:5000});
   assert.equal(await page.locator('.start-screen').isHidden(),true,'Start screen did not close after opening selector');
   assert.equal((await page.evaluate(()=>window.chimpionsSki())).mode,'menu','START GAME must not begin a random run before selection');
 
