@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "generatedFrom": "bootstrap pre-optimization guardrails; npm run assets:optimize replaces this with measured production budgets",
+  "policy": {
+    "builtInCount": 10,
+    "maxTotalBytes": 50331648,
+    "maxPerAssetBytes": 16777216,
+    "maxTextureDimension": 4096,
+    "supportedProductionCompression": [
+      "EXT_meshopt_compression",
+      "KHR_mesh_quantization",
+      "EXT_texture_webp"
+    ]
+  },
+  "avatars": {}
+}
