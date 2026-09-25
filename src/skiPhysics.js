@@ -247,14 +247,17 @@ function stepAirControl(state,steer,neutralizing,speed01,dt,rideProfile){
   return edgeScrape;
 }
 
-export function stepCarving(state,input,dt){
+export function stepCarving(state,input,dt,simulationDt=dt){
   const controls=readRideControls(input);
+  const timerDt=Math.max(0,Number(simulationDt)||0);
   const rawSteer=Math.abs(controls.steer)<T.INPUT_DEADZONE?0:controls.steer;
   const rideProfile=getRideProfile(state.rideMode);
   const speed01=clamp((state.speed-rideProfile.baseSpeed)/(rideProfile.maxSpeed-rideProfile.baseSpeed),0,1);
-  state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-dt*2.25);
-  state.landingReengageTime=Math.max(0,(state.landingReengageTime||0)-dt);
-  state.oilSlipTime=Math.max(0,(state.oilSlipTime||0)-dt);
+  // Timers advance in simulation time. Steering response may deliberately use
+  // a different control dt during Banana Power, but hazards/landing recovery do not.
+  state.landingGripLoss=Math.max(0,(state.landingGripLoss||0)-timerDt*2.25);
+  state.landingReengageTime=Math.max(0,(state.landingReengageTime||0)-timerDt);
+  state.oilSlipTime=Math.max(0,(state.oilSlipTime||0)-timerDt);
   const oilSlip=clamp((state.oilSlipTime||0)/T.OIL_SLIP_SECONDS,0,1);
   const tuck=state.tuckAmount||0;
   const brake=state.brakeAmount||0;
@@ -355,7 +358,7 @@ export function stepCarving(state,input,dt){
     state.vx*=Math.max(.984,plantedScrub);
   }
 
-  updateCarveMetrics(state,{carveVelocity,targetEdge,oilSlip,brake,neutralizing,dt});
+  updateCarveMetrics(state,{carveVelocity,targetEdge,oilSlip,brake,neutralizing,dt:timerDt});
 
   state.x=clamp(state.x+state.vx*dt,-T.PLAYER_BOUNDARY_HALF_WIDTH,T.PLAYER_BOUNDARY_HALF_WIDTH);
   const edgeScrape=resolveCourseEdgeContact(state,dt,{profile:rideProfile});
