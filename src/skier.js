@@ -47,7 +47,24 @@ async function loadRiderGltf(url,{signal=null}={}){
 }
 
 function material(color, roughness=.72){
-  return new THREE.MeshStandardMaterial({color,roughness,metalness:.04});
+  return new THREE.MeshStandardMaterial({color,roughness,metalness:.02,envMapIntensity:.06});
+}
+function suppressRiderReflections(model){
+  const seen=new Set();
+  model?.traverse?.(object=>{
+    if(!object?.isMesh)return;
+    const materials=Array.isArray(object.material)?object.material:[object.material];
+    for(const mat of materials){
+      if(!mat||seen.has(mat)||!mat.isMeshStandardMaterial)continue;
+      seen.add(mat);
+      mat.envMapIntensity=Math.min(Number.isFinite(mat.envMapIntensity)?mat.envMapIntensity:1,.08);
+      mat.metalness=Math.min(Number.isFinite(mat.metalness)?mat.metalness:0,.035);
+      mat.roughness=Math.max(Number.isFinite(mat.roughness)?mat.roughness:.72,.62);
+      if('clearcoat' in mat)mat.clearcoat=Math.min(Number(mat.clearcoat)||0,.06);
+      if('clearcoatRoughness' in mat)mat.clearcoatRoughness=Math.max(Number(mat.clearcoatRoughness)||0,.78);
+      mat.needsUpdate=true;
+    }
+  });
 }
 function mesh(geometry,mat,parent){
   const m=new THREE.Mesh(geometry,mat);
@@ -203,10 +220,9 @@ function createEquipmentPowerGlow(skis=[],snowboard=null){
   const glowColor=new THREE.Color(0x32b9ff);
   return (level=0,time=0)=>{
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
-    const pulse=.82+Math.sin((Number(time)||0)*12)*.18;
     materials.forEach(({mat,baseEmissive,baseIntensity},index)=>{
       mat.emissive.copy(baseEmissive).lerp(glowColor,strength);
-      mat.emissiveIntensity=baseIntensity+strength*pulse*(index===0?2.15:3.65);
+      mat.emissiveIntensity=baseIntensity+strength*(index===0?2.15:3.65);
     });
     snowboard?.setPowerGlow?.(strength,time);
     return strength;
@@ -691,6 +707,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     const gltf=await loadRiderGltf(url,{signal});
     const localAvatarComplexity=requireGameplayRig?validateParsedLocalGlb(gltf):null;
     const model=gltf.scene;loadedModel=model;
+    suppressRiderReflections(model);
     model.traverse(o=>{if(o.isMesh){o.castShadow=o.receiveShadow=true;o.frustumCulled=false;}});
     fitModel(model);
     const rigResolution=resolveAvatarRig(model,compatibility);

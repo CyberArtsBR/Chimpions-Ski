@@ -61,11 +61,10 @@ export function createSnowboardEquipment({
   const powerColor=new THREE.Color(0x32b9ff);
   function setPowerGlow(level=0,time=0){
     const strength=THREE.MathUtils.clamp(Number(level)||0,0,1);
-    const pulse=.82+Math.sin((Number(time)||0)*12.0)*.18;
     powerMaterials.forEach((mat,index)=>{
       const base=powerBase[index];
       mat.emissive.copy(base.emissive).lerp(powerColor,strength*(index===0?.82:1));
-      mat.emissiveIntensity=base.intensity+strength*pulse*(index===0?2.25:3.85);
+      mat.emissiveIntensity=base.intensity+strength*(index===0?2.25:3.85);
     });
     root.userData.powerGlow=strength;
     return strength;

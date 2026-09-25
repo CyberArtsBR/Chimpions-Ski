@@ -16,7 +16,7 @@ const budgets={
 export function createMountainWeather({app,scene,camera,renderer,environment,audio}){
   let saved={};try{saved=JSON.parse(localStorage.getItem('chimpions-ski-atmosphere')||'{}')||{};}catch{}
   const query=new URLSearchParams(location.search);
-  const preferences={weather:weatherName(query.get('weather')||saved.weather||'auto'),reducedFlashes:saved.reducedFlashes??matchMedia('(prefers-reduced-motion: reduce)').matches};
+  const preferences={weather:weatherName(query.get('weather')||'auto'),reducedFlashes:saved.reducedFlashes??matchMedia('(prefers-reduced-motion: reduce)').matches};
   const controller=createWeatherState(preferences.weather,preferences.reducedFlashes);
   const bindings=environment.weatherBindings,{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail}=bindings;
   sky.visible=false;for(const layer of snowLayers){layer.points.visible=false;layer.points.userData.externalWeather=true;}

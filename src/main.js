@@ -566,12 +566,8 @@ const getRuntimeDiagnostics=createRuntimeDiagnostics({
   riderController
 });
 function updateBananaPowerVisual(time=0){
-  const active=state.specialActiveTime>0,ready=state.specialReady;
-  const base=active?1:ready?.28:0;
-  const pulse=base>0
-    ?base*(active?.86+Math.sin(time*12)*.14:.82+Math.sin(time*5)*.18)
-    :0;
-  riderController.rider?.userData?.setPowerGlow?.(THREE.MathUtils.clamp(pulse,0,1),time);
+  const charged=state.specialReady||state.specialActiveTime>0;
+  riderController.rider?.userData?.setPowerGlow?.(charged?1:0,time);
 }
 
 // Integration bridge: one authoritative quality profile drives every scalable subsystem.
