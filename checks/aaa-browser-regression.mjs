@@ -14,11 +14,15 @@ const browserErrors=[];
 const launchOptions={headless:true};
 if(browserName==='chromium')launchOptions.args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'];
 const browser=await browserType.launch(launchOptions);
-const context=await browser.newContext({viewport:{width:1440,height:900},deviceScaleFactor:2});
+// Keep software-rendered CI screenshots bounded. Runtime quality contracts are
+// asserted from diagnostics/settings; visual checkpoints do not need 5.2MP
+// 2x-DPR readbacks to catch black screens, missing world/rider/equipment, etc.
+const context=await browser.newContext({viewport:{width:1100,height:700},deviceScaleFactor:1});
 
 function diagnostics(page){return page.evaluate(()=>window.chimpionsSki?.()||null);}
 async function readyPage(query=''){
   const page=await context.newPage();
+  page.setDefaultTimeout(60000);
   page.on('pageerror',e=>browserErrors.push('PAGEERROR '+String(e?.stack||e)));
   page.on('console',m=>{if(m.type()==='error')browserErrors.push('CONSOLE '+m.text());});
   await page.goto(base+'/'+query,{waitUntil:'domcontentloaded',timeout:60000});
@@ -27,7 +31,7 @@ async function readyPage(query=''){
 }
 async function shot(page,label){
   const file=resolve(artifactDir,label+'.png');
-  const buffer=await page.screenshot({path:file,fullPage:false});
+  const buffer=await page.screenshot({path:file,fullPage:false,timeout:60000});
   assert(buffer.length>4000,`${label} screenshot is suspiciously small (${buffer.length} bytes)`);
   const canvas=page.locator('canvas').first();
   if(await canvas.count()){
@@ -80,7 +84,7 @@ try{
   }
   assert(report.quality.max.qualitySettings.dprCap>report.quality.high.qualitySettings.dprCap,'MAX must expose more DPR headroom than HIGH');
   assert(report.quality.low.qualitySettings.dprCap<report.quality.high.qualitySettings.dprCap,'LOW must be cheaper than HIGH');
-  assert(report.quality.low.rendererPixelRatio<report.quality.max.rendererPixelRatio,'LOW effective renderer DPR must be below MAX at deviceScaleFactor=2');
+  assert(report.quality.low.rendererPixelRatio<report.quality.max.rendererPixelRatio,'LOW effective renderer DPR must be below MAX at the CI device scale factor');
 
   const page=await readyPage('?test=1&seed=qa-runtime-fixed&quality=high');
   await startRun(page,'ski');
@@ -94,7 +98,7 @@ try{
     await page.setViewportSize({width:viewport.width,height:viewport.height});
     const hud=page.locator('.hud');const box=await hud.boundingBox();assert(box&&box.x>=-1&&box.y>=-1&&box.x+box.width<=viewport.width+1&&box.y+box.height<=viewport.height+1,`${viewport.label}: HUD clipped outside viewport`);
   }
-  await page.setViewportSize({width:1440,height:900});
+  await page.setViewportSize({width:1100,height:700});
 
   await page.evaluate(()=>window.dispatchEvent(new Event('blur')));await page.waitForFunction(()=>window.chimpionsSki?.().mode==='paused',null,{timeout:5000});
   const pauseCard=page.locator('#pause-overlay .pause-card');assert(await pauseCard.isVisible(),'blur did not pause gameplay');
