@@ -17,7 +17,12 @@ function carveProbe(fps){
   eachRuntimeSubstep(fps,4,(dt,t)=>{s.time+=dt;progressSpeed(s,dt);const input=t<1.5?1:t<3?-1:0;stepCarving(s,input,dt);});
   return {x:s.x,vx:s.vx,edge:s.edge,heading:s.heading,turnRate:s.turnRate,speed:s.speed};
 }
-function speedProbe(fps){const s=state();eachRuntimeSubstep(fps,240,(dt)=>{s.time+=dt;progressSpeed(s,dt);});return {speed:s.speed,targetSpeed:s.targetSpeed,speedTier:s.speedTier};}
+function speedProbe(fps){
+  // Sample one second beyond the tier boundary so floating-point accumulation at
+  // exactly 240s cannot make one frame-rate appear to be in a different tier.
+  const s=state();eachRuntimeSubstep(fps,241,(dt)=>{s.time+=dt;progressSpeed(s,dt);});
+  return {time:s.time,speed:s.speed,targetSpeed:s.targetSpeed,speedTier:s.speedTier};
+}
 function jumpProbe(fps){
   const s=state();let first=true,elapsed=0,apex=s.y,landedAt=null;
   const maxSeconds=4,frames=Math.round(maxSeconds*fps),frameDt=1/fps;
