@@ -1251,14 +1251,23 @@ function update(dt,frameMs=dt*1000){
     updateRidingOrientation(player,state,controlDt);
     riderController.updatePose({
       dt:controlDt,
+      mode:state.mode,
       steer:state.edge,
+      carveLoad:state.carveLoad,
       air:state.air,
       landing:state.landingPulse,
+      landingQuality:state.landingQuality,
       speed:state.speed,
       rideMode:state.rideMode,
       time:state.time,
       verticalVelocity:state.vy,
       jumpSource:state.jumpSource,
+      rampContact:ridingRamp,
+      oilSlipTime:state.oilSlipTime,
+      trickActive:tricks.state.state==='SPIN_360'||tricks.state.state==='BACKFLIP',
+      trickType:tricks.state.type,
+      trickProgress:tricks.state.progress,
+      reducedMotion:cameraMotionMode===CAMERA_MOTION.REDUCED,
       groundPitch:state.groundPitch,
       groundRoll:state.groundRoll,
       leftGround:state.leftGround,
@@ -1415,12 +1424,15 @@ function update(dt,frameMs=dt*1000){
   }else if(state.mode==='countdown'){
     riderController.updatePose({
       dt,
+      mode:'countdown',
       steer:0,
+      carveLoad:0,
       air:false,
       landing:0,
       speed:state.speed,
       rideMode:state.rideMode,
       time:performance.now()/1000,
+      reducedMotion:cameraMotionMode===CAMERA_MOTION.REDUCED,
       groundPitch:state.groundPitch,
       groundRoll:state.groundRoll,
       leftGround:state.leftGround,
@@ -1428,7 +1440,30 @@ function update(dt,frameMs=dt*1000){
       centerGround:state.centerGround
     });
   }else if(state.mode==='crashed'){
-    // Cinematic crash motion is integrated below so it continues behind results.
+    const crashSpeed=Math.hypot(
+      Number(state.crashVelocity?.x)||0,
+      Number(state.crashVelocity?.y)||0,
+      Number(state.crashVelocity?.z)||0
+    );
+    riderController.updatePose({
+      dt,
+      mode:'crashed',
+      crashActive:true,
+      crashSeverity:THREE.MathUtils.clamp(crashSpeed/55,.25,1),
+      crashDirection:state.crashDirection,
+      air:player.position.y>(state.centerGround+.34),
+      landing:0,
+      speed:state.speed,
+      rideMode:state.rideMode,
+      time:state.time+state.crashTime,
+      reducedMotion:cameraMotionMode===CAMERA_MOTION.REDUCED,
+      groundPitch:state.groundPitch,
+      groundRoll:state.groundRoll,
+      leftGround:state.leftGround,
+      rightGround:state.rightGround,
+      centerGround:state.centerGround
+    });
+    // Authoritative crash root motion is still integrated below by playerOrientation.
   }
 
   let crashCinematicDt=dt;
