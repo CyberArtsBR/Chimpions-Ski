@@ -471,7 +471,11 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         }
         if(Math.abs(x-safe)<minGap)continue;
       }
-      placements.push(place(kind,x,z,safe,{formation:'SCATTER',special:true,safetyOptional:true}));
+      // This is the section's single authored special hazard, not density
+      // filler. Keep it through ordinary threat-budget pruning so the declared
+      // wide-log/log/oil mix survives generation. The later corridor validator
+      // remains authoritative and may still remove it if geometry is unsafe.
+      placements.push(place(kind,x,z,safe,{formation:'SCATTER',special:true,safetyOptional:false}));
       return true;
     }
     return false;
