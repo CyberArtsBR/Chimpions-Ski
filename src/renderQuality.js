@@ -172,7 +172,7 @@ function getEffectiveSettings(){
   const pressure=clamp((1-autoResolutionScale)/span,0,1);
   if(pressure<=.001)return base;
   const scaledShadow=base.shadowMapSize>0
-    ?Math.max(512,Math.round(base.shadowMapSize*(pressure>.62?.5:.75)/256)*256)
+    ?(pressure>.62?Math.max(512,Math.round(base.shadowMapSize*.5)):base.shadowMapSize)
     :0;
   return Object.freeze({
     ...base,
