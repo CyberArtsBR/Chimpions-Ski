@@ -18,6 +18,8 @@ on:
       - "checks/asset-pipeline-invariants.mjs"
       - "checks/avatar-asset-browser.mjs"
       - "config/asset-budgets.json"
+      - "config/asset-source.json"
+      - "package-lock.json"
       - "reports/assets/**"
       - "package.json"
       - ".github/workflows/asset-pipeline.yml"
@@ -43,7 +45,14 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm install
+      - name: Install dependencies
+        shell: bash
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
       - name: Optimize production GLBs
         if: github.event_name == 'push' && github.ref == 'refs/heads/perf/ski-asset-pipeline' && !contains(github.event.head_commit.message, '[asset-optimize]')
@@ -106,10 +115,10 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add public/model/characters config/asset-budgets.json reports/assets
+          git add public/model/characters config/asset-budgets.json reports/assets package-lock.json
           if git diff --cached --quiet; then
             echo "No optimized asset changes to commit."
             exit 0
           fi
-          git commit -m "Optimize Chimpion production assets [asset-optimize] [skip ci]"
+          git commit -m "Optimize Chimpion production assets [asset-optimize]"
           git push origin HEAD:perf/ski-asset-pipeline
