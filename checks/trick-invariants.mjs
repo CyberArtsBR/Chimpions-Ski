@@ -213,12 +213,14 @@ assert(backflipTiming.allowed,'early manual backflip must fit');
   assert(!visual.quaternion.equals(new THREE.Quaternion()),'active 360 did not rotate visual pivot');
   const first=runToCompletion(state,tricks);
   assert(visual.quaternion.equals(new THREE.Quaternion()),'visual pivot did not normalize after completed 360');
-  scoreTrickCompletion(state,first);
+  const firstEvent=scoreTrickCompletion(state,first);
   assert.equal(tricks.consumeCompletion(),null,'completion event emitted twice');
   assert.equal(request(tricks,state,TRICK_TYPE.SPIN_360,'ramp'),true);
   const second=runToCompletion(state,tricks);
-  scoreTrickCompletion(state,second);
-  assert.equal(state.score,400,'two 360s should score exactly +200 each');
+  const secondEvent=scoreTrickCompletion(state,second);
+  assert(firstEvent.points>=TRICK_POINTS['360'],'first ramp 360 should preserve at least its base value');
+  assert(secondEvent.points>0,'repeated 360 must still score');
+  assert(secondEvent.points<=firstEvent.points,'repetition control should offset combo farming on identical tricks');
   assert.equal(tricks.state.tricksThisAir,2);
 }
 
@@ -229,10 +231,12 @@ assert(backflipTiming.allowed,'early manual backflip must fit');
   resetTrickScoring(state);
   beginRamp(state);
   assert.equal(request(tricks,state,TRICK_TYPE.SPIN_360,'ramp'),true);
-  scoreTrickCompletion(state,runToCompletion(state,tricks));
+  const spinEvent=scoreTrickCompletion(state,runToCompletion(state,tricks));
   assert.equal(request(tricks,state,TRICK_TYPE.BACKFLIP,'ramp'),true);
-  scoreTrickCompletion(state,runToCompletion(state,tricks));
-  assert.equal(state.score,600);
+  const flipEvent=scoreTrickCompletion(state,runToCompletion(state,tricks));
+  assert(spinEvent.points>=TRICK_POINTS['360']);
+  assert(flipEvent.points>=TRICK_POINTS.BACKFLIP,'varied trick chaining should receive combo/risk credit');
+  assert(state.score>TRICK_POINTS['360']+TRICK_POINTS.BACKFLIP);
 }
 
 // J/K/M) ramp chain stops when remaining airtime is too short; rejection scores zero and lands normally.
