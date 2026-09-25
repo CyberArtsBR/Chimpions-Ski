@@ -194,6 +194,10 @@ try{
     throw error;
   }
   const sessionTutorial=page.locator('.session-tutorial:not([hidden])');
+  await page.waitForFunction(()=>(
+    !!document.querySelector('.session-tutorial:not([hidden])')||
+    ['countdown','playing'].includes(window.chimpionsSki?.().mode)
+  ),null,{timeout:10000});
   if(await sessionTutorial.isVisible().catch(()=>false)){
     await page.keyboard.press('Enter');
     await sessionTutorial.waitFor({state:'hidden',timeout:5000});
@@ -376,6 +380,10 @@ try{
     await touchSkiChoice.waitFor({state:'visible',timeout:5000});
     await touchSkiChoice.evaluate(button=>button.click());
     const touchTutorial=touchPage.locator('.session-tutorial:not([hidden])');
+    await touchPage.waitForFunction(()=>(
+      !!document.querySelector('.session-tutorial:not([hidden])')||
+      ['countdown','playing'].includes(window.chimpionsSki?.().mode)
+    ),null,{timeout:10000});
     if(await touchTutorial.isVisible().catch(()=>false)){
       await touchPage.keyboard.press('Enter');
       await touchTutorial.waitFor({state:'hidden',timeout:5000});
