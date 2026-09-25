@@ -10,6 +10,7 @@ export const SKI_CAMERA_VIEW=Object.freeze({
 
 export const SKI_CAMERA_LIMITS=Object.freeze({
   MIN_FOV:54.5,
+  CRASH_MIN_FOV:46,
   MAX_FOV:64.2,
   MAX_GAMEPLAY_ROLL:.029,
   MAX_CRASH_ROLL:.040,
@@ -345,12 +346,19 @@ export function createSkiCamera(camera){
     const crashDir=THREE.MathUtils.clamp(finite(state.crashDirection,0),-1,1);
     crashSettle=THREE.MathUtils.damp(crashSettle,crash?1:0,crash?3.8:7.0,safeDt);
 
+    const crashZoomIn=smoothstep01(crashTime/.72);
+    const crashZoomOut=smoothstep01((crashTime-1.55)/.95);
+    const crashZoom=crashZoomIn*(1-crashZoomOut);
     if(crash){
-      chasePosition.x+=crashDir*.48;
-      chasePosition.y+=Math.min(.42,crashTime*.18);
-      chasePosition.z+=Math.min(1.6,crashTime*.72);
-      lookTarget.x+=crashDir*.20;
-      lookTarget.z+=1.05;
+      const crashX=finite(state.crashVisualX,finite(state.x,0));
+      const crashY=finite(state.crashVisualY,finite(state.y,0));
+      const crashZ=finite(state.crashVisualZ,0);
+      chasePosition.x=THREE.MathUtils.lerp(chasePosition.x,crashX-crashDir*.62,.68);
+      chasePosition.y=THREE.MathUtils.lerp(chasePosition.y,crashY+3.65+crashZoom*.34,.68);
+      chasePosition.z=THREE.MathUtils.lerp(chasePosition.z,crashZ+7.75-crashZoom*1.62,.72);
+      lookTarget.x=THREE.MathUtils.lerp(lookTarget.x,crashX,.74);
+      lookTarget.y=THREE.MathUtils.lerp(lookTarget.y,crashY+.70,.70);
+      lookTarget.z=THREE.MathUtils.lerp(lookTarget.z,crashZ-.18,.64);
     }else{
       chasePosition.y+=landingKick;
       chasePosition.z+=landingOpen;
@@ -366,15 +374,16 @@ export function createSkiCamera(camera){
     camera.position.y=THREE.MathUtils.damp(camera.position.y,chasePosition.y,crash?2.2:rampAir?4.8:4.4,safeDt);
     camera.position.z=THREE.MathUtils.damp(camera.position.z,chasePosition.z,crash?2.1:rampAir?4.7:4.0,safeDt);
 
+    const minimumFov=crash?SKI_CAMERA_LIMITS.CRASH_MIN_FOV:SKI_CAMERA_LIMITS.MIN_FOV;
     const targetFov=THREE.MathUtils.clamp(
-      baseFov+landingOpen*.32-(crash?.9*crashSettle:0),
-      SKI_CAMERA_LIMITS.MIN_FOV,
+      baseFov+landingOpen*.32-(crash?(2.0+8.6*crashZoom)*crashSettle:0),
+      minimumFov,
       SKI_CAMERA_LIMITS.MAX_FOV
     );
     const currentFov=Number.isFinite(camera.fov)?camera.fov:targetFov;
     camera.fov=THREE.MathUtils.clamp(
-      THREE.MathUtils.damp(currentFov,targetFov,crash?3.0:5.0,safeDt),
-      SKI_CAMERA_LIMITS.MIN_FOV,
+      THREE.MathUtils.damp(currentFov,targetFov,crash?4.2:5.0,safeDt),
+      minimumFov,
       SKI_CAMERA_LIMITS.MAX_FOV
     );
     camera.updateProjectionMatrix();
