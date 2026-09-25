@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "generatedFrom": "bootstrap pre-optimization guardrails; npm run assets:optimize replaces this with measured production budgets",
+  "generatedFrom": "measured optimized production assets",
   "policy": {
     "builtInCount": 10,
-    "maxTotalBytes": 50331648,
+    "maxTotalBytes": 43768832,
     "maxPerAssetBytes": 16777216,
     "maxTextureDimension": 4096,
     "supportedProductionCompression": [
@@ -12,5 +12,112 @@
       "EXT_texture_webp"
     ]
   },
-  "avatars": {}
+  "avatars": {
+    "The Archon": {
+      "maxBytes": 15241216,
+      "maxTriangles": 60104,
+      "maxMaterials": 7,
+      "maxTextures": 6,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Heretic": {
+      "maxBytes": 1732608,
+      "maxTriangles": 44204,
+      "maxMaterials": 7,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Commodore": {
+      "maxBytes": 4151296,
+      "maxTriangles": 42816,
+      "maxMaterials": 6,
+      "maxTextures": 4,
+      "maxAnimations": 2,
+      "maxBones": 60,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Pioneer": {
+      "maxBytes": 2447360,
+      "maxTriangles": 46255,
+      "maxMaterials": 7,
+      "maxTextures": 4,
+      "maxAnimations": 2,
+      "maxBones": 30,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": [
+        "EXT_meshopt_compression"
+      ]
+    },
+    "The Punk": {
+      "maxBytes": 661504,
+      "maxTriangles": 40053,
+      "maxMaterials": 5,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 60,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": [
+        "EXT_meshopt_compression"
+      ]
+    },
+    "The Street Fighter": {
+      "maxBytes": 2324480,
+      "maxTriangles": 42465,
+      "maxMaterials": 5,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Bosun": {
+      "maxBytes": 4962304,
+      "maxTriangles": 50182,
+      "maxMaterials": 12,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 61,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": [
+        "EXT_meshopt_compression"
+      ]
+    },
+    "The Adolescent": {
+      "maxBytes": 3065856,
+      "maxTriangles": 42422,
+      "maxMaterials": 5,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Angsty": {
+      "maxBytes": 3631104,
+      "maxTriangles": 43991,
+      "maxMaterials": 5,
+      "maxTextures": 3,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    },
+    "The Apologetic": {
+      "maxBytes": 6400000,
+      "maxTriangles": 49239,
+      "maxMaterials": 6,
+      "maxTextures": 4,
+      "maxAnimations": 2,
+      "maxBones": 79,
+      "maxTextureDimension": 4096,
+      "requiredExtensions": []
+    }
+  }
 }
