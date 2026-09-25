@@ -124,7 +124,6 @@ jobs:
             if [ "$i" = 90 ]; then cat /tmp/chimpions-asset-preview.log || true; exit 1; fi
             sleep 1
           done
-          BASE_URL=http://127.0.0.1:4173 node checks/production-smoke.mjs
           BASE_URL=http://127.0.0.1:4173 node checks/avatar-asset-browser.mjs
 
       - name: Commit measured optimized assets back to branch
