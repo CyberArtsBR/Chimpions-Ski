@@ -66,6 +66,17 @@ Extended soak:
 AAA_BROWSER=chromium AAA_SOAK_SECONDS=1800 node checks/aaa-browser-regression.mjs
 ```
 
+## Current audited findings
+
+At the audited `c4d445569584e792981bada3d71689473dfc42d2` production baseline, the deterministic matrix currently isolates two product-level failures:
+
+1. **Course length contract:** `RAMP 283.5567383947582m` exceeds the authoritative `20–281m` invariant. The QA branch does not loosen or duplicate this contract.
+2. **Landing presentation contract:** `src/gameFeedback.js` still calls the landing-text UI path and `src/ui.js` can emit `CLEAN LANDING` for a dramatic clean landing. `checks/airborne-scoring-invariants.mjs` intentionally remains red until the owning gameplay/presentation change resolves that contract.
+
+The expanded QA checks themselves are otherwise green in the latest core run: deterministic course stress, course runtime/performance simulation, render/collision parity, physics, 30/60/120 FPS equivalence, input/touch/camera, tricks, ride modes, all built-in rig audits, local-GLB validation, performance/quality, weather, QA branch-scope guard, and long-run static allocation checks.
+
+The course stress matrix at CI settings (`AAA_SEEDS=64`, `AAA_SECTIONS=200`) covered **12,800 sections / ~1,820 km**, including 2,395 jump sections (1,146 RAMP and 1,249 LOG JUMP) and 351,760 hazards.
+
 ## Failure diagnostics
 
 Procedural failures include the deterministic seed, seed index, section index, phase, and section type. The aggregate runner records command exit status, duration, stdout, and stderr in `artifacts/qa/aaa-core-report.json`. Browser runs write `aaa-browser-report.json` and screenshots under `artifacts/qa/<browser>/`.
