@@ -14,6 +14,7 @@ on:
       - "src/skier.js"
       - "src/main.js"
       - "scripts/assets-*.mjs"
+      - "scripts/static-asset-audit.mjs"
       - "scripts/lib/asset-audit.mjs"
       - "checks/asset-pipeline-invariants.mjs"
       - "checks/avatar-asset-browser.mjs"
@@ -87,6 +88,17 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+      - name: Audit secondary static assets
+        run: npm run assets:audit-static
+
+      - name: Upload asset reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ski-asset-reports
+          path: reports/assets/*.json
+          if-no-files-found: error
 
       - name: Record full-check status
         if: always()
