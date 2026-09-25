@@ -9,17 +9,18 @@ const presets={
   storm:{top:0x0c1428,horizon:0x455064,fog:0x3b4a60,sun:0xb8c9e9,ambient:0x839cc0,snow:0xc2cfdf,key:.95,fill:.88,cloud:1,night:.94,rain:1,snowfall:.04,wind:1.4,wet:1,fogDensity:.0105,exposure:1.12}
 };
 const colors=['top','horizon','fog','sun','ambient','snow'];
-const sequence=['day','sunset','night','rain','storm','snow','day'];
+const sequence=['storm','day','sunset','night','snow','rain'];
 export function weatherName(value){return WEATHER_MODES.includes(value)?value:'auto';}
 export function createWeatherState(mode='auto',reducedFlashes=false){
   mode=weatherName(mode);
   const values={},targets={};
-  for(const [key,value] of Object.entries(presets.day)){
+  const initialPreset=mode==='auto'?'storm':mode;
+  for(const [key,value] of Object.entries(presets[initialPreset]||presets.storm)){
     values[key]=colors.includes(key)?new THREE.Color(value):value;
     targets[key]=colors.includes(key)?new THREE.Color(value):value;
   }
-  let elapsed=0,nextStrike=11,flashAge=10,thunderWait=-1,serial=0;
-  values.flash=0;values.strike=false;values.thunder=false;values.mode=mode;values.preset='day';
+  let elapsed=0,nextStrike=4.5,flashAge=10,thunderWait=-1,serial=0;
+  values.flash=0;values.strike=false;values.thunder=false;values.mode=mode;values.preset=initialPreset;
   function setMode(next){mode=weatherName(next);values.mode=mode;elapsed=0;flashAge=10;nextStrike=8;thunderWait=-1;values.flash=0;}
   function update(dt){
     dt=Number.isFinite(dt)?Math.max(0,Math.min(dt,.1)):0;elapsed+=dt;

@@ -22,8 +22,8 @@ export function createBoundaryMarkers({world,terrainHeight,limit=COURSE_FLAG_X,c
   const railMaterial=new THREE.MeshStandardMaterial({color:0x071a24,roughness:.24,metalness:.88,emissive:0x03131c,emissiveIntensity:.42});
   const capMaterial=new THREE.MeshStandardMaterial({color:0x183644,roughness:.28,metalness:.74});
   const iron=new THREE.MeshStandardMaterial({color:0x6d8794,roughness:.29,metalness:.88});
-  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.62,7.80),toneMapped:false});
-  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.72,4.10),transparent:true,opacity:.36,depthWrite:false,toneMapped:false,blending:THREE.AdditiveBlending});
+  const ledCoreMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.20,1.62,7.80),toneMapped:false,fog:false});
+  const ledGlowMaterial=new THREE.MeshBasicMaterial({color:new THREE.Color().setRGB(.06,.72,4.10),transparent:true,opacity:.36,depthWrite:false,toneMapped:false,fog:false,blending:THREE.AdditiveBlending});
   const n=countPerSide*2;
   const posts=new THREE.InstancedMesh(postGeometry,postMaterial,n),caps=new THREE.InstancedMesh(capGeometry,capMaterial,n),feet=new THREE.InstancedMesh(footGeometry,capMaterial,n);
   const rails=new THREE.InstancedMesh(railGeometry,railMaterial,n*2),ledRails=new THREE.InstancedMesh(ledRailGeometry,ledCoreMaterial,n*2),ledGlows=new THREE.InstancedMesh(ledGlowGeometry,ledGlowMaterial,n*2);
