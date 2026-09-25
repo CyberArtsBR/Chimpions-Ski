@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {AlpineAmbientOcclusionPass,createAlpineReflections} from './screenSpaceLighting.js';
 import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
@@ -149,6 +150,9 @@ export function createRenderPipeline({
   let composer=null;
   let renderPass=null;
   let bloomPass=null;
+  let aoPass=null;
+  let reflectionPass=null;
+  const reflectionSurfaces=[];
   let outputPass=null;
   let rootTarget=null;
   let activeProfile='';
@@ -175,6 +179,8 @@ export function createRenderPipeline({
   function countManagedRenderTargets(){
     if(!composer)return 0;
     let count=2;
+    if(aoPass)count+=3;
+    if(reflectionPass)count+=7;
     if(bloomPass){
       if(bloomPass.renderTargetBright)count++;
       count+=bloomPass.renderTargetsHorizontal?.length||0;
@@ -186,12 +192,16 @@ export function createRenderPipeline({
   function disposePostPipeline(){
     if(!composer&&!rootTarget)return;
     try{bloomPass?.dispose?.();}catch{}
+    try{aoPass?.dispose?.();}catch{}
+    try{reflectionPass?.dispose?.();}catch{}
     try{renderPass?.dispose?.();}catch{}
     try{outputPass?.dispose?.();}catch{}
     try{composer?.dispose?.();}catch{}
     composer=null;
     renderPass=null;
     bloomPass=null;
+    aoPass=null;
+    reflectionPass=null;
     outputPass=null;
     rootTarget=null;
     composerPixelRatio=0;
@@ -202,7 +212,8 @@ export function createRenderPipeline({
     const enabled=!!next.shadows&&!!shadowLight;
     renderer.shadowMap.enabled=enabled;
     renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-    renderer.shadowMap.autoUpdate=enabled;
+    // Update once for the beauty image, never again for AO/SSR auxiliary passes.
+    renderer.shadowMap.autoUpdate=false;
     if(!shadowLight)return;
 
     shadowLight.castShadow=enabled;
@@ -216,17 +227,17 @@ export function createRenderPipeline({
     }
 
     const mapSize=Math.max(512,Math.min(4096,Math.round(Number(next.shadowMapSize)||1024)));
-    const radius=clamp(Number(next.shadowRadius)||28,12,48);
+    const radius=clamp(Number(next.shadowRadius)||128,32,180);
     const shadow=shadowLight.shadow;
     const changed=shadow.mapSize.x!==mapSize||shadow.mapSize.y!==mapSize||
       shadow.camera.left!==-radius||shadow.camera.right!==radius;
     shadow.mapSize.set(mapSize,mapSize);
     shadow.camera.left=-radius;
     shadow.camera.right=radius;
-    shadow.camera.top=radius*.72;
-    shadow.camera.bottom=-radius*.72;
+    shadow.camera.top=radius;
+    shadow.camera.bottom=-radius;
     shadow.camera.near=1;
-    shadow.camera.far=72;
+    shadow.camera.far=650;
     shadow.bias=Number(next.shadowBias)||0;
     shadow.normalBias=Math.max(0,Number(next.shadowNormalBias)||0);
     shadow.radius=next.profile==='max'?2:1;
@@ -243,9 +254,15 @@ export function createRenderPipeline({
     const maxSupported=Math.max(1,Number(renderer.capabilities.getMaxAnisotropy?.())||1);
     const requested=Math.max(1,Math.min(maxSupported,Math.round(Number(settings.maxAnisotropy)||1)));
     const textures=new Set();
+    if(root===scene)reflectionSurfaces.length=0;
     const textureKeys=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','alphaMap','aoMap','bumpMap'];
     root?.traverse?.(object=>{
       if(!object?.material)return;
+      if(object.isMesh){
+        const candidates=Array.isArray(object.material)?object.material:[object.material];
+        const reflective=candidates.some(m=>m?.isMeshStandardMaterial&&m.roughness<.42&&(m.metalness>.3||m.clearcoat>.4));
+        if(reflective&&!reflectionSurfaces.includes(object))reflectionSurfaces.push(object);
+      }
       const materials=Array.isArray(object.material)?object.material:[object.material];
       for(const material of materials){
         if(!material)continue;
@@ -305,8 +322,15 @@ export function createRenderPipeline({
       :0;
 
     composer=new EffectComposer(renderer,rootTarget);
-    renderPass=new RenderPass(scene,camera);
-    composer.addPass(renderPass);
+    if(settings.screenSpaceReflections&&canHdr){
+      reflectionPass=createAlpineReflections({renderer,scene,camera,selects:reflectionSurfaces});
+      composer.addPass(reflectionPass);
+    }else{
+      renderPass=new RenderPass(scene,camera);composer.addPass(renderPass);
+    }
+    if(settings.ambientOcclusion&&canHdr){
+      aoPass=new AlpineAmbientOcclusionPass(scene,camera,settings);composer.addPass(aoPass);
+    }
     if(settings.bloomEnabled){
       bloomPass=new UnrealBloomPass(
         new THREE.Vector2(viewportWidth,viewportHeight),
@@ -329,7 +353,9 @@ export function createRenderPipeline({
       next.postProcessing!==settings.postProcessing||
       next.renderTargetType!==settings.renderTargetType||
       next.msaaSamples!==settings.msaaSamples||
-      next.bloomEnabled!==settings.bloomEnabled;
+      next.bloomEnabled!==settings.bloomEnabled||
+      next.ambientOcclusion!==settings.ambientOcclusion||
+      next.screenSpaceReflections!==settings.screenSpaceReflections;
 
     settings=next;
     activeProfile=next.profile;
@@ -377,6 +403,7 @@ export function createRenderPipeline({
       lastStaticReason=null;
     }
 
+    renderer.shadowMap.needsUpdate=!!renderer.shadowMap.enabled;
     const queryStarted=gpuTimer.begin();
     const started=now();
     if(composer){
@@ -421,6 +448,9 @@ export function createRenderPipeline({
       renderTargetHeight:composer?Math.round(viewportHeight*dpr*postScale):Math.round(viewportHeight*dpr),
       managedRenderTargetCount,
       composerPixelRatio:composer?Math.round(composerPixelRatio*1000)/1000:0,
+      ambientOcclusion:aoPass?'GTAO':'off',
+      screenSpaceReflections:!!reflectionPass,
+      hardwareRayTracing:false,
       bloomEnabled:!!bloomPass,
       bloomStrength:bloomPass?bloomPass.strength:0,
       bloomRadius:bloomPass?bloomPass.radius:0,
