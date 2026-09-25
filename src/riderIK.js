@@ -48,10 +48,13 @@ export function createTerrainLegIK(rig){
     return flex;
   }
 
-  function update({
-    leftGround=0,rightGround=0,centerGround=0,
-    groundPitch=0,groundRoll=0,air=false,weight=1
-  }={}){
+  function update(frame={},weight=1){
+    const leftGround=frame.leftGround??0;
+    const rightGround=frame.rightGround??0;
+    const centerGround=frame.centerGround??0;
+    const groundPitch=frame.groundPitch??0;
+    const groundRoll=frame.groundRoll??0;
+    const air=!!frame.air;
     const ikWeight=air?0:clamp(weight,0,1);
     const leftDelta=clamp((Number(leftGround)||0)-(Number(centerGround)||0),-.10,.10);
     const rightDelta=clamp((Number(rightGround)||0)-(Number(centerGround)||0),-.10,.10);
