@@ -4,13 +4,13 @@ const INITIAL_DELAY_MIN=.7;
 const INITIAL_DELAY_MAX=1.8;
 const REPEAT_DELAY_MIN=2.2;
 const REPEAT_DELAY_MAX=4.8;
-const MAX_ACTIVE=6;
+const MAX_ACTIVE=7;
 const TYPE_WEIGHTS=Object.freeze([
-  ['birds',.28],
-  ['plane',.22],
-  ['zeppelin',.16],
-  ['ufo',.18],
-  ['fighter',.16]
+  ['birds',.18],
+  ['plane',.26],
+  ['zeppelin',.14],
+  ['ufo',.24],
+  ['fighter',.18]
 ]);
 
 const clamp01=value=>THREE.MathUtils.clamp(value,0,1);
@@ -22,6 +22,7 @@ const randomRange=(min,max)=>min+Math.random()*(max-min);
 
 function material(options,role='body',basic=false){
   const m=basic?new THREE.MeshBasicMaterial(options):new THREE.MeshStandardMaterial(options);
+  if(role==='light')m.toneMapped=false;
   m.userData.flybyBaseColor=m.color?.clone?.()||null;
   m.userData.flybyRole=role;
   return m;
@@ -43,7 +44,6 @@ function makePlane(){
   const body=material({color:0xdce5eb,roughness:.46,metalness:.30},'metal');
   const dark=material({color:0x2b4359,roughness:.42,metalness:.16},'dark');
   const accent=material({color:0xe05f42,roughness:.48,metalness:.08},'accent');
-  const light=material({color:0xffe89b,transparent:true,opacity:.95,depthWrite:false},'light',true);
 
   const fuselage=new THREE.Mesh(new THREE.CylinderGeometry(.23,.31,2.7,10),body);
   fuselage.rotation.z=Math.PI/2;root.add(fuselage);
@@ -55,10 +55,14 @@ function makePlane(){
   tailWing.position.x=-1.10;root.add(tailWing);
   const tail=new THREE.Mesh(new THREE.BoxGeometry(.52,.78,.06),dark);
   tail.position.set(-1.12,.34,0);tail.rotation.z=-.18;root.add(tail);
-  for(const z of [-1.55,1.55]){
-    const lamp=new THREE.Mesh(new THREE.SphereGeometry(.065,7,5),light);
+  for(const [z,color] of [[-1.55,0xff4b55],[1.55,0x66ff9c]]){
+    const lampMaterial=material({color,transparent:true,opacity:1,depthWrite:false},'light',true);
+    const lamp=new THREE.Mesh(new THREE.SphereGeometry(.088,8,6),lampMaterial);
     lamp.position.set(-.04,.03,z);root.add(lamp);
   }
+  const strobeMaterial=material({color:0xe9fbff,transparent:true,opacity:1,depthWrite:false},'light',true);
+  const strobe=new THREE.Mesh(new THREE.SphereGeometry(.075,8,6),strobeMaterial);
+  strobe.position.set(-1.02,.46,0);root.add(strobe);
   return disableShadows(root);
 }
 
@@ -129,10 +133,13 @@ function makeUfo(){
   glowColors.forEach((color,index)=>{
     const light=material({color,transparent:true,opacity:.95,depthWrite:false},'light',true);
     const angle=index/glowColors.length*Math.PI*2;
-    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.075,7,5),light);
+    const bulb=new THREE.Mesh(new THREE.SphereGeometry(.112,8,6),light);
     bulb.position.set(Math.cos(angle)*1.12,-.20,Math.sin(angle)*.74);
     root.add(bulb);
   });
+  const ringLight=material({color:0x60efff,transparent:true,opacity:.72,depthWrite:false,blending:THREE.AdditiveBlending},'light',true);
+  const glowRing=new THREE.Mesh(new THREE.TorusGeometry(.94,.035,7,40),ringLight);
+  glowRing.rotation.x=Math.PI/2;glowRing.position.y=-.205;root.add(glowRing);
   return disableShadows(root);
 }
 
@@ -225,8 +232,14 @@ export function createAmbientFlybys({scene,camera}){
     const centerX=camera?.position?.x||0;
     const centerY=camera?.position?.y||0;
     const centerZ=camera?.position?.z||0;
-    const depth=randomRange(type==='birds'?42:55,type==='zeppelin'?105:95);
-    const altitude=randomRange(type==='birds'?12:16,type==='ufo'?31:27);
+    const depth=randomRange(
+      type==='birds'?36:type==='ufo'?44:type==='fighter'?50:type==='plane'?56:72,
+      type==='birds'?52:type==='ufo'?72:type==='fighter'?78:type==='plane'?88:105
+    );
+    const altitude=randomRange(
+      type==='birds'?10:type==='ufo'?9:type==='fighter'?12:type==='plane'?14:20,
+      type==='birds'?15:type==='ufo'?16:type==='fighter'?19:type==='plane'?22:29
+    );
     const lateralStart=randomRange(36,54);
     const lateralEnd=randomRange(36,56);
     const duration={
@@ -240,10 +253,10 @@ export function createAmbientFlybys({scene,camera}){
     object.position.set(centerX-direction*lateralStart,centerY+altitude,centerZ-depth);
     const scale={
       birds:randomRange(.72,1.08),
-      plane:randomRange(.68,.96),
-      zeppelin:randomRange(.72,1.0),
-      ufo:randomRange(.60,.90),
-      fighter:randomRange(.62,.88)
+      plane:randomRange(.84,1.14),
+      zeppelin:randomRange(.78,1.05),
+      ufo:randomRange(.82,1.18),
+      fighter:randomRange(.80,1.08)
     }[type]||1;
     object.scale.setScalar(scale);
 
@@ -310,9 +323,9 @@ export function createAmbientFlybys({scene,camera}){
       object.position.z=item.startZ+item.zDrift*t;
 
       if(type==='ufo'){
-        object.rotation.y+=dt*.55*direction;
-        object.rotation.z=Math.sin(item.elapsed*1.25+item.wobblePhase)*.06;
-        object.position.y+=Math.sin(item.elapsed*1.8+item.wobblePhase)*.13;
+        object.rotation.y+=dt*1.15*direction;
+        object.rotation.z=Math.sin(item.elapsed*1.25+item.wobblePhase)*.075;
+        object.position.y+=Math.sin(item.elapsed*1.8+item.wobblePhase)*.22;
       }else if(type==='birds'){
         object.rotation.z=direction*Math.sin(item.elapsed*2.2+item.wobblePhase)*.035;
         object.position.y+=Math.sin(item.elapsed*2.7+item.wobblePhase)*.14;

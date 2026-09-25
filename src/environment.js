@@ -175,9 +175,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   let environmentProfileName=String(quality?.profile||'high');
   let distantSceneryUpdateHz=Math.max(0,Number(quality?.distantSceneryUpdateHz)||0);
   let distantSceneryInterval=distantSceneryUpdateHz>0?1/distantSceneryUpdateHz:0;
-  scene.background=new THREE.Color(0xd4edf8);
-  scene.fog=new THREE.Fog(0xd8eef7,48,268);
-  renderer.toneMappingExposure=1.11;
+  scene.background=new THREE.Color(0xd7e1e6);
+  scene.fog=new THREE.Fog(0xe1e6e8,50,272);
+  renderer.toneMappingExposure=1.09;
 
   const snowMaterials=createSnowMaterials(renderer,{detailLevel:environmentQuality.snowDetailLevel});
 
@@ -188,7 +188,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
   const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
-  const ambient=new THREE.HemisphereLight(0xf8fcff,0x777f86,1.32);
+  const ambient=new THREE.HemisphereLight(0xffffff,0x818486,1.34);
   scene.add(ambient);
 
   const sun=new THREE.DirectionalLight(0xffedc6,3.15);
@@ -196,13 +196,13 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   sun.castShadow=false;
   scene.add(sun);
 
-  const rim=new THREE.DirectionalLight(0xddefff,.44);
+  const rim=new THREE.DirectionalLight(0xedf7fa,.38);
   rim.position.set(11,8,-10);
   scene.add(rim);
 
   // One purposeful fill keeps dark Chimpions readable without paying for four
   // additional scene-wide realtime directional lights.
-  const fill=new THREE.DirectionalLight(0xf3f8ff,.52);
+  const fill=new THREE.DirectionalLight(0xffffff,.48);
   fill.position.set(0,7,-9);
   scene.add(fill);
 

@@ -25,7 +25,7 @@ export function createSkiAudio(){
   const buffers=new Map();
   const eventLast=new Map();
   const eventCooldown={
-    banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,oil:.18,edgeScrape:.115,clear:.07,crash:.34,
+    banana:.035,jump:.10,ramp:.12,land:.08,hardLand:.13,oil:.18,edgeScrape:.115,clear:.07,crash:.34,deathCry:.85,
     nearMiss:.14,specialReady:.45,specialActivate:.60,specialEnd:.35,newBest:1,
     menu:.025,button:.025,countTick:.10,countTickStrong:.10,speedUp:.28,go:.14,
     trick360Start:.20,trick360Success:.12,trickBackflipStart:.24,trickBackflipSuccess:.14,trickFail:.20
@@ -105,7 +105,7 @@ export function createSkiAudio(){
   function eventBuffer(type){
     if(buffers.has(type))return buffers.get(type);
     const duration={
-      banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,oil:.42,edgeScrape:.22,clear:.16,crash:.72,
+      banana:.28,jump:.25,ramp:.34,land:.30,hardLand:.38,oil:.42,edgeScrape:.22,clear:.16,crash:.72,deathCry:1.08,
       nearMiss:.24,specialReady:.58,specialActivate:.52,specialEnd:.30,newBest:.66,
       menu:.09,button:.075,countTick:.11,countTickStrong:.14,speedUp:.26,go:.34,
       trick360Start:.32,trick360Success:.28,trickBackflipStart:.42,trickBackflipSuccess:.36,trickFail:.30
@@ -211,6 +211,13 @@ export function createSkiAudio(){
         tone=Math.sin(phase)*.42;
         noise=smoothNoise*1.18;
         env=Math.pow(1-u,1.25)*Math.min(1,t/.003);
+      }else if(type==='deathCry'){
+        hz=560-350*u+Math.sin(u*Math.PI*5)*26;
+        phase+=Math.PI*2*hz/context.sampleRate;
+        phase2+=Math.PI*2*(hz*1.94)/context.sampleRate;
+        tone=Math.sin(phase)*.62+Math.sin(phase2)*.17;
+        noise=smoothNoise*(.15+.10*u);
+        env=Math.pow(1-u,1.15)*Math.min(1,t/.010)*(0.80+Math.sin(Math.PI*u)*.20);
       }else if(type==='trick360Start'){
         hz=230+470*u+Math.sin(u*Math.PI*4)*55;
         phase+=Math.PI*2*hz/context.sampleRate;
@@ -265,7 +272,7 @@ export function createSkiAudio(){
         tone=Math.sin(phase);
         env=Math.pow(1-u,3.5)*Math.min(1,t/.002);
       }
-      const scale=type==='crash'?.34:type==='hardLand'?.31:type==='oil'?.25:type==='edgeScrape'?.22:type==='land'?.27:type==='clear'?.20:
+      const scale=type==='crash'?.34:type==='deathCry'?.29:type==='hardLand'?.31:type==='oil'?.25:type==='edgeScrape'?.22:type==='land'?.27:type==='clear'?.20:
         type==='nearMiss'?.20:type==='specialReady'?.24:type==='specialActivate'?.28:type==='specialEnd'?.18:type==='newBest'?.25:
         type==='jump'?.24:type==='trickBackflipStart'?.25:type==='trick360Start'?.20:
         type==='trickBackflipSuccess'?.25:type==='trick360Success'?.22:type==='trickFail'?.27:.22;
@@ -493,7 +500,7 @@ export function createSkiAudio(){
     const canPan=Math.abs(pan)>.001&&typeof context.createStereoPanner==='function';
     const panner=canPan?context.createStereoPanner():null;
     source.buffer=eventBuffer(type);
-    const variation=type==='go'?0:type==='crash'?.035:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:
+    const variation=type==='go'?0:type==='crash'?.035:type==='deathCry'?.022:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:
       type.startsWith('trick')?.012:.03;
     source.playbackRate.value=clamp(rateScale,.72,1.65)*(1+(Math.random()*2-1)*variation);
     amp.gain.value=Math.min(1.08,Math.max(0,gain));

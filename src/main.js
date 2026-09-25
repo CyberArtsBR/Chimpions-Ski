@@ -450,21 +450,7 @@ const player=new THREE.Group();scene.add(player);
 player.position.set(0,.12,2.2);
 const impactVfx=createImpactVfx({scene,capacity:224});
 
-const specialAura=new THREE.Group();
-specialAura.name='banana-power-aura';
-specialAura.visible=false;
-const specialAuraMaterial=new THREE.MeshBasicMaterial({
-  color:0xffdf49,transparent:true,opacity:.58,depthWrite:false,blending:THREE.AdditiveBlending
-});
-const specialAuraRingLow=new THREE.Mesh(new THREE.TorusGeometry(.92,.045,8,28),specialAuraMaterial);
-specialAuraRingLow.rotation.x=Math.PI/2;
-specialAuraRingLow.position.y=.32;
-const specialAuraRingHigh=new THREE.Mesh(new THREE.TorusGeometry(.70,.035,8,24),specialAuraMaterial.clone());
-specialAuraRingHigh.rotation.x=Math.PI/2;
-specialAuraRingHigh.position.y=1.72;
-specialAura.add(specialAuraRingLow,specialAuraRingHigh);
-player.add(specialAura);
-
+// Banana Power is displayed directly on the rider equipment as emissive LED light.
 const trickVisualPivot=new THREE.Group();
 trickVisualPivot.name='trick-visual-pivot';
 player.add(trickVisualPivot);
@@ -558,14 +544,12 @@ const bananaPower=createBananaPowerSystem({
   },
   onActivated:()=>{
     state.bananaPowerUses=(state.bananaPowerUses||0)+1;
-    specialAura.visible=true;
     document.body.classList.add('banana-power-active','bullet-time-active');
     audio.playBananaPowerActivate?.();
     haptics.bananaPowerActivate?.();
     ui.showBananaPowerActivated?.();
   },
   onDeactivated:({silent=false}={})=>{
-    specialAura.visible=false;
     document.body.classList.remove('banana-power-active','bullet-time-active');
     if(!silent&&state.mode==='playing'){
       audio.playBananaPowerEnd?.();
@@ -583,10 +567,11 @@ const getRuntimeDiagnostics=createRuntimeDiagnostics({
 });
 function updateBananaPowerVisual(time=0){
   const active=state.specialActiveTime>0,ready=state.specialReady;
-  specialAura.visible=active||ready;if(!specialAura.visible)return;
-  const intensity=active?1:.28;specialAuraMaterial.opacity=.58*intensity;specialAuraRingHigh.material.opacity=.44*intensity;
-  specialAura.rotation.y=time*(active?2.4:.72);specialAuraRingLow.rotation.z=time*(active?1.8:.58);specialAuraRingHigh.rotation.z=-time*(active?2.2:.66);
-  const pulse=1+Math.sin(time*(active?8:3.2))*(active?.08:.035);specialAuraRingLow.scale.setScalar(pulse);specialAuraRingHigh.scale.setScalar(1+(1-pulse)*.6);
+  const base=active?1:ready?.28:0;
+  const pulse=base>0
+    ?base*(active?.86+Math.sin(time*12)*.14:.82+Math.sin(time*5)*.18)
+    :0;
+  riderController.rider?.userData?.setPowerGlow?.(THREE.MathUtils.clamp(pulse,0,1),time);
 }
 
 // Integration bridge: one authoritative quality profile drives every scalable subsystem.
@@ -897,6 +882,7 @@ const touchControls=createTouchControls({
 let last=performance.now();
 let physicsSubsteps=0;
 let runPreparing=false;
+let pendingCrashResults=null;
 
 function resetRunState(){
   if(state.rideMode!==selectedRideMode)applyRideProfileToState(selectedRideMode);
@@ -912,7 +898,7 @@ function resetRunState(){
   audio.resetRun?.();
   haptics.reset?.();
   player.position.set(0,.12,2.2);resetPlayerOrientation(player);
-  state.crashActive=false;state.crashMotion=null;impactVfx.reset();
+  state.crashActive=false;state.crashMotion=null;state.crashTime=0;pendingCrashResults=null;impactVfx.reset();
   startCountdownStarted=false;
   startCrowd.reset();startGate.reset();
   trailTimer=0;skiTrails.reset();
@@ -993,6 +979,15 @@ function resumeGame(){
   audio.play('menu',.22);
   last=performance.now();
 }
+function showCrashResults(reason='timer'){
+  if(!gameFlow.is(GAME_FLOW.CRASHED)||!pendingCrashResults)return false;
+  const results=pendingCrashResults;
+  pendingCrashResults=null;
+  ui.showResults(results,0);
+  gameFlow.enter(GAME_FLOW.RESULTS,{reason});
+  return true;
+}
+
 function crash(kind='tree',item=null){
   if(state.mode!=='playing')return;
   collisionRuntime.clearRamp();
@@ -1035,6 +1030,9 @@ function crash(kind='tree',item=null){
     wz:-state.crashDirection*(5.6+crashSpeed01*5.4)
   };
   state.crashActive=true;
+  state.crashVisualX=player.position.x;
+  state.crashVisualY=player.position.y;
+  state.crashVisualZ=player.position.z;
 
   if(!isTrickCrash){
     impactVfx.burst({
@@ -1054,7 +1052,7 @@ function crash(kind='tree',item=null){
   const crashFeedback=feedback.onCrash({kind:state.crashType,velocity:state.crashVelocity});
   if(!isTrickCrash)haptics.crash(state.crashType,crashFeedback?.hapticStrength);
   try{localStorage.setItem('chimpions-ski-best',state.best)}catch{}
-  ui.showResults({
+  pendingCrashResults={
     distance:runDistance,
     score:state.score,
     bananas:state.bananas,
@@ -1073,8 +1071,7 @@ function crash(kind='tree',item=null){
     strongLandings:state.strongLandings||0,
     bananaPowerUses:state.bananaPowerUses||0,
     largestTrickScore:state.largestTrickScore||0
-  },650);
-  gameFlow.enter(GAME_FLOW.RESULTS,{reason:'results'});
+  };
 }
 function suspendInput(){
   gameplayInput.resetTransient();
@@ -1087,6 +1084,10 @@ function suspendInput(){
 }
 runtimeListeners.on(window,'blur',suspendInput);
 runtimeListeners.on(document,'visibilitychange',()=>{if(document.hidden)suspendInput();});
+runtimeListeners.on(window,'keydown',event=>{
+  if(!gameFlow.is(GAME_FLOW.CRASHED)||event.repeat||event.target?.closest?.('input,textarea,select,[contenteditable="true"]'))return;
+  showCrashResults('input');
+});
 
 function update(dt,frameMs=dt*1000){
   physicsSubsteps=0;
@@ -1109,6 +1110,11 @@ function update(dt,frameMs=dt*1000){
     if(actions.cameraPressed&&state.mode==='playing')cycleCameraView();
     if(actions.cameraMotionPressed&&state.mode==='playing')cycleCameraMotion();
     if(actions.specialPressed&&state.mode==='playing')bananaPower.activate();
+  }
+  if(gameFlow.is(GAME_FLOW.CRASHED)){
+    const padPressed=Object.values(pad?.edges?.pressed||{}).some(Boolean);
+    const crashInputPressed=padPressed||actions.jumpPressed||actions.specialPressed||actions.cameraPressed||actions.cameraMotionPressed||actions.pausePressed;
+    if(crashInputPressed)showCrashResults('input');
   }
   const steer=actions.steer;
   const jumpPressed=wasPlaying&&state.mode==='playing'&&actions.jumpPressed;
@@ -1429,12 +1435,20 @@ function update(dt,frameMs=dt*1000){
     // Cinematic crash motion is integrated below so it continues behind results.
   }
 
+  let crashCinematicDt=dt;
   if(state.crashActive){
     state.crashTime+=dt;
+    const slowProgress=THREE.MathUtils.clamp(state.crashTime/.95,0,1);
+    const crashTimeScale=THREE.MathUtils.lerp(.30,1,slowProgress*slowProgress);
+    crashCinematicDt=dt*crashTimeScale;
     const crashGround=terrainHeight(player.position.x,player.position.z-state.travel)+.12;
-    updateCrashOrientation(player,state,dt,crashGround);
+    updateCrashOrientation(player,state,crashCinematicDt,crashGround);
+    state.crashVisualX=player.position.x;
+    state.crashVisualY=player.position.y;
+    state.crashVisualZ=player.position.z;
   }
-  impactVfx.update(dt);
+  if(gameFlow.is(GAME_FLOW.CRASHED)&&state.crashTime>=2)showCrashResults('timer');
+  impactVfx.update(state.mode==='crashed'?crashCinematicDt:dt);
 
   for(const tile of tiles){
     tile.position.z+=worldDistance;
