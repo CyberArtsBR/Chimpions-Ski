@@ -3,8 +3,6 @@ import {RIDER_ANIMATION_STATE,createRiderAnimationStateMachine} from './riderAni
 
 const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const expBlend=(current,target,response,dt)=>current+(target-current)*(1-Math.pow(1-response,Math.max(0,dt)*60));
-const stateIs=(state,...values)=>values.includes(state);
-
 export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
   const machine=createRiderAnimationStateMachine();
   let currentRideMode=normalizeRideMode(rideMode);
@@ -68,8 +66,8 @@ export function createRiderPoseController({rideMode=RIDE_MODE.SKI}={}){
     const landingQuality=String(frame.landingQuality||'none');
     const landingScale=landingQuality==='hard'?1.35:landingQuality==='rough'?1.15:1;
     const jumpAnticipation=state.state===RIDER_ANIMATION_STATE.JUMP_ANTICIPATION?1:0;
-    const takeoff=stateIs(state.state,RIDER_ANIMATION_STATE.START_RELEASE,RIDER_ANIMATION_STATE.TAKEOFF,RIDER_ANIMATION_STATE.ASCENT)?1:0;
-    const landingState=stateIs(state.state,RIDER_ANIMATION_STATE.LANDING,RIDER_ANIMATION_STATE.LANDING_RECOVERY)?1:0;
+    const takeoff=(state.state===RIDER_ANIMATION_STATE.START_RELEASE||state.state===RIDER_ANIMATION_STATE.TAKEOFF||state.state===RIDER_ANIMATION_STATE.ASCENT)?1:0;
+    const landingState=(state.state===RIDER_ANIMATION_STATE.LANDING||state.state===RIDER_ANIMATION_STATE.LANDING_RECOVERY)?1:0;
     const trickProgress=clamp(frame.trickProgress);
     const trickActive=state.state===RIDER_ANIMATION_STATE.TRICK?1:0;
     const backflip=String(frame.trickType||'').toUpperCase()==='BACKFLIP';
