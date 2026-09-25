@@ -31,7 +31,7 @@ function qualityProfileEnv(){
   const value=String(process.env.QUALITY_PROFILE||'').trim().toLowerCase();
   if(!value)return null;
   if(value==='reduced')return 'medium';
-  if(!['auto','high','medium','low'].includes(value))throw new Error('QUALITY_PROFILE must be auto, high, medium or low');
+  if(!['auto','max','high','medium','low'].includes(value))throw new Error('QUALITY_PROFILE must be auto, max, high, medium or low');
   return value;
 }
 function normalizeBaseUrl(value){
@@ -443,6 +443,24 @@ export async function sampleRuntime(page){
       rendererTextures:d?.rendererTextures??null,
       qualityProfile:d?.qualityProfile??null,
       rendererPixelRatio:d?.rendererPixelRatio??null,
+      renderPipeline:d?.renderPipeline??null,
+      postProcessingEnabled:d?.postProcessingEnabled??null,
+      renderTargetType:d?.renderTargetType??null,
+      renderTargetSamples:d?.renderTargetSamples??null,
+      managedRenderTargetCount:d?.managedRenderTargetCount??null,
+      bloomEnabled:d?.bloomEnabled??null,
+      bloomStrength:d?.bloomStrength??null,
+      shadowEnabled:d?.shadowEnabled??null,
+      shadowMapSize:d?.shadowMapSize??null,
+      gpuTimerSupported:d?.gpuTimerSupported??null,
+      gpuFrameP50Ms:d?.gpuFrameP50Ms??null,
+      gpuFrameP95Ms:d?.gpuFrameP95Ms??null,
+      gpuFrameP99Ms:d?.gpuFrameP99Ms??null,
+      renderCpuP50Ms:d?.renderCpuP50Ms??null,
+      renderCpuP95Ms:d?.renderCpuP95Ms??null,
+      renderCpuP99Ms:d?.renderCpuP99Ms??null,
+      postProcessCpuP95Ms:d?.postProcessCpuP95Ms??null,
+      staticFrameSkips:d?.staticFrameSkips??null,
       environmentShadowMapSize:d?.environmentShadowMapSize??null,
       decorativeShadowCasting:d?.decorativeShadowCasting??null,
       activeBanks:d?.activeBanks??null,
