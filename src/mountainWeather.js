@@ -25,11 +25,11 @@ export function createMountainWeather({app,scene,camera,renderer,environment,aud
   const rendererWeather=createAlpineWeather({scene,camera,renderer,sun,ambient,rim,settings:budgets[quality.active]||budgets.high});
   const sceneMaterials=new Set();atmosphere.traverse(o=>{for(const m of (Array.isArray(o.material)?o.material:[o.material]))if(m?.color)sceneMaterials.add(m);});
   // Lights are emissive caps and small world-space glows: no extra light/shadow passes.
-  const count=44,dummy=new THREE.Object3D(),positions=new Float32Array(count*3);
-  const material=new THREE.MeshStandardMaterial({color:0xffd7a5,emissive:0xffbc73,emissiveIntensity:.12,roughness:.45});
+  const count=80,dummy=new THREE.Object3D(),positions=new Float32Array(count*3);
+  const material=new THREE.MeshStandardMaterial({color:0xadf8ff,emissive:0x28dfff,emissiveIntensity:3.2,roughness:.32});
   const lamps=new THREE.InstancedMesh(new THREE.SphereGeometry(.085,6,4),material,count);lamps.frustumCulled=false;scene.add(lamps);
   const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
-  const glowMaterial=new THREE.PointsMaterial({color:0xffb66b,map:softSprite(),size:1.2,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
+  const glowMaterial=new THREE.PointsMaterial({color:0x62eaff,map:softSprite(),size:.85,transparent:true,opacity:0,depthWrite:false,blending:THREE.AdditiveBlending,toneMapped:false});
   const glow=new THREE.Points(geometry,glowMaterial);glow.frustumCulled=false;scene.add(glow);
   let budget=budgets[quality.active]||budgets.high;
   app.insertAdjacentHTML('beforeend',`<details class="graphics-panel" id="mountain-atmosphere"><summary aria-label="Mountain atmosphere settings"><span aria-hidden="true">❄</span> Mountain atmosphere</summary><div class="graphics-content"><div class="graphics-heading">MAKE IT YOUR MOUNTAIN</div><label>Graphics<select id="atmosphere-quality"><option value="auto">Auto</option><option value="high">High</option><option value="max">Max</option><option value="medium">Balanced</option><option value="low">Low</option></select></label><label>Atmosphere<select id="atmosphere-mode"><option value="auto">Changing skies</option><option value="day">Alpine daylight</option><option value="sunset">Golden hour</option><option value="night">Moonlit night</option><option value="snow">Windblown snow</option><option value="rain">Night rain</option><option value="storm">Thunderstorm</option></select></label><label class="graphics-toggle"><input type="checkbox" id="atmosphere-flashes"> Gentle lightning</label><p>Skies change gradually. Audio follows your sound settings. Skiing physics stay the same.</p></div></details>`);
@@ -54,12 +54,12 @@ export function createMountainWeather({app,scene,camera,renderer,environment,aud
     snowMaterials.terrain.color.copy(w.snow);snowMaterials.bank.color.copy(w.snow);snowMaterials.shadowBank.color.copy(w.snow).multiplyScalar(.77);
     snowMaterials.terrain.roughness=.86-w.wet*.08;snowMaterials.terrain.envMapIntensity=.12+w.wet*.14;
     snowParticles.setTint(w.snow);surfaceDetail.moundMaterial.color.copy(w.snow);surfaceDetail.ridgeMaterial.color.copy(w.snow).multiplyScalar(.77);
-    for(const m of sceneMaterials)m.color.copy(w.snow).lerp(w.fog,.25);
+    for(const m of sceneMaterials)m.color.copy(w.snow).lerp(w.fog,m.userData.atmosphereRole==='mountain'?.12+.30*(m.userData.atmosphereDepth||0):.25);
     for(const m of wetMaterials){m.roughness=Math.max(.35,dryRoughness.get(m)-w.wet*.25);m.envMapIntensity=.35+w.wet*.25;}
     for(const m of equipment){m.roughness=Math.max(.16,m.userData.atmosphereDryRoughness-w.wet*.13);m.envMapIntensity=.65+w.wet*.2;}
-    material.emissiveIntensity=.12+w.night*1.6;glowMaterial.opacity=w.night*.52*budget.glow;
+    material.emissiveIntensity=3.2+w.night*.6;glowMaterial.opacity=(.06+w.night*.24)*budget.glow;
     for(let i=0;i<count;i++){
-      const x=(i%2?-1:1)*(COURSE_FLAG_X+.28),z=16-((Math.floor(i/2)*12-state.travel)%264+264)%264,y=terrainHeight(x,z-state.travel)+1.95;
+      const x=(i%2?-1:1)*(COURSE_FLAG_X+.28),z=18-((26+Math.floor(i/2)*7.2-state.travel)%288+288)%288,y=terrainHeight(x,z-state.travel)+1.96;
       dummy.position.set(x,y,z);dummy.updateMatrix();lamps.setMatrixAt(i,dummy.matrix);positions[i*3]=x;positions[i*3+1]=y;positions[i*3+2]=z;
     }
     lamps.instanceMatrix.needsUpdate=true;geometry.attributes.position.needsUpdate=true;

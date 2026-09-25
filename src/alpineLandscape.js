@@ -7,13 +7,15 @@ const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x)
 const dummy=new THREE.Object3D();
 const forestTint=new THREE.Color(),forestNear=new THREE.Color(0x31534e),forestFar=new THREE.Color(0x718b94);
 function mountainGeometry(seed){
-  const nx=64,nz=28,p=[],uv=[],indices=[],colors=[];
+  const nx=96,nz=40,p=[],uv=[],indices=[],colors=[];
   for(let z=0;z<=nz;z++)for(let x=0;x<=nx;x++){
     const u=x/nx,v=z/nz,xx=u*2-1,zz=v*2-1;
-    const taper=Math.pow(Math.max(0,1-xx*xx),1.1)*Math.pow(Math.max(0,1-zz*zz),.85);
-    const spine=.61+.20*Math.sin(xx*5.7+seed)+.13*Math.sin(xx*13.3+seed*.7);
-    const striation=Math.abs(Math.sin(xx*29+zz*8+seed))*.075+Math.abs(Math.sin(xx*61-zz*17))*.025;
-    const h=taper*Math.max(.05,spine-striation+Math.sin(zz*9+xx*6)*.10);
+    const taper=Math.pow(Math.max(0,1-xx*xx),.85)*Math.pow(Math.max(0,1-zz*zz),.72);
+    const ridgeZ=zz-.19*Math.sin(xx*4.7+seed)-.11*Math.sin(xx*10.3+seed*.3);
+    const spine=.48+.24*Math.sin(xx*5.7+seed)+.16*Math.sin(xx*13.3+seed*.7)+.075*Math.sin(xx*31.7+seed*2);
+    const gullies=Math.abs(Math.sin(xx*24+ridgeZ*9+seed+Math.sin(ridgeZ*5)))*.10+Math.abs(Math.sin(xx*57-ridgeZ*19+seed))*.035;
+    const ridge=Math.exp(-Math.abs(ridgeZ)*2.4);
+    const h=taper*Math.max(.035,spine*(.40+.60*ridge)-gullies*(.4+.6*ridge)+.075*Math.sin(zz*13+xx*7));
     p.push(xx*.5,h,zz*.5);uv.push(u,v);
     if(x<nx&&z<nz){const a=z*(nx+1)+x,b=a+nx+1;indices.push(a,b,a+1,a+1,b,b+1);}
   }
@@ -22,9 +24,9 @@ function mountainGeometry(seed){
   const stone=new THREE.Color(0x566b7a),snow=new THREE.Color(0xe5f1f6),c=new THREE.Color();
   for(let i=0;i<p.length/3;i++){
     const x=p[i*3],h=p[i*3+1],z=p[i*3+2];
-    const snowLine=.30+.09*Math.sin(x*37+seed)+.06*Math.sin(z*29+x*13);
-    const coverage=THREE.MathUtils.smoothstep(h,snowLine,snowLine+.15)*THREE.MathUtils.smoothstep(normal.getY(i),.24,.75);
-    c.copy(stone).lerp(snow,coverage);c.multiplyScalar(.79+.21*normal.getY(i));colors.push(c.r,c.g,c.b);
+    const snowLine=.07+.035*Math.sin(x*37+seed)+.025*Math.sin(z*29+x*13);
+    const coverage=THREE.MathUtils.smoothstep(h,snowLine,snowLine+.09)*(.48+.52*THREE.MathUtils.smoothstep(normal.getY(i),.09,.63));
+    c.copy(stone).lerp(snow,coverage);c.multiplyScalar(.85+.15*normal.getY(i));colors.push(c.r,c.g,c.b);
   }
   g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));return g;
 }
@@ -42,17 +44,22 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
   for(let layer=0;layer<3;layer++){
     const material=new THREE.MeshStandardMaterial({color:[0xc7dce9,0xa4bfd0,0x8ca9bd][layer],vertexColors:true,roughness:1});
     material.userData.atmosphereRole='mountain';
+    material.userData.atmosphereDepth=(2-layer)/2;
     const mesh=new THREE.InstancedMesh(geometries[layer],material,8);
     mesh.castShadow=mesh.receiveShadow=false;mesh.frustumCulled=true;mesh.name='premium-alpine-band-'+layer;atmosphere.add(mesh);bands.push(mesh);
     for(let i=0;i<8;i++){
       const side=i%2?-1:1,rank=Math.floor(i/2),seed=layer*31+i*17;
-      const width=45+hash(seed+1)*28,depth=38+hash(seed+2)*28;
+      const width=57+hash(seed+1)*44,depth=48+hash(seed+2)*36;
       // Bounds use the entire massif width, never just its peak.
       const x=side*(COURSE_FLAG_X+18+(2-layer)*18+width*.5+hash(seed+4)*12);
-      entries.push({layer,index:i,x,z:-52-rank*61-layer*15,width,depth,height:27+hash(seed+7)*25,side});
+      entries.push({layer,index:i,x,z:-52-rank*61-layer*15,width,depth,height:40+hash(seed+7)*38,side});
     }
   }
-  const forestMaterial=new THREE.MeshStandardMaterial({color:0x31534e,roughness:1});
+  const horizonMaterial=new THREE.MeshStandardMaterial({color:0xc7dce9,vertexColors:true,roughness:1});
+  horizonMaterial.userData.atmosphereRole='mountain';horizonMaterial.userData.atmosphereDepth=1;
+  const horizonRidge=new THREE.Mesh(mountainGeometry(137),horizonMaterial);
+  horizonRidge.name='distant-alpine-watershed';horizonRidge.position.set(0,-13,-225);horizonRidge.scale.set(330,58,76);atmosphere.add(horizonRidge);
+  const forestMaterial=new THREE.MeshStandardMaterial({color:0xffffff,roughness:1});
   const forestGeo=forestGeometry();
   const forestCapacity=280;
   const forestChunkCount=6;

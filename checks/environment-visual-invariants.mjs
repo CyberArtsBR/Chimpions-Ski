@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {normalizeEnvironmentQuality} from '../src/environmentQuality.js';
+import {createRampVisual} from '../src/courseSurfaceVisuals.js';
 
 const read=path=>readFileSync(new URL(path,import.meta.url),'utf8');
 const env=read('../src/environment.js');
@@ -37,7 +38,9 @@ assert(
   premium.includes("rocks:Array.from({length:4}")&&premium.includes('function makeRock(variant)'),
   'rock prototype polish missing'
 );
-assert(env.includes("visualPrototype='readable-ramp-v2'"),'ramp readability prototype missing');
+const ramp=createRampVisual();
+assert.equal(ramp.userData.visualPrototype,'timber-kicker-v3','ramp readability prototype changed unexpectedly');
+assert(ramp.children.length>=4,'ramp lost deck, frame, snow or directional markings');
 assert(
   premium.includes('log:makeLog(false),wideLog:makeLog(true)')&&
   premium.includes('return library??='),

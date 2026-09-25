@@ -18,6 +18,7 @@ export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-
   `;
   document.body.append(root);
   document.body.classList.add('start-screen-active');
+  document.getElementById('ski-boot-cover')?.remove();
 
   const art=root.querySelector('.start-screen-art');
   const play=root.querySelector('.start-screen-play');
@@ -31,10 +32,11 @@ export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-
   let axisLatch=0;
 
   function refreshReady(){
-    const ready=chimpionReady&&artReady&&!artFailed;
+    const ready=chimpionReady&&(artReady||artFailed);
+    root.classList.toggle('is-art-failed',artFailed);
     play.disabled=!ready;
     root.classList.toggle('is-loading',!ready);
-    if(artFailed)status.textContent='Start artwork unavailable';
+    if(artFailed)status.textContent=chimpionReady?'ENTER / A · START':'Loading Chimpions Ski…';
     else if(!artReady)status.textContent='Loading start screen…';
     else if(!chimpionReady)status.textContent='Loading Chimpion…';
     else status.textContent='ENTER / A · START';

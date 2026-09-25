@@ -160,9 +160,9 @@ assert(
   assert.equal(attempt(state,makeItem('log')),null);
 }
 
-const feedbackSource=readFileSync(new URL('../src/gameFeedback.js',import.meta.url),'utf8');
-assert(!feedbackSource.includes('showLandingFeedback'),'landing text feedback hook is still active');
-assert(!feedbackSource.includes('CLEAN LANDING'),'CLEAN LANDING text remains in gameplay feedback');
+const scoringSource=readFileSync(new URL('../src/airborneScoring.js',import.meta.url),'utf8');
+assert(!scoringSource.includes('showLandingFeedback'),'airborne scoring directly owns landing presentation');
+assert(!scoringSource.includes('CLEAN LANDING'),'airborne scoring contains presentation copy');
 
 console.log(JSON.stringify({
   check:'airborne-scoring-invariants',

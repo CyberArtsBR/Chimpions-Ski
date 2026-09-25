@@ -1,4 +1,5 @@
 import {SKI_TUNING as T} from './gameplayTuning.js';
+import {OBSTACLE_TUNING} from './obstacleTuning.js';
 
 export const COURSE_FLAG_X=T.PLAYER_HALF_WIDTH;
 export const FLAG_VISUAL_MARGIN=.35;
@@ -8,17 +9,17 @@ export const COURSE_OBJECT_VISUAL_HALF_WIDTH=Object.freeze({
   rock:.90,
   banana:.65,
   ramp:1.70,
-  log:1.25,
-  wideLog:2.75,
-  oil:1.60
+  log:OBSTACLE_TUNING.log.visualHalfWidth,
+  wideLog:OBSTACLE_TUNING.wideLog.visualHalfWidth,
+  oil:OBSTACLE_TUNING.oil.visualHalfWidth
 });
 
 export const COURSE_OBJECT_COLLISION_HALF_WIDTH=Object.freeze({
   tree:.62,
   rock:.55,
-  log:1.02,
-  wideLog:2.48,
-  oil:1.48
+  log:OBSTACLE_TUNING.log.collisionHalfWidth,
+  wideLog:OBSTACLE_TUNING.wideLog.collisionHalfWidth,
+  oil:OBSTACLE_TUNING.oil.collisionHalfWidth
 });
 
 export function gameplayObjectCenterLimit(kind){

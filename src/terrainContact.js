@@ -20,7 +20,10 @@ export function terrainHeight(x,z){
     Math.sin(downhill*.027+x*.19)*.14+
     Math.cos(downhill*.014-x*.11)*.07
   );
-  return macro+broad+crest+gentleBank+edgeRelief;
+  // Exterior foothills rise beyond the playable corridor, leaving ski contact unchanged.
+  const outside=Math.max(0,Math.abs(x)-22);
+  const foothills=Math.min(17,outside*.22)*(.65+.24*Math.sin(downhill*.018+x*.025)+.11*Math.sin(downhill*.043-x*.037));
+  return macro+broad+crest+gentleBank+edgeRelief+foothills;
 }
 
 export function sampleSkiGround(heightFn,x,z,heading=0,halfWidth=.235){

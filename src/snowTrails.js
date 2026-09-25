@@ -2,42 +2,18 @@ import * as THREE from 'three';
 
 const TRACK_Y_OFFSET=.010;
 const TRACK_LIFE=6.8;
-
-const vertexShader=`
-attribute float aAlpha;
-attribute float aSide;
-varying float vAlpha;
-varying float vSide;
-void main(){
-  vAlpha=aAlpha;
-  vSide=aSide;
-  gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);
-}
-`;
-
-const fragmentShader=`
-varying float vAlpha;
-varying float vSide;
-void main(){
-  if(vAlpha<=0.001)discard;
-  float side=clamp(abs(vSide),0.0,1.0);
-  float edge=pow(side,1.55);
-  float compressed=1.0-smoothstep(.18,.62,side);
-  float berm=smoothstep(.52,.78,side)*(1.0-smoothstep(.84,1.0,side));
-  vec3 groove=vec3(0.27,0.45,0.56),packed=vec3(0.48,0.66,0.74),snowEdge=vec3(0.80,0.91,0.95);
-  vec3 color=mix(groove,snowEdge,edge*.68);color=mix(color,packed,compressed*.34);color+=snowEdge*berm*.12;
-  float feather=1.0-smoothstep(.80,1.0,side)*.48;
-  gl_FragColor=vec4(color,vAlpha*feather);
-}
-`;
+const PROFILE=[-1,-.80,-.52,0,.52,.80,1];
+const SECTION=PROFILE.length,VERTICES=SECTION*2,INDEX_COUNT=(SECTION-1)*6;
 
 export function createSkiTrails({world,terrainHeight,capacity=192}){
   const skiCount=2;
   const segmentCount=capacity*skiCount;
-  const positions=new Float32Array(segmentCount*4*3);
-  const alphas=new Float32Array(segmentCount*4);
-  const sides=new Float32Array(segmentCount*4);
-  const indices=new Uint16Array(segmentCount*6);
+  const positions=new Float32Array(segmentCount*VERTICES*3);
+  const alphas=new Float32Array(segmentCount*VERTICES);
+  const normals=new Float32Array(segmentCount*VERTICES*3);
+  const colors=new Float32Array(segmentCount*VERTICES*3);
+  const glow=new Float32Array(segmentCount*VERTICES);
+  const indices=new Uint16Array(segmentCount*INDEX_COUNT);
   const ages=new Float32Array(segmentCount);
   const strengths=new Float32Array(segmentCount);
   const active=new Uint8Array(segmentCount);
@@ -50,11 +26,14 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
   const contactB=new THREE.Vector3();
 
   for(let i=0;i<segmentCount;i++){
-    const v=i*4;
-    const k=i*6;
-    sides[v]=-1;sides[v+1]=1;sides[v+2]=-1;sides[v+3]=1;
-    indices[k]=v;indices[k+1]=v+2;indices[k+2]=v+1;
-    indices[k+3]=v+1;indices[k+4]=v+2;indices[k+5]=v+3;
+    const v=i*VERTICES,k=i*INDEX_COUNT;
+    for(let j=0;j<VERTICES;j++){
+      const side=Math.abs(PROFILE[j%SECTION]);
+      glow[v+j]=side>.7&&side<.95?1:0;
+      const tone=side>.7?[.92,.97,1]:side>.3?[.34,.52,.67]:[.56,.71,.82];
+      colors.set(tone,(v+j)*3);normals[(v+j)*3+1]=1;
+    }
+    for(let j=0;j<SECTION-1;j++)indices.set([v+j,v+j+SECTION,v+j+1,v+j+1,v+j+SECTION,v+j+SECTION+1],k+j*6);
   }
 
   const geometry=new THREE.BufferGeometry();
@@ -64,12 +43,13 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
   alphaAttribute.setUsage(THREE.DynamicDrawUsage);
   geometry.setAttribute('position',positionAttribute);
   geometry.setAttribute('aAlpha',alphaAttribute);
-  geometry.setAttribute('aSide',new THREE.BufferAttribute(sides,1));
+  geometry.setAttribute('normal',new THREE.BufferAttribute(normals,3));
+  geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  geometry.setAttribute('aGlow',new THREE.BufferAttribute(glow,1));
   geometry.setIndex(new THREE.BufferAttribute(indices,1));
 
-  const material=new THREE.ShaderMaterial({
-    vertexShader,
-    fragmentShader,
+  const material=new THREE.MeshStandardMaterial({
+    color:0xffffff,vertexColors:true,roughness:.98,
     transparent:true,
     depthWrite:false,
     side:THREE.DoubleSide,
@@ -77,6 +57,15 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     polygonOffsetFactor:-1,
     polygonOffsetUnits:-1
   });
+  material.onBeforeCompile=shader=>{
+    shader.vertexShader='attribute float aAlpha;attribute float aGlow;varying float trailGlow;varying float trailAlpha;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntrailAlpha=aAlpha;trailGlow=aGlow;');
+    shader.fragmentShader='varying float trailGlow;varying float trailAlpha;\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\ndiffuseColor.a*=trailAlpha;if(diffuseColor.a<.002)discard;');
+  };
+  const compileTrail=material.onBeforeCompile;
+  material.onBeforeCompile=shader=>{compileTrail(shader);shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vec3(.34,.86,1.0)*5.8*trailGlow*trailAlpha;');};
+  material.customProgramCacheKey=()=> 'emissive-carved-snow-ribbon-v2';
 
   const mesh=new THREE.Mesh(geometry,material);
   mesh.frustumCulled=false;
@@ -93,8 +82,8 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
 
   function clearSegment(index){
     active[index]=0;
-    const v=index*4;
-    alphas[v]=alphas[v+1]=alphas[v+2]=alphas[v+3]=0;
+    const v=index*VERTICES;
+    alphas.fill(0,v,v+VERTICES);
   }
 
   function writeSegment(skiIndex,x,y,z,edge,snowboard=false){
@@ -108,19 +97,21 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     const carve=Math.abs(edge);
     const outside=Math.max(0,-sideSign*edge);
     const halfWidth=snowboard
-      ?.205+carve*.075
-      :(.047+carve*.010+outside*.008);
+      ?.30+carve*.13
+      :(.095+carve*.018+outside*.015);
     const px=-dz/length*halfWidth;
     const pz=dx/length*halfWidth;
     const strength=snowboard
-      ?.38+carve*.25
-      :.30+carve*.16+outside*.16;
-    const v=index*4;
-
-    setVertex(v,prevX[skiIndex]-px,prevY[skiIndex],prevZ[skiIndex]-pz,strength);
-    setVertex(v+1,prevX[skiIndex]+px,prevY[skiIndex],prevZ[skiIndex]+pz,strength);
-    setVertex(v+2,x-px,y,z-pz,strength);
-    setVertex(v+3,x+px,y,z+pz,strength);
+      ?.74+carve*.20
+      :.65+carve*.14+outside*.12;
+    const v=index*VERTICES;
+    for(let j=0;j<SECTION;j++){
+      const side=PROFILE[j],bank=Math.exp(-Math.pow((Math.abs(side)-.8)/.16,2));
+      const relief=bank*(snowboard?.055:.028)*(1+carve*.7)*(1+side*edge*.25);
+      const opacity=(j===0||j===SECTION-1)?0:strength;
+      setVertex(v+j,prevX[skiIndex]+px*side,prevY[skiIndex]+relief,prevZ[skiIndex]+pz*side,opacity);
+      setVertex(v+SECTION+j,x+px*side,y+relief,z+pz*side,opacity);
+    }
 
     active[index]=1;
     ages[index]=0;
@@ -189,21 +180,22 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     for(let i=0;i<segmentCount;i++){
       if(!active[i])continue;
       ages[i]+=dt;
-      const v=i*4;
+      const v=i*VERTICES;
       const fadeStart=2.35;
       const fade=ages[i]<=fadeStart?1:Math.max(0,1-(ages[i]-fadeStart)/(TRACK_LIFE-fadeStart));
       const alpha=strengths[i]*fade;
 
-      for(let n=0;n<4;n++){
+      for(let n=0;n<VERTICES;n++){
         const vertex=v+n;
         const p=vertex*3;
         positions[p+2]+=worldSpeed*dt;
-        alphas[vertex]=alpha;
+        const side=n%SECTION;
+        alphas[vertex]=(side===0||side===SECTION-1)?0:alpha;
       }
       positionsDirty=true;
       alphaDirty=true;
 
-      const frontZ=positions[(v+2)*3+2];
+      const frontZ=positions[(v+SECTION)*3+2];
       if(ages[i]>=TRACK_LIFE||frontZ>20||alpha<=.012){
         clearSegment(i);
         alphaDirty=true;

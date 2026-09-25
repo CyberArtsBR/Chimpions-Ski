@@ -31,10 +31,10 @@ function rng(seed=0x12345678){
 
 const ski=getRideProfile(RIDE_MODE.SKI);
 const snowboard=getRideProfile(RIDE_MODE.SNOWBOARD);
-assert.equal(speedToKmh(ski.baseSpeed),160,'ski starting speed drifted from 160 km/h');
-assert.equal(speedToKmh(snowboard.baseSpeed),180,'snowboard starting speed drifted from 180 km/h');
-assert.equal(speedToKmh(ski.tierIncrement),20,'ski tier increment drifted from +20 km/h');
-assert.equal(speedToKmh(snowboard.tierIncrement),20,'snowboard tier increment drifted from +20 km/h');
+assert.equal(speedToKmh(ski.baseSpeed),150,'ski starting speed drifted from 150 km/h');
+assert.equal(speedToKmh(snowboard.baseSpeed),150,'snowboard starting speed drifted from 150 km/h');
+assert.equal(speedToKmh(ski.tierIncrement),10,'ski tier increment drifted from +10 km/h');
+assert.equal(speedToKmh(snowboard.tierIncrement),10,'snowboard tier increment drifted from +10 km/h');
 assert.equal(ski.tierSeconds,30,'ski speed tier cadence drifted from 30 seconds');
 assert.equal(snowboard.tierSeconds,30,'snowboard speed tier cadence drifted from 30 seconds');
 assert.equal(speedToKmh(ski.maxSpeed),300,'ski max speed drifted from 300 km/h');

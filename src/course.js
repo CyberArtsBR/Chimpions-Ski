@@ -1,6 +1,7 @@
 import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {OBSTACLE_TUNING,obstacleCollisionHalfWidth,obstacleHalfDepth} from './obstacleTuning.js';
 import {estimateRampFlightEnvelope} from './rampTrajectory.js';
+import {getRampSectionLength} from './courseSectionContract.js';
 import {createSafeRouteTracker,maxHumanReachableLateralDelta,validateReachableCorridor} from './courseSafety.js';
 import {createExpertRunDirector} from './courseRunDirector.js';
 import {
@@ -1419,7 +1420,11 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         postLandingZ-6,
         clamp(postLandingSafe+(runPlan.side||1)*1.0,-T.COURSE_OBJECT_HALF_WIDTH,T.COURSE_OBJECT_HALF_WIDTH),
         postLandingSafe,
-        {riskReward:runPlan.intensity>.66?2:1,landingReward:true}
+        {
+          riskReward:runPlan.intensity>.66?2:1,
+          rewardPoints:runPlan.intensity>.66?125:85,
+          landingReward:true
+        }
       ));
 
       const followUpZ=postLandingZ-landingGap;
@@ -1448,7 +1453,10 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         envelope
       };
 
-      length=Math.max(126,Math.abs(startZ-followUpZ)+14);
+      length=getRampSectionLength({
+        protectedEndDistance:envelope.protectedEndDistance,
+        reactionSpacingScale:runPlan.threatBudget?.reactionSpacingScale??1
+      });
     }
 
     if(type==='RECOVERY'){

@@ -180,12 +180,14 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float compressed=smoothstep(.61,.84,snowNoise(snowP*vec2(.22,.055)+vec2(9.0,-14.0)))*snowPacked;
       float iceField=snowNoise(snowP*.105+31.0)*.68+snowNoise(snowP*.031-11.0)*.32;
       float iceMask=smoothstep(.77,.91,iceField)*(1.0-snowPacked*.28)*snowDetail;
-      float snowPhase=snowP.x*68.0+sin(snowP.y*.16)*.7+snowMeso*1.3;
+      float snowPhase=snowP.x*48.0+sin(snowP.y*.16)*1.7+snowMeso*3.3;
       float snowAA=1.0-smoothstep(.7,3.0,fwidth(snowPhase));
-      float grooming=sin(snowPhase)*snowAA*snowPacked*.025*snowDetail;
-      vec3 snowCold=mix(vec3(.70,.82,.94),vec3(1.0),smoothstep(.15,.85,snowMacro));
+      float grooming=sin(snowPhase)*snowAA*snowPacked*.009*snowDetail;
+      float windField=snowNoise(snowP*vec2(.32,.075)+vec2(snowMeso*1.7,0.0));
+      vec3 snowCold=mix(vec3(.66,.80,.94),vec3(1.0),smoothstep(.10,.78,snowMacro));
       diffuseColor.rgb*=snowCold*(.94+snowMeso*.055+snowLarge*.025+grooming-compressed*.035);
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(.91,.965,1.035),iceMask*.18);
+      diffuseColor.rgb*=.96+.055*windField;
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <normal_fragment_maps>',`#include <normal_fragment_maps>
       // Low-frequency wind relief in world space: continuous across recycled tiles.
@@ -193,6 +195,9 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       float driftFade=(1.0-smoothstep(18.0,85.0,length(vViewPosition)))*snowDetail;
       vec2 driftSlope=cos(driftPhase)*vec2(2.3,.32+cos(snowP.y*.17)*.187)*.055;
       driftSlope+=cos(snowP.x*.63-snowP.y*.27)*vec2(.63,-.27)*.10;
+      vec2 windP=snowP*vec2(.75,.19);
+      float windCenter=snowNoise(windP);
+      driftSlope+=vec2(snowNoise(windP+vec2(.09,0.0))-windCenter,snowNoise(windP+vec2(0.0,.09))-windCenter)*1.2;
       normal=normalize(normal+mat3(viewMatrix)*vec3(-driftSlope.x,0.0,-driftSlope.y)*driftFade);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <roughnessmap_fragment>',`#include <roughnessmap_fragment>
@@ -209,7 +214,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
       #include <opaque_fragment>
     `);
   };
-  terrain.customProgramCacheKey=()=> 'premium-alpine-snow-v3';
+  terrain.customProgramCacheKey=()=> 'wind-carved-alpine-snow-v4';
 
   let currentDetailLevel=1;
   function setDetailLevel(value=1){
@@ -219,7 +224,7 @@ export function createSnowMaterials(renderer,{detailLevel=1}={}){
     snowDetail.value=t;
     terrain.normalScale.set(.16+.28*t,.24+.38*t);
     terrain.bumpScale=.008+.025*t;
-    terrain.clearcoat=.025+.045*t;
+    terrain.clearcoat=.012+.020*t;
     terrain.clearcoatRoughness=.60-.08*t;
     bank.normalScale.set(.10+.18*t,.16+.26*t);
     bank.bumpScale=.005+.014*t;

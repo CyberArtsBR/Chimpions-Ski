@@ -11,6 +11,19 @@ const responsiveViewports=[
   {width:1024,height:640,label:'small laptop'}
 ];
 
+async function enterGameplay(target,{timeout=60000}={}){
+  await target.waitForFunction(()=>{
+    const mode=window.chimpionsSki?.().mode;
+    return mode==='countdown'||mode==='playing'||!!document.querySelector('.session-tutorial:not([hidden])');
+  },null,{timeout});
+  const tutorial=target.locator('.session-tutorial:not([hidden])');
+  if(await tutorial.isVisible().catch(()=>false)){
+    await target.keyboard.press('Enter');
+    await tutorial.waitFor({state:'hidden',timeout:5000});
+  }
+  await target.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout});
+}
+
 async function assertElementWithinViewport(locator,label){
   const box=await locator.evaluate(element=>{
     const rect=element.getBoundingClientRect();
@@ -40,7 +53,7 @@ page.on('console',message=>{
 });
 
 try{
-  await page.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});
+  await page.goto('http://127.0.0.1:4173/?test=1&quality=low',{waitUntil:'domcontentloaded'});
 
   const start=page.getByRole('button',{name:'Start Game'});
   const back=page.getByRole('link',{name:'Back to the Game selection'});
@@ -153,12 +166,7 @@ try{
   await skiChoice.evaluate(button=>button.click());
 
   await page.waitForFunction(()=>!document.querySelector('#chimpion-selector')?.open,null,{timeout:60000});
-  const sessionTutorial=page.locator('.session-tutorial:not([hidden])');
-  if(await sessionTutorial.isVisible().catch(()=>false)){
-    await page.keyboard.press('Enter');
-    await sessionTutorial.waitFor({state:'hidden',timeout:5000});
-  }
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000});
+  await enterGameplay(page);
   assert.equal(await page.locator('.start-screen').isVisible(),false);
   assert.equal(await page.locator('.hud').isVisible(),true,'HUD did not return after selected rider started');
 
@@ -317,7 +325,7 @@ try{
   });
   const touchPage=await touchContext.newPage();
   try{
-    await touchPage.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});
+    await touchPage.goto('http://127.0.0.1:4173/?test=1&quality=low',{waitUntil:'domcontentloaded'});
     await touchPage.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:30000});
     await touchPage.getByRole('button',{name:'Start Game'}).evaluate(button=>button.click());
     const touchSelector=touchPage.locator('#chimpion-selector');
@@ -331,12 +339,7 @@ try{
     const touchSkiChoice=touchSelector.locator('.ride-mode-card[data-ride-mode="ski"]');
     await touchSkiChoice.waitFor({state:'visible',timeout:5000});
     await touchSkiChoice.evaluate(button=>button.click());
-    const touchTutorial=touchPage.locator('.session-tutorial:not([hidden])');
-    if(await touchTutorial.isVisible().catch(()=>false)){
-      await touchPage.keyboard.press('Enter');
-      await touchTutorial.waitFor({state:'hidden',timeout:5000});
-    }
-    await touchPage.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:15000});
+    await enterGameplay(touchPage);
 
     const touchRoot=touchPage.locator('#touch-controls');
     assert.equal(await touchRoot.isVisible(),true,'Touch controls are not visible in coarse-pointer gameplay');

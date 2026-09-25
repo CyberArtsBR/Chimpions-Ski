@@ -5,7 +5,7 @@ import {OBSTACLE_TUNING} from './obstacleTuning.js';
 
 const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
 const bark=makeBarkTexture(256);
-const wood=new THREE.MeshStandardMaterial({color:0x936d49,map:bark,bumpMap:bark,bumpScale:.045,roughness:.94,vertexColors:true});
+const wood=new THREE.MeshStandardMaterial({color:0xa78665,map:bark,bumpMap:bark,bumpScale:.075,roughness:.94,vertexColors:true});
 const foliage=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.86,sheen:.22,sheenColor:new THREE.Color(0x517b56),sheenRoughness:.9,side:THREE.DoubleSide});
 const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.93,flatShading:true});
 const snowCover=new THREE.MeshPhysicalMaterial({color:0xf5fbff,roughness:.70,metalness:0,clearcoat:.06,clearcoatRoughness:.64,sheen:.25,sheenColor:new THREE.Color(0xd8f1ff)});
@@ -160,17 +160,17 @@ const endTexture=makeEndTexture();
 const endMaterial=new THREE.MeshStandardMaterial({map:endTexture,bumpMap:endTexture,bumpScale:.012,roughness:.89});
 function makeLog(wide){
   const tuning=wide?OBSTACLE_TUNING.wideLog:OBSTACLE_TUNING.log;
-  const radius=wide?.35:.28,parts=[];
-  const body=new THREE.CylinderGeometry(radius*.83,radius,tuning.length,32,14,true);
+  const radius=wide?.51:.41,parts=[];
+  const body=new THREE.CylinderGeometry(radius*.83,radius,tuning.length,48,28,true);
   const p=body.attributes.position;
   for(let i=0;i<p.count;i++){
     const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i));
-    const ridge=1+.045*Math.sin(a*13+y*.8)+.018*Math.sin(a*23-y*1.9);
+    const ridge=1+.065*Math.sin(a*13+y*.8)+.030*Math.sin(a*23-y*1.9)+.02*Math.sin(a*7+y*4.1);
     p.setX(i,p.getX(i)*ridge);p.setZ(i,p.getZ(i)*ridge);
   }
   paint(body,(x,y,z)=>{const a=Math.atan2(z,x),v=.7+.23*(.5+.5*Math.sin(a*9+y*.6));return [v,v*.91,v*.79];});
   body.rotateZ(Math.PI/2);body.translate(0,radius,0);body.computeVertexNormals();parts.push(body);
-  // Knotted branch stubs stay beneath the unchanged clearance envelope.
+  // Knotted stubs and bark ridges remain within the shared clearance envelope.
   for(let i=0;i<(wide?3:2);i++){
     const x=(i-.5*(wide?2:1))*tuning.length*.27;
     parts.push(branchBetween(new THREE.Vector3(x,radius,.10),new THREE.Vector3(x+.08,radius*1.5,.23),.06,.032,i+41));
@@ -191,7 +191,13 @@ function makeLog(wide){
   snowStrip.receiveShadow=true;group.add(snowStrip);
   const caps=[];
   for(const sign of [-1,1]){
-    const g=new THREE.CircleGeometry(radius*(sign<0?.825:.995),32);
+    const g=new THREE.CircleGeometry(radius*(sign<0?.825:.995),48);
+    const capPositions=g.attributes.position;
+    for(let j=1;j<capPositions.count;j++){
+      const a=Math.atan2(capPositions.getY(j),capPositions.getX(j));
+      const ridge=1+.045*Math.sin(a*13+sign*tuning.length*.4)+.02*Math.sin(a*23);
+      capPositions.setX(j,capPositions.getX(j)*ridge);capPositions.setY(j,capPositions.getY(j)*ridge);
+    }
     g.rotateY(sign*Math.PI/2);g.translate(sign*(tuning.length*.5+.002),radius,0);caps.push(g);
   }
   const ends=new THREE.Mesh(merge(caps),endMaterial);ends.castShadow=ends.receiveShadow=true;group.add(ends);

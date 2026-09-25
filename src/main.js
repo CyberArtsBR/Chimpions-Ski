@@ -1,6 +1,9 @@
 import * as THREE from 'three';
+import {createAlpinePostProcessing} from './alpinePostProcessing.js';
+import {createBulletTimeVisual} from './bulletTimeVisual.js';
 import './style.css';
 import './floatingUI.css';
+import './alpineMenus.css';
 import {createMountainWeather} from './mountainWeather.js';
 import {createFallbackSkier,loadRiderAsset} from './skier.js';
 import {readPad} from './input.js';
@@ -21,7 +24,7 @@ import {createStartCrowd} from './startCrowd.js';
 import {createStartGateScene} from './startGateScene.js';
 import {createSkiTrails} from './snowTrails.js';
 import {SKI_TUNING} from './gameplayTuning.js';
-import {OBSTACLE_TUNING} from './obstacleTuning.js';
+import {OBSTACLE_TUNING,touchesOil} from './obstacleTuning.js';
 import {createOilVisual,createRampVisual} from './courseSurfaceVisuals.js';
 import {getCourseLookahead} from './courseStreaming.js';
 import {breakSkillCombo,resetAirborneScoring,resetHazardScoring,scoreRiskBanana,tryScoreNearMiss,updateAirborneScoring,tryScoreAirborneClearance} from './airborneScoring.js';
@@ -41,7 +44,7 @@ import {CAMERA_MOTION,CAMERA_VIEW,loadUserPreferences,saveAvatarPreference,saveC
 import {GAME_FLOW,createGameFlow} from './gameFlow.js';
 import {createRunSession,createRunState} from './runSession.js';
 import {createBananaPowerSystem} from './bananaPowerSystem.js';
-import {createCollisionRuntime} from './collisionRuntime.js';
+import {createCollisionRuntime,DEFAULT_COLLISION_QUERY_HALF_Z} from './collisionRuntime.js';
 import {createGlobalListenerScope} from './globalListeners.js';
 import {createRiderController} from './riderController.js';
 import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
@@ -133,6 +136,8 @@ app.prepend(renderer.domElement);
 
 const world=new THREE.Group();scene.add(world);
 const environment=createSkiEnvironment({scene,world,renderer,camera});
+const alpinePostProcessing=createAlpinePostProcessing({renderer,scene,camera,quality});
+const bulletTimeVisual=createBulletTimeVisual({app});
 const unsubscribeRendererQuality=quality.subscribe(applyRendererResolution);
 const unsubscribeRendererResolution=quality.subscribeResolution(applyRendererResolution);
 const snowMat=environment.terrainMaterial;
@@ -244,7 +249,7 @@ const collisionBroadphase=createCollisionBroadphase({bucketSize:8});
 const collisionRuntime=createCollisionRuntime({
   broadphase:collisionBroadphase,
   telemetry:performanceTelemetry,
-  queryHalfZ:3.5
+  queryHalfZ:DEFAULT_COLLISION_QUERY_HALF_Z
 });
 let courseDirector=null;
 let courseFrame=0;
@@ -1304,6 +1309,7 @@ function update(dt,frameMs=dt*1000){
       if(state.air&&clearance>requiredClearance)continue;
 
       if(item.userData.kind==='oil'){
+        if(!touchesOil(state.x-item.position.x,player.position.z-itemWorldZ,SKI_TUNING.COURSE_COLLISION_PADDING_X,SKI_TUNING.COURSE_COLLISION_PADDING_Z))continue;
         if(!item.userData.triggered){
           item.userData.triggered=true;
           state.oilContacts=(state.oilContacts||0)+1;
@@ -1438,7 +1444,9 @@ function render(now){
       if(!cameraMoving)startRaceCountdown();
     }else if(!startCountdownStarted)startRaceCountdown();
   }else if(state.mode!=='paused')skiCamera.update(state,dt);
-  renderer.render(scene,camera);
+  if(riderController.rider)riderController.rider.visible=avatarCommitted&&!startScreen.isActive;
+  bulletTimeVisual.update(state,reducedMotionMedia?.matches||cameraMotionMode!==CAMERA_MOTION.FULL);
+  alpinePostProcessing.render();
   renderFrameHandle=requestAnimationFrame(render);
 }
 renderFrameHandle=requestAnimationFrame(render);

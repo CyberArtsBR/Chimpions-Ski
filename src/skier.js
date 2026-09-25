@@ -274,9 +274,9 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
       // Snowboard fallback uses a visibly open A-pose: arms sit below shoulder
       // height, stay separated from the torso and avoid sweeping into the chest.
       const baseAngle=snowboardMode ? .62 : .54;
-      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.014)+pose.carve*.010,.16);
+      arm.rotation.z=mix(arm.rotation.z,side*(baseAngle-pose.speed*.04)+pose.carve*.22,.16);
       const armForward=snowboardMode ? .012 : .025;
-      arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.006-ascent*.022*airScale+apex*.008+descent*.012*airScale,.16);
+      arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.04+side*pose.carve*.28-ascent*.12*airScale+apex*.07+descent*.10*airScale,.16);
     });
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
@@ -406,7 +406,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   for(const b of bones)rest.set(b,b.quaternion.clone());
   const targetQ=new THREE.Quaternion(),delta=new THREE.Quaternion();
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
-  const pose={carve:0,speed:0,air:0,landing:0};
+  const pose={carve:0,speed:0,air:0,landing:0,transfer:0};
 
   // Arm targets are rebuilt from the untouched GLB local rest pose every frame.
   // A separate display cache provides smoothing without ever using a previously
@@ -543,6 +543,8 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
     const targetCarve=THREE.MathUtils.clamp(steer,-1,1);
+    const transferTarget=THREE.MathUtils.clamp((targetCarve-pose.carve)*2.2,-1,1);
+    pose.transfer=mix(pose.transfer,transferTarget,.16);
     const reversing=Math.sign(targetCarve)!==Math.sign(pose.carve)&&Math.abs(targetCarve)>.035&&Math.abs(pose.carve)>.035;
     pose.carve=mix(pose.carve,targetCarve,reversing?SKI_TUNING.POSE_REVERSAL_BLEND:SKI_TUNING.POSE_CARVE_BLEND);
     pose.speed=mix(pose.speed,getRideSpeedFeel(currentRideMode,speed),.08);
@@ -561,23 +563,26 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     const airScale=rampAir?1:.72;
     const stance=1-airBlend;
 
-    const hipFlex=.08+speedCrouch*.045+landingBlend*.11-ascent*.045*airScale+descent*.075*airScale;
-    const hipLean=-carve*.10*stance;
+    const edgeLoad=Math.abs(carve)*stance;
+    const transfer=pose.transfer*stance;
+    const breath=Math.sin(time*3.4)*.018*stance;
+    const hipFlex=.10+speedCrouch*.075+edgeLoad*.065+landingBlend*.15-ascent*.045*airScale+descent*.075*airScale;
+    const hipLean=-carve*(snowboardMode?.23:.19)*stance;
     if(snowboardMode){
       // The carrier puts hips/feet almost square across the board. Open the
       // upper body only slightly downhill so the stance stays side-on.
       const downhillTurn=-snowboardSideSign;
-      rotate('hips',hipFlex,carve*.020,hipLean,.22);
-      rotate('spine',-.065-speedCrouch*.03,downhillTurn*.050+carve*.010,carve*.045*stance,.18);
-      rotate('chest',-.035-speedCrouch*.018,downhillTurn*.075+carve*.010,carve*.030*stance,.18);
+      rotate('hips',hipFlex,carve*.085,hipLean,.22);
+      rotate('spine',-.065-speedCrouch*.03,downhillTurn*.080+carve*.14+transfer*.055,carve*.095*stance,.18);
+      rotate('chest',-.035-speedCrouch*.018,downhillTurn*.11+carve*.11+transfer*.06,carve*.065*stance,.18);
       // Torso opens only a little toward downhill; neck/head add the remaining
       // counter-turn so the gaze stays diagonal instead of becoming ski-forward.
       rotate('neck',.025+speedCrouch*.01,downhillTurn*.17,-carve*.010,.17);
       rotate('head',.012,downhillTurn*.31,-carve*.012,.15);
     }else{
-      rotate('hips',hipFlex,0,hipLean,.22);
-      rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,carve*.016,carve*.055*stance,.18);
-      rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale,carve*.018,carve*.038*stance,.18);
+      rotate('hips',hipFlex,-carve*.035,hipLean,.22);
+      rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale,-carve*.07-transfer*.025,carve*.105*stance,.18);
+      rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale,-carve*.09-transfer*.04,carve*.075*stance,.18);
       rotate('neck',.022+speedCrouch*.01,0,-carve*.012,.16);
       rotate('head',.012,0,-carve*.014,.14);
     }
@@ -592,25 +597,25 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       const outside=Math.max(0,carve*-sideSign);
       const inside=Math.max(0,carve*sideSign);
 
-      const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.045-inside*.055;
-      const shin=(snowboardMode?.62:.54)+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.065+inside*.075;
+      const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-landingBlend*.12-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*.065-inside*.14-edgeLoad*.045;
+      const shin=(snowboardMode?.62:.54)+speedCrouch*.08+landingBlend*.20+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*.085+inside*.20+edgeLoad*.065;
       const foot=(snowboardMode ? -.11 : -.20)+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025;
 
       rotate(side+'Thigh',thigh,snowboardMode?sideSign*.11*snowboardSideSign:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
       rotate(side+'Shin',shin,0,0,.22);
       rotate(side+'Foot',foot,snowboardMode ? sideSign*.045*snowboardSideSign : 0,-carve*.035,.20);
 
-      // Reset-derived A-pose. Clavicles stay at their authored rest orientation;
+      // Rest-derived balance poses. Clavicles follow the weight transfer;
       // upper/forearm targets are absolute rider-space directions with both hands
       // kept on their own side and slightly forward of the torso.
-      applyArmRestDelta(side+'Shoulder',0,0,carve*.003,.24);
+      applyArmRestDelta(side+'Shoulder',-edgeLoad*.035,sideSign*transfer*.035,carve*.035,.24);
       rig[side+'Shoulder']?.updateWorldMatrix(true,true);
 
-      const upperOut=snowboardMode ? .78 : .72;
+      const upperOut=snowboardMode ? .88+inside*.18+airBlend*.15 : .48+inside*.20+airBlend*.24;
       const upperDown=snowboardMode
-        ?(.62+speedCrouch*.025+landingBlend*.025)
-        :(.70+speedCrouch*.030+landingBlend*.025);
-      const upperForward=.10+outside*.015-ascent*.015*airScale;
+        ?(.43+outside*.26-inside*.15+landingBlend*.16+breath)
+        :(.78+outside*.20-inside*.19+landingBlend*.12+breath);
+      const upperForward=(snowboardMode?.12:.25)+sideSign*carve*(snowboardMode?.32:.23)+sideSign*transfer*.17+ascent*.10-descent*.08;
       upperArmTarget.copy(riderRight).multiplyScalar(authoredOutSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
         .addScaledVector(riderForward,upperForward)
@@ -623,11 +628,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
 
       // A stronger downward forearm vector creates a mild, readable elbow bend
       // instead of aiming both hands toward the chest.
-      const foreOut=snowboardMode ? .50 : .45;
+      const foreOut=snowboardMode ? .66+inside*.13 : .22+inside*.11;
       const foreDown=snowboardMode
-        ?(.87+speedCrouch*.020+landingBlend*.020)
-        :(.90+speedCrouch*.025+landingBlend*.020);
-      const foreForward=.16+inside*.012+descent*.010*airScale;
+        ?(.36+outside*.31-inside*.10+landingBlend*.18)
+        :(.46+outside*.23-inside*.13+landingBlend*.16);
+      const foreForward=(snowboardMode?.22:.66)+sideSign*carve*(snowboardMode?.28:.20)+sideSign*transfer*.16+airBlend*.12;
       forearmTarget.copy(riderRight).multiplyScalar(authoredOutSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
         .addScaledVector(riderForward,foreForward)
@@ -638,7 +643,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       }
       // Hands inherit the corrected forearm while keeping the GLB-authored wrist
       // orientation, preventing the old chest-clasp / behind-the-back state.
-      applyArmRestDelta(side+'Hand',0,0,0,.28);
+      applyArmRestDelta(side+'Hand',-inside*.055,sideSign*transfer*.04,sideSign*edgeLoad*.04,.28);
     }
 
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004-landingBlend*.042+airBlend*.010+apex*.010*airScale;
@@ -766,8 +771,8 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       if(currentRideMode===RIDE_MODE.SNOWBOARD){
         const board=snowboard.root;
         const rest=board.userData.restPosition;
-        board.rotation.y=mix(board.rotation.y,-carve*.040,.18);
-        board.rotation.z=mix(board.rotation.z,-carve*.085+groundRoll*.16,.18);
+        board.rotation.y=mix(board.rotation.y,-carve*.085,.18);
+        board.rotation.z=mix(board.rotation.z,-carve*.16+groundRoll*.16,.18);
         board.rotation.x=mix(board.rotation.x,ascent*.095*airScale+apex*.020-descent*.072*airScale-landing*.026+groundPitch*.28,.18);
         board.position.x=mix(board.position.x,rest.x,.18);
         board.position.y=mix(board.position.y,rest.y+air*.026-landing*.012-speed*.004,.18);
@@ -780,8 +785,8 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
           const inside=Math.max(0,carve*side);
           const localGround=(side<0?leftGround:rightGround)-centerGround;
 
-          ski.rotation.y=mix(ski.rotation.y,-carve*.065+side*.012,.18);
-          ski.rotation.z=mix(ski.rotation.z,-carve*.075+groundRoll*.16,.18);
+          ski.rotation.y=mix(ski.rotation.y,-carve*.095+side*.012,.18);
+          ski.rotation.z=mix(ski.rotation.z,-carve*.13+groundRoll*.16,.18);
           ski.rotation.x=mix(ski.rotation.x,ascent*.105*airScale+apex*.022-descent*.075*airScale-landing*.026+groundPitch*.28,.18);
           ski.position.x=mix(ski.position.x,rest.x+side*(inside*.012-outside*.006),.18);
           ski.position.y=mix(ski.position.y,rest.y+air*.026-landing*.012-speed*.004+THREE.MathUtils.clamp(localGround*.18,-.018,.018),.18);

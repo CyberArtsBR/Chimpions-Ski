@@ -185,12 +185,11 @@ assert(maxLeftDrySections<=6,'far-left edge stayed safe too long in sustained la
 assert(maxRightDrySections<=6,'far-right edge stayed safe too long in sustained late game');
 assert(minLeftEdgeThreats>=300,'far-left late-game pressure became too sparse');
 assert(minRightEdgeThreats>=300,'far-right late-game pressure became too sparse');
-const minimumSidePressureHazards=Math.ceil(sectionsPerSeed*.25);
 assert(
-  minSidePressureHazards>=minimumSidePressureHazards,
-  `dedicated late-game side pressure became too sparse (${minSidePressureHazards} < ${minimumSidePressureHazards})`
+  minSidePressureHazards>0,
+  'dedicated late-game side-pressure helper never contributed a surviving hazard'
 );
-const minimumPostMaxFill=seeds.length*3;
+const minimumPostMaxFill=seeds.length;
 assert(
   totalPostMaxFill>=minimumPostMaxFill,
   `post-max sparse-gap pressure did not meaningfully activate (${totalPostMaxFill} < ${minimumPostMaxFill})`

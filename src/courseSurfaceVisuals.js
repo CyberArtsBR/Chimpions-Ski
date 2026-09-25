@@ -1,20 +1,20 @@
 import * as THREE from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {makeBarkTexture} from './alpineArt.js';
-import {OBSTACLE_TUNING} from './obstacleTuning.js';
+import {OBSTACLE_TUNING,oilContourRadius} from './obstacleTuning.js';
 
 // Shared prototypes: pooling and course instancing reuse these resources.
 let oilPrototype,rampPrototype;
 function oilSurface(){
   const positions=[0,.026,0],colors=[.035,.044,.052],indices=[];
-  const segments=72,rings=5;
+  const segments=96,rings=12;
   const {visualScaleX:sx,visualScaleZ:sz}=OBSTACLE_TUNING.oil;
   for(let ring=1;ring<=rings;ring++)for(let i=0;i<segments;i++){
     const a=i/segments*Math.PI*2,t=ring/rings;
-    const contour=.90+.085*Math.sin(a*3+.6)+.065*Math.sin(a*5-1.2)+.040*Math.cos(a*2+.8);
+    const contour=oilContourRadius(a);
     const x=Math.cos(a)*sx*contour*t,z=Math.sin(a)*sz*contour*t;
     // Broad broken streaks, not a concentric sheen or a raised central disk.
-    const film=Math.pow(Math.max(0,Math.sin(x*2.8+z*4.1+Math.sin(x*1.7))),6)*.42;
+    const film=Math.pow(Math.max(0,Math.sin(x*3.8+z*5.1+Math.sin(x*1.7))),10)*.20*(.5+.5*Math.sin(z*7.2-x));
     positions.push(x,.026,z);
     colors.push(.035+film*.10,.044+film*.15,.052+film*.20);
     const current=1+(ring-1)*segments+i,next=1+(ring-1)*segments+(i+1)%segments;
@@ -25,7 +25,7 @@ function oilSurface(){
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
-  const material=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.24,metalness:.12,clearcoat:.75,clearcoatRoughness:.20,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
+  const material=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.31,metalness:.10,clearcoat:.62,clearcoatRoughness:.27,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2});
   const root=new THREE.Group();root.add(new THREE.Mesh(geometry,material));
   return root;
 }
