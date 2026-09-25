@@ -18,8 +18,7 @@ const browser=await browserType.launch(launchOptions);
 // Keep software-rendered CI screenshots bounded. Runtime quality contracts are
 // asserted from diagnostics/settings; visual checkpoints do not need 5.2MP
 // 2x-DPR readbacks to catch black screens, missing world/rider/equipment, etc.
-const context=await browser.newContext({viewport:{width:1100,height:700},deviceScaleFactor:1});
-await context.addInitScript(()=>localStorage.setItem('chimpions-ski-tutorial-seen-v2','1'));
+let context=await browser.newContext({viewport:{width:1100,height:700},deviceScaleFactor:1});
 
 function diagnostics(page){return page.evaluate(()=>window.chimpionsSki?.()||null);}
 async function readyPage(query=''){
@@ -136,7 +135,13 @@ try{
   }
   assert.equal(report.avatarMatrix.length,builtinAvatars.length*2,'all built-in Chimpions must load in both ride modes');
 
-  const page=await readyPage('?test=1&seed=qa-runtime-fixed&quality=high');
+  // Release every WebGL renderer used by the quality/avatar matrix before the
+  // lifecycle soak. A fresh context prevents software-renderer starvation and
+  // also proves startup without inherited selector/tutorial/preferences state.
+  await context.close();
+  context=await browser.newContext({viewport:{width:1100,height:700},deviceScaleFactor:1});
+
+  const page=await readyPage('?test=1&seed=qa-runtime-fixed&quality=low');
   await startRun(page,'ski');
   let d=await snapshotWithMemory(page);assert.equal(d.rideMode,'ski');assert.equal(Math.round(d.baseSpeed*3.6),150);assert.equal(Math.round(d.maxSpeed*3.6),300);assertRuntimeHealth(d,'ski start');
   await shot(page,'ski-neutral');
@@ -178,7 +183,7 @@ try{
   await page.locator('#settings-close').evaluate(el=>el.click());
   await page.close();
 
-  const snowboardPage=await readyPage('?test=1&seed=qa-snowboard-fixed&quality=high');
+  const snowboardPage=await readyPage('?test=1&seed=qa-snowboard-fixed&quality=low');
   await startRun(snowboardPage,'snowboard');
   let snowboardDiag=await snapshotWithMemory(snowboardPage);
   assert.equal(snowboardDiag.rideMode,'snowboard');
