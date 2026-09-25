@@ -19,7 +19,7 @@
     "assets:audit": "node scripts/assets-audit.mjs",
     "assets:optimize": "node scripts/assets-optimize.mjs",
     "assets:verify": "node scripts/assets-verify.mjs",
-    "check:assets": "node checks/asset-pipeline-invariants.mjs && node scripts/assets-verify.mjs"
+    "check:assets": "node --check scripts/assets-audit.mjs && node --check scripts/assets-optimize.mjs && node --check scripts/assets-verify.mjs && node --check scripts/lib/asset-audit.mjs && node checks/asset-pipeline-invariants.mjs && node scripts/assets-verify.mjs"
   },
   "dependencies": {
     "three": "0.180.0"
