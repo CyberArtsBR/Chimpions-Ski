@@ -57,7 +57,7 @@ const BASE_TRANSIENT_STATE=Object.freeze({
   brakeAmount:0,
   brakeDeceleration:0,
   aeroEfficiency:1,
-  effectiveTargetSpeed:rideProfile?.baseSpeed??0,
+  effectiveTargetSpeed:0,
   landingPreparation:0,
   landingImpact:0,
   landingGripLoss:0,
