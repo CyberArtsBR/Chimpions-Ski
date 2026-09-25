@@ -42,73 +42,188 @@ jobs:
       - run: npm run build
       - run: node checks/assets.mjs
       - run: npx playwright install --with-deps chromium
-      - name: Local desktop browser validation
+      - name: Rendering browser profile and lifecycle probe
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p render-benchmarks
           npm run preview -- --host 127.0.0.1 > /tmp/chimpions-render-preview.log 2>&1 &
           PREVIEW_PID=$!
           trap 'kill $PREVIEW_PID 2>/dev/null || true; wait $PREVIEW_PID 2>/dev/null || true' EXIT
           for i in $(seq 1 90); do
-            if curl -fsS http://127.0.0.1:4173/?quality=max >/dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
             if [ "$i" = 90 ]; then cat /tmp/chimpions-render-preview.log || true; exit 1; fi
             sleep 1
           done
-          node checks/desktop-browser.mjs
-      - name: Short four-profile benchmark
-        shell: bash
-        env:
-          BENCH_ENV: "IDLE_SECONDS=2 GAMEPLAY_SECONDS=8 LONG_RUN_SECONDS=8 MODE_RUN_SECONDS=5 TRICK_RUN_SECONDS=5 RESTART_ITERATIONS=1 SELECTOR_ITERATIONS=1 SAMPLE_INTERVAL_MS=500"
-        run: |
-          set -euo pipefail
-          mkdir -p render-benchmarks
-          npm run preview -- --host 127.0.0.1 > /tmp/chimpions-benchmark-preview.log 2>&1 &
-          PREVIEW_PID=$!
-          trap 'kill $PREVIEW_PID 2>/dev/null || true; wait $PREVIEW_PID 2>/dev/null || true' EXIT
-          for i in $(seq 1 90); do
-            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
-            if [ "$i" = 90 ]; then cat /tmp/chimpions-benchmark-preview.log || true; exit 1; fi
-            sleep 1
-          done
-          for profile in max high medium low; do
-            env $BENCH_ENV QUALITY_PROFILE="$profile" BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/render-benchmarks/$profile.json" node scripts/benchmark-ski-runtime.mjs
-          done
           node --input-type=module <<'NODE'
-          import {readFileSync} from 'node:fs';
-          const phase='E_gameplayFirst30Seconds';
-          const median=(samples,key)=>{
-            const values=samples.map(sample=>Number(sample[key])).filter(Number.isFinite).sort((a,b)=>a-b);
-            if(!values.length)return null;
-            const mid=Math.floor(values.length/2);
-            return values.length%2?values[mid]:(values[mid-1]+values[mid])/2;
+          import assert from 'node:assert/strict';
+          import {writeFileSync} from 'node:fs';
+          import {chromium} from '@playwright/test';
+
+          const browser=await chromium.launch({args:['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+          const profiles=['max','high','medium','low'];
+          const results={};
+          const percentile=(values,p)=>{
+            const sorted=[...values].sort((a,b)=>a-b);
+            if(!sorted.length)return null;
+            const index=(sorted.length-1)*p;
+            const lo=Math.floor(index),hi=Math.ceil(index);
+            return lo===hi?sorted[lo]:sorted[lo]+(sorted[hi]-sorted[lo])*(index-lo);
           };
-          const summary={};
-          for(const profile of ['max','high','medium','low']){
-            const report=JSON.parse(readFileSync('render-benchmarks/'+profile+'.json','utf8'));
-            const p=report.phases?.[phase]||{};
-            const samples=Array.isArray(p.samples)?p.samples:[];
-            summary[profile]={
-              frameP50Ms:p.frames?.p50FrameMs??null,
-              frameP95Ms:p.frames?.p95FrameMs??null,
-              frameP99Ms:p.frames?.p99FrameMs??null,
-              rendererCalls:median(samples,'rendererCalls'),
-              rendererTriangles:median(samples,'rendererTriangles'),
-              rendererPixelRatio:median(samples,'rendererPixelRatio'),
-              renderTargetSamples:median(samples,'renderTargetSamples'),
-              managedRenderTargets:median(samples,'managedRenderTargetCount'),
-              bloomStrength:median(samples,'bloomStrength'),
-              shadowMapSize:median(samples,'shadowMapSize'),
-              renderCpuP95Ms:median(samples,'renderCpuP95Ms'),
-              postProcessCpuP95Ms:median(samples,'postProcessCpuP95Ms'),
-              gpuFrameP95Ms:median(samples,'gpuFrameP95Ms'),
-              staticFrameSkips:median(samples,'staticFrameSkips')
-            };
+          const round=value=>value==null?null:Math.round(value*1000)/1000;
+
+          async function openProfile(profile){
+            const context=await browser.newContext({
+              viewport:{width:960,height:540},
+              deviceScaleFactor:2
+            });
+            const page=await context.newPage();
+            const errors=[];
+            page.on('pageerror',error=>errors.push('PAGEERROR '+(error?.message||String(error))));
+            page.on('console',message=>{if(message.type()==='error')errors.push('CONSOLE '+message.text());});
+            await page.goto('http://127.0.0.1:4173/?test=1&quality='+profile,{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>typeof window.chimpionsSki==='function'&&window.chimpionsSki()?.qualityProfile,null,{timeout:30000});
+            await page.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:30000});
+            await page.waitForTimeout(900);
+            return {context,page,errors};
           }
-          console.log('RENDER_PROFILE_BENCHMARK '+JSON.stringify(summary));
+
+          async function collectDynamicFrameTimes(page,durationMs=1800){
+            await page.evaluate(()=>{
+              const start=document.querySelector('.start-screen');
+              if(start)start.hidden=true;
+              document.body.classList.remove('start-screen-active');
+            });
+            await page.waitForTimeout(250);
+            return page.evaluate(duration=>new Promise(resolve=>{
+              const values=[];
+              let last=performance.now();
+              const began=last;
+              const tick=stamp=>{
+                values.push(stamp-last);
+                last=stamp;
+                if(stamp-began>=duration)resolve(values.slice(1));
+                else requestAnimationFrame(tick);
+              };
+              requestAnimationFrame(tick);
+            }),durationMs);
+          }
+
+          for(const profile of profiles){
+            const {context,page,errors}=await openProfile(profile);
+            const staticBefore=await page.evaluate(()=>window.chimpionsSki());
+            await page.waitForTimeout(900);
+            const staticAfter=await page.evaluate(()=>window.chimpionsSki());
+            assert(staticAfter.staticFrameSkips>staticBefore.staticFrameSkips,profile+' did not throttle static start-screen rendering');
+
+            const frameTimes=await collectDynamicFrameTimes(page);
+            const d=await page.evaluate(()=>window.chimpionsSki());
+            assert.equal(errors.length,0,profile+' browser errors: '+errors.join(' | '));
+            assert.equal(d.qualityMode,profile);
+            results[profile]={
+              frameP50Ms:round(percentile(frameTimes,.50)),
+              frameP95Ms:round(percentile(frameTimes,.95)),
+              frameP99Ms:round(percentile(frameTimes,.99)),
+              rendererCalls:d.rendererCalls,
+              rendererTriangles:d.rendererTriangles,
+              rendererGeometries:d.rendererGeometries,
+              rendererTextures:d.rendererTextures,
+              rendererPixelRatio:d.rendererPixelRatio,
+              renderPipeline:d.renderPipeline,
+              postProcessingEnabled:d.postProcessingEnabled,
+              renderTargetType:d.renderTargetType,
+              renderTargetSamples:d.renderTargetSamples,
+              managedRenderTargetCount:d.managedRenderTargetCount,
+              bloomEnabled:d.bloomEnabled,
+              bloomStrength:d.bloomStrength,
+              shadowEnabled:d.shadowEnabled,
+              shadowMapSize:d.shadowMapSize,
+              renderCpuP50Ms:d.renderCpuP50Ms,
+              renderCpuP95Ms:d.renderCpuP95Ms,
+              renderCpuP99Ms:d.renderCpuP99Ms,
+              postProcessCpuP95Ms:d.postProcessCpuP95Ms,
+              gpuTimerSupported:d.gpuTimerSupported,
+              gpuFrameP50Ms:d.gpuFrameP50Ms,
+              gpuFrameP95Ms:d.gpuFrameP95Ms,
+              gpuFrameP99Ms:d.gpuFrameP99Ms,
+              staticFrameSkips:d.staticFrameSkips,
+              anisotropyRequested:d.anisotropyRequested,
+              activeDecorativeTrees:d.activeDecorativeTrees,
+              activeBanks:d.activeBanks,
+              activeWindBanks:d.activeWindBanks
+            };
+            await context.close();
+          }
+
+          assert.equal(results.low.renderPipeline,'direct','LOW must bypass composer');
+          assert.equal(results.low.postProcessingEnabled,false,'LOW still pays for post processing');
+          assert.equal(results.low.bloomEnabled,false,'LOW still pays for bloom');
+          assert.equal(results.low.shadowEnabled,false,'LOW still pays for realtime shadows');
+          assert.equal(results.medium.shadowEnabled,false,'MEDIUM unexpectedly enables realtime shadows');
+          assert.equal(results.max.renderPipeline,'composer');
+          assert.equal(results.max.bloomEnabled,true);
+          assert.equal(results.max.shadowEnabled,true);
+          assert(results.max.shadowMapSize>results.high.shadowMapSize,'MAX shadow quality does not exceed HIGH');
+          assert(results.max.renderTargetSamples>results.high.renderTargetSamples,'MAX MSAA does not exceed HIGH');
+          assert(results.high.renderTargetSamples>results.medium.renderTargetSamples,'HIGH MSAA does not exceed MEDIUM');
+          assert(results.max.rendererPixelRatio>results.high.rendererPixelRatio,'MAX DPR does not exceed HIGH');
+          assert(results.high.rendererPixelRatio>results.medium.rendererPixelRatio,'HIGH DPR does not exceed MEDIUM');
+          assert(results.medium.rendererPixelRatio>results.low.rendererPixelRatio,'MEDIUM DPR does not exceed LOW');
+          assert(results.max.activeDecorativeTrees>results.high.activeDecorativeTrees,'MAX environment density does not exceed HIGH');
+          assert(results.high.activeDecorativeTrees>results.medium.activeDecorativeTrees,'HIGH environment density does not exceed MEDIUM');
+          assert(results.medium.activeDecorativeTrees>results.low.activeDecorativeTrees,'MEDIUM environment density does not exceed LOW');
+
+          const leak=await openProfile('max');
+          await leak.page.evaluate(()=>{
+            const start=document.querySelector('.start-screen');
+            if(start)start.hidden=true;
+            document.body.classList.remove('start-screen-active');
+          });
+          await leak.page.waitForTimeout(600);
+          const before=await leak.page.evaluate(()=>window.chimpionsSki());
+          const sequence=['medium','low','auto','high','max','medium','low','auto','high','max'];
+          for(const target of sequence){
+            for(let guard=0;guard<8;guard++){
+              const current=await leak.page.evaluate(()=>window.chimpionsSki().qualityMode);
+              if(current===target)break;
+              await leak.page.locator('#quality-profile').evaluate(button=>button.click());
+              await leak.page.waitForTimeout(80);
+            }
+            assert.equal(await leak.page.evaluate(()=>window.chimpionsSki().qualityMode),target,'failed to switch quality to '+target);
+          }
+          await leak.page.waitForTimeout(500);
+          const after=await leak.page.evaluate(()=>window.chimpionsSki());
+          assert(after.pipelineRebuilds>before.pipelineRebuilds,'quality switching did not rebuild render targets');
+          assert(after.targetDisposals>before.targetDisposals,'quality switching did not dispose replaced render targets');
+          assert.equal(after.managedRenderTargetCount,before.managedRenderTargetCount,'render-target count changed after returning to MAX');
+          assert(after.rendererGeometries<=before.rendererGeometries+2,'quality switching leaked geometries');
+          assert(after.rendererTextures<=before.rendererTextures+4,'quality switching leaked textures');
+          results.lifecycle={
+            before:{
+              rendererGeometries:before.rendererGeometries,
+              rendererTextures:before.rendererTextures,
+              managedRenderTargetCount:before.managedRenderTargetCount,
+              pipelineRebuilds:before.pipelineRebuilds,
+              targetDisposals:before.targetDisposals
+            },
+            after:{
+              rendererGeometries:after.rendererGeometries,
+              rendererTextures:after.rendererTextures,
+              managedRenderTargetCount:after.managedRenderTargetCount,
+              pipelineRebuilds:after.pipelineRebuilds,
+              targetDisposals:after.targetDisposals
+            }
+          };
+          await leak.context.close();
+          await browser.close();
+
+          writeFileSync('render-benchmarks/render-profile-probe.json',JSON.stringify(results,null,2)+'\n');
+          console.log('RENDER_PROFILE_PROBE '+JSON.stringify(results));
           NODE
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: render-pipeline-short-benchmarks
+          name: render-pipeline-profile-probe
           path: render-benchmarks/*.json
           if-no-files-found: warn
