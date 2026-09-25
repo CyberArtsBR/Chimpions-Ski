@@ -164,6 +164,8 @@ export function createRenderPipeline({
   let pipelineRebuilds=0;
   let targetDisposals=0;
   let shadowConfigChanges=0;
+  let anisotropyRefreshes=0;
+  let anisotropyTextures=0;
 
   const cpuSamples=[];
   const postSamples=[];
@@ -187,7 +189,6 @@ export function createRenderPipeline({
     try{renderPass?.dispose?.();}catch{}
     try{outputPass?.dispose?.();}catch{}
     try{composer?.dispose?.();}catch{}
-    try{rootTarget?.dispose?.();}catch{}
     composer=null;
     renderPass=null;
     bloomPass=null;
@@ -236,6 +237,34 @@ export function createRenderPipeline({
     }
     renderer.shadowMap.needsUpdate=true;
     shadowConfigChanges++;
+  }
+
+  function refreshTextureQuality(root=scene){
+    const maxSupported=Math.max(1,Number(renderer.capabilities.getMaxAnisotropy?.())||1);
+    const requested=Math.max(1,Math.min(maxSupported,Math.round(Number(settings.maxAnisotropy)||1)));
+    const textures=new Set();
+    const textureKeys=['map','normalMap','roughnessMap','metalnessMap','emissiveMap','alphaMap','aoMap','bumpMap'];
+    root?.traverse?.(object=>{
+      if(!object?.material)return;
+      const materials=Array.isArray(object.material)?object.material:[object.material];
+      for(const material of materials){
+        if(!material)continue;
+        for(const key of textureKeys){
+          const texture=material[key];
+          if(texture?.isTexture)textures.add(texture);
+        }
+      }
+    });
+    let changed=0;
+    for(const texture of textures){
+      if(texture.anisotropy===requested)continue;
+      texture.anisotropy=requested;
+      texture.needsUpdate=true;
+      changed++;
+    }
+    anisotropyRefreshes++;
+    anisotropyTextures=textures.size;
+    return {requested,maxSupported,changed,total:textures.size};
   }
 
   function applyRendererResolution(){
@@ -313,6 +342,7 @@ export function createRenderPipeline({
       bloomPass.threshold=Math.max(0,Number(next.bloomThreshold)||0);
     }
     applyShadowSettings(next);
+    refreshTextureQuality(scene);
     applyRendererResolution();
   }
 
@@ -333,7 +363,7 @@ export function createRenderPipeline({
     if(gpuSample!=null)pushSample(gpuSamples,gpuSample);
 
     if(staticFrame){
-      const targetHz=staticReason==='start-screen'?.5:6;
+      const targetHz=staticReason==='start-screen'?0.5:6;
       const interval=1000/targetHz;
       if(!invalidated&&stamp-lastRenderAt<interval){
         staticFrameSkips++;
@@ -424,19 +454,23 @@ export function createRenderPipeline({
       lastStaticReason,
       pipelineRebuilds,
       targetDisposals,
-      shadowConfigChanges
+      shadowConfigChanges,
+      anisotropyRefreshes,
+      anisotropyTextures,
+      anisotropyRequested:Math.max(1,Math.min(
+        Number(renderer.capabilities.getMaxAnisotropy?.())||1,
+        Math.round(Number(settings.maxAnisotropy)||1)
+      ))
     };
   }
 
   const unsubscribeQuality=quality.subscribe(()=>applyProfile());
-  const unsubscribeResolution=quality.subscribeResolution(()=>applyProfile());
   applyProfile(true);
 
   function dispose(){
     if(disposed)return;
     disposed=true;
     unsubscribeQuality?.();
-    unsubscribeResolution?.();
     disposePostPipeline();
     gpuTimer.dispose();
     if(shadowLight)shadowLight.castShadow=false;
@@ -448,6 +482,7 @@ export function createRenderPipeline({
     render,
     resize,
     invalidate,
+    refreshTextureQuality,
     setShadowLight,
     applyProfile,
     getDiagnostics,
