@@ -1,0 +1,10 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import {auditBuiltIns,manifestFrom,budgetsFrom} from './lib/asset-audit.mjs';
+const cwd=process.cwd(), out=path.join(cwd,'reports/assets'); await fs.mkdir(out,{recursive:true});
+const audit=await auditBuiltIns(cwd);
+await fs.writeFile(path.join(out,'asset-audit.json'),JSON.stringify(audit,null,2)+'\n');
+await fs.writeFile(path.join(out,'asset-manifest.json'),JSON.stringify(manifestFrom(audit),null,2)+'\n');
+if(process.argv.includes('--update-budgets'))await fs.writeFile(path.join(cwd,'config/asset-budgets.json'),JSON.stringify(budgetsFrom(audit),null,2)+'\n');
+console.table(audit.assets.map(x=>({name:x.name,MB:(x.bytes/1048576).toFixed(2),meshes:x.meshCount,skinned:x.skinnedMeshCount,vertices:x.vertexCount,triangles:x.triangleCount,materials:x.materialCount,textures:x.textureCount,maxTexture:x.maxTextureDimension,bones:x.boneCount,animations:x.animationClipCount,GPU_MB:(x.estimatedDecodedGpuBytes/1048576).toFixed(2),compression:x.compressionExtensions.join(',')||'none'})));
+console.log(JSON.stringify({check:'asset-audit',assets:audit.assetCount,totalBytes:audit.totals.bytes,totalMB:Number((audit.totals.bytes/1048576).toFixed(2))}));
