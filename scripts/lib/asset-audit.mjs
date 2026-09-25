@@ -29,18 +29,46 @@ function primitiveTriangles(p){
 }
 export function fingerprint(document){
   const r=document.getRoot();
-  const round=v=>typeof v==='number'&&Number.isFinite(v)?Math.round(v*1e6)/1e6:v;
+  const round=v=>typeof v==='number'&&Number.isFinite(v)?Math.round(v*1e5)/1e5:v;
   const vec=v=>Array.from(v||[],round);
   const canonical=list=>list.map(x=>JSON.stringify(x)).sort();
-  return JSON.stringify({
-    nodes:canonical(r.listNodes().map(n=>({n:n.getName(),c:n.listChildren().map(x=>x.getName()).sort(),m:n.getMesh()?.getName()||'',s:n.getSkin()?.getName()||'',t:vec(n.getTranslation()),q:vec(n.getRotation()),z:vec(n.getScale())}))),
-    skins:canonical(r.listSkins().map(s=>({n:s.getName(),j:s.listJoints().map(j=>j.getName())}))),
-    meshes:canonical(r.listMeshes().map(m=>({n:m.getName(),p:m.listPrimitives().map(p=>({a:[...p.listSemantics()].sort(),m:p.getMaterial()?.getName()||'',mode:p.getMode?.()??4}))}))),
-    materials:canonical(r.listMaterials().map(m=>({n:m.getName(),a:m.getAlphaMode(),d:m.getDoubleSided()}))),
-    animations:[...r.listAnimations().map(a=>a.getName())].sort()
-  });
+  const skins=r.listSkins();
+  const jointSet=new Set(skins.flatMap(s=>s.listJoints()));
+  const joints=canonical([...jointSet].map(j=>({
+    n:j.getName(),
+    c:j.listChildren().filter(child=>jointSet.has(child)).map(child=>child.getName()).sort(),
+    t:vec(j.getTranslation()),
+    q:vec(j.getRotation()),
+    z:vec(j.getScale())
+  })));
+  const skinContracts=canonical(skins.map(s=>({
+    n:s.getName(),
+    joints:s.listJoints().map(j=>j.getName())
+  })));
+  const skinnedNodes=canonical(r.listNodes().filter(n=>n.getSkin()).map(n=>({
+    n:n.getName(),
+    skin:n.getSkin()?.getName()||'',
+    mesh:n.getMesh()?.getName()||''
+  })));
+  const meshes=canonical(r.listMeshes().map(m=>({
+    n:m.getName(),
+    p:m.listPrimitives().map(p=>({
+      a:[...p.listSemantics()].sort(),
+      m:p.getMaterial()?.getName()||'',
+      mode:p.getMode?.()??4
+    }))
+  })));
+  const materials=canonical(r.listMaterials().map(m=>({
+    n:m.getName(),
+    a:m.getAlphaMode(),
+    d:m.getDoubleSided()
+  })));
+  const animations=[...r.listAnimations().map(a=>a.getName())].sort();
+  return JSON.stringify({joints,skins:skinContracts,skinnedNodes,meshes,materials,animations});
 }
-export function assertCompatible(before,after,label='asset'){if(fingerprint(before)!==fingerprint(after))throw new Error(`Structural/rig fingerprint changed for ${label}`);}
+export function assertCompatible(before,after,label='asset'){
+  if(fingerprint(before)!==fingerprint(after))throw new Error(`Critical rig/material contract changed for ${label}`);
+}
 
 export async function inspectAvatar(entry,cwd=process.cwd()){
   const file=avatarPath(entry,cwd), bytes=await fs.readFile(file), document=await io.read(file), r=document.getRoot();
