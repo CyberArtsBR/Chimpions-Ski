@@ -29,12 +29,15 @@ function primitiveTriangles(p){
 }
 export function fingerprint(document){
   const r=document.getRoot();
+  const round=v=>typeof v==='number'&&Number.isFinite(v)?Math.round(v*1e6)/1e6:v;
+  const vec=v=>Array.from(v||[],round);
+  const canonical=list=>list.map(x=>JSON.stringify(x)).sort();
   return JSON.stringify({
-    nodes:r.listNodes().map(n=>({n:n.getName(),c:n.listChildren().map(x=>x.getName()),m:n.getMesh()?.getName()||'',s:n.getSkin()?.getName()||'',t:n.getTranslation(),q:n.getRotation(),z:n.getScale()})),
-    skins:r.listSkins().map(s=>({n:s.getName(),j:s.listJoints().map(j=>j.getName())})),
-    meshes:r.listMeshes().map(m=>({n:m.getName(),p:m.listPrimitives().map(p=>({a:p.listSemantics().sort(),m:p.getMaterial()?.getName()||'',mode:p.getMode?.()??4}))})),
-    materials:r.listMaterials().map(m=>({n:m.getName(),a:m.getAlphaMode(),d:m.getDoubleSided()})),
-    animations:r.listAnimations().map(a=>a.getName())
+    nodes:canonical(r.listNodes().map(n=>({n:n.getName(),c:n.listChildren().map(x=>x.getName()).sort(),m:n.getMesh()?.getName()||'',s:n.getSkin()?.getName()||'',t:vec(n.getTranslation()),q:vec(n.getRotation()),z:vec(n.getScale())}))),
+    skins:canonical(r.listSkins().map(s=>({n:s.getName(),j:s.listJoints().map(j=>j.getName())}))),
+    meshes:canonical(r.listMeshes().map(m=>({n:m.getName(),p:m.listPrimitives().map(p=>({a:[...p.listSemantics()].sort(),m:p.getMaterial()?.getName()||'',mode:p.getMode?.()??4}))}))),
+    materials:canonical(r.listMaterials().map(m=>({n:m.getName(),a:m.getAlphaMode(),d:m.getDoubleSided()}))),
+    animations:[...r.listAnimations().map(a=>a.getName())].sort()
   });
 }
 export function assertCompatible(before,after,label='asset'){if(fingerprint(before)!==fingerprint(after))throw new Error(`Structural/rig fingerprint changed for ${label}`);}
