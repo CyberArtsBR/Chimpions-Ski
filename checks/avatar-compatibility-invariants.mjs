@@ -4,6 +4,7 @@ import {
   assertAvatarPlayable,
   avatarNameFrom,
   getAvatarCompatibility,
+  getAvatarRigCapabilities,
   isCatalogAvatarUrl,
   validateAvatarOverride
 } from '../src/avatarCompatibility.js';
@@ -22,4 +23,17 @@ assert.throws(()=>validateAvatarOverride({status:'mystery'}),/invalid compatibil
 assert.throws(()=>validateAvatarOverride({scaleMultiplier:0}),/scaleMultiplier/);
 assert.throws(()=>validateAvatarOverride({snowboardOffset:{x:999}}),/snowboardOffset\.x/);
 assert.throws(()=>validateAvatarOverride({bonePaths:{hips:'not-absolute'}}),/absolute node path/);
+
+const requiredRig={
+  hips:{},
+  leftThigh:{},rightThigh:{},
+  leftShin:{},rightShin:{},
+  leftFoot:{},rightFoot:{}
+};
+const requiredCapabilities=getAvatarRigCapabilities({rig:requiredRig});
+assert.equal(requiredCapabilities.gameplay,true,'legacy gameplay-required leg rig remains sufficient');
+assert.equal(requiredCapabilities.terrainLegIK,true,'required leg chain supports terrain IK');
+assert.equal(requiredCapabilities.gaze,false,'optional head/neck bones remain optional');
+assert.equal(requiredCapabilities.leftArm,false,'optional arm chains remain optional');
+
 console.log(JSON.stringify({check:'avatar-compatibility-invariants',builtins:BUILTIN_AVATAR_NAMES.length}));
