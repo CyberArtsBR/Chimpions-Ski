@@ -74,7 +74,7 @@ jobs:
 
           async function openProfile(profile){
             const context=await browser.newContext({
-              viewport:{width:480,height:270},
+              viewport:{width:240,height:135},
               deviceScaleFactor:2
             });
             const page=await context.newPage();
@@ -87,13 +87,13 @@ jobs:
             return {context,page,errors};
           }
 
-          async function collectDynamicFrameTimes(page,durationMs=900){
+          async function collectDynamicFrameTimes(page,durationMs=500){
             await page.evaluate(()=>{
               const start=document.querySelector('.start-screen');
               if(start)start.hidden=true;
               document.body.classList.remove('start-screen-active');
             });
-            await page.waitForTimeout(120);
+            await page.waitForTimeout(60);
             return page.evaluate(duration=>new Promise(resolve=>{
               const values=[];
               let last=performance.now();
@@ -111,7 +111,7 @@ jobs:
           for(const profile of profiles){
             const {context,page,errors}=await openProfile(profile);
             const staticBefore=await page.evaluate(()=>window.chimpionsSki());
-            await page.waitForTimeout(350);
+            await page.waitForTimeout(180);
             const staticAfter=await page.evaluate(()=>window.chimpionsSki());
 
             const frameTimes=await collectDynamicFrameTimes(page);
