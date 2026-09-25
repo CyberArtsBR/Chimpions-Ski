@@ -248,12 +248,16 @@ export function createStartGateScene({world,terrainHeight=()=>0}={}){
 
   const bannerTexture=createBannerTexture();
   const bannerMaterial=new THREE.MeshBasicMaterial({map:bannerTexture,side:THREE.DoubleSide,toneMapped:false,fog:false});
-  const bannerFrame=addMesh(root,new RoundedBoxGeometry(7.55,1.55,.18,4,.07),accentMaterial,{
-    position:[0,centerGround+4.03,z-.26],cast:true,name:'start-banner-frame'
+  addMesh(root,new RoundedBoxGeometry(7.58,1.58,.12,4,.06),frameDarkMaterial,{
+    position:[0,centerGround+4.03,z-.28],cast:true,name:'start-banner-backplate'
   });
-  bannerFrame.scale.z=.72;
-  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z-.365],name:'start-banner-front'});
-  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z+.365],rotation:[0,Math.PI,0],name:'start-banner-rear'});
+  const frameZ=z-.14;
+  addMesh(root,new RoundedBoxGeometry(7.62,.13,.16,3,.035),accentMaterial,{position:[0,centerGround+4.74,frameZ],cast:true});
+  addMesh(root,new RoundedBoxGeometry(7.62,.13,.16,3,.035),accentMaterial,{position:[0,centerGround+3.32,frameZ],cast:true});
+  addMesh(root,new RoundedBoxGeometry(.13,1.54,.16,3,.035),accentMaterial,{position:[-3.745,centerGround+4.03,frameZ],cast:true});
+  addMesh(root,new RoundedBoxGeometry(.13,1.54,.16,3,.035),accentMaterial,{position:[3.745,centerGround+4.03,frameZ],cast:true});
+  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z-.12],name:'start-banner-front'});
+  addMesh(root,new THREE.PlaneGeometry(7.25,1.28),bannerMaterial,{position:[0,centerGround+4.03,z+.12],rotation:[0,Math.PI,0],name:'start-banner-rear'});
 
   const lineMaterials=[
     new THREE.MeshStandardMaterial({color:0xf9fcff,roughness:.84,metalness:0}),
