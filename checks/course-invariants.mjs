@@ -204,7 +204,7 @@ for(const seed of seeds){
       assert(ramp,'jump section missing ramp');
       assert(ramp.landingZone===true,'ramp is missing landing-zone metadata');
 
-      const envelope=estimateRampFlightEnvelope(speed);
+      const envelope=jumpContract.envelope;
       const protectedHazards=hazards.filter(p=>{
         if(p.jumpTarget)return false;
         const distance=ramp.z-p.z;
