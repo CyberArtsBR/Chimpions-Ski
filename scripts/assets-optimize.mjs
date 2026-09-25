@@ -8,20 +8,20 @@ const minAsset=(Number(process.env.ASSET_MIN_SAVINGS_PCT||1.5))/100,minTotal=(Nu
 await fs.rm(work,{recursive:true,force:true});await fs.mkdir(work,{recursive:true});await fs.mkdir(out,{recursive:true});
 const results=[];let beforeTotal=0,afterTotal=0,already=0;
 for(const entry of await avatarManifest(cwd)){
-  const source=avatarPath(entry,cwd),before=await inspectAvatar(entry,cwd);beforeTotal+=before.stats.bytes;
-  if(before.stats.compressionExtensions.includes('EXT_meshopt_compression')){already++;afterTotal+=before.stats.bytes;results.push({name:entry.name,beforeBytes:before.stats.bytes,afterBytes:before.stats.bytes,savedPercent:0,accepted:false,reason:'already Meshopt-compressed'});continue;}
+  const source=avatarPath(entry,cwd),beforeStarted=performance.now(),before=await inspectAvatar(entry,cwd),beforeInspectMs=performance.now()-beforeStarted;beforeTotal+=before.stats.bytes;
+  if(before.stats.compressionExtensions.includes('EXT_meshopt_compression')){already++;afterTotal+=before.stats.bytes;results.push({name:entry.name,beforeBytes:before.stats.bytes,afterBytes:before.stats.bytes,savedPercent:0,accepted:false,reason:'already Meshopt-compressed',beforeInspectMs:Number(beforeInspectMs.toFixed(2)),afterInspectMs:Number(beforeInspectMs.toFixed(2)),beforeTriangles:before.stats.triangleCount,afterTriangles:before.stats.triangleCount,beforeGpuBytes:before.stats.estimatedDecodedGpuBytes,afterGpuBytes:before.stats.estimatedDecodedGpuBytes});continue;}
   const temp=path.join(work,path.basename(source));let candidate=null,accepted=false,reason='';
   try{
     await exec(process.platform==='win32'?'npx.cmd':'npx',['--no-install','gltf-transform','meshopt',source,temp,'--level','medium'],{cwd,maxBuffer:32*1024*1024});
     const tempEntry={...entry,url:path.relative(path.join(cwd,'public'),temp).replaceAll(path.sep,'/')};
-    candidate=await inspectAvatar(tempEntry,cwd);assertCompatible(before.document,candidate.document,entry.name);
+    const candidateStarted=performance.now();candidate=await inspectAvatar(tempEntry,cwd);candidate.stats.inspectMs=performance.now()-candidateStarted;assertCompatible(before.document,candidate.document,entry.name);
     for(const key of ['skinnedMeshCount','boneCount','animationClipCount'])if(candidate.stats[key]!==before.stats[key])throw new Error(`${key} changed`);
     const savings=(before.stats.bytes-candidate.stats.bytes)/before.stats.bytes;
     if(savings<minAsset)reason=`candidate saved only ${(savings*100).toFixed(2)}%, below ${(minAsset*100).toFixed(2)}% threshold`;
     else{accepted=true;reason=`accepted ${(savings*100).toFixed(2)}% transfer reduction`;if(!dry)await fs.copyFile(temp,source);}
   }catch(error){reason='rejected: '+String(error?.message||error);}
   const after=accepted?candidate.stats:before.stats;afterTotal+=after.bytes;
-  results.push({name:entry.name,beforeBytes:before.stats.bytes,candidateBytes:candidate?.stats.bytes??null,afterBytes:after.bytes,savedPercent:Number((((before.stats.bytes-after.bytes)/before.stats.bytes)*100).toFixed(2)),accepted,reason,beforeCompression:before.stats.compressionExtensions,afterCompression:after.compressionExtensions});
+  results.push({name:entry.name,beforeBytes:before.stats.bytes,candidateBytes:candidate?.stats.bytes??null,afterBytes:after.bytes,savedPercent:Number((((before.stats.bytes-after.bytes)/before.stats.bytes)*100).toFixed(2)),accepted,reason,beforeCompression:before.stats.compressionExtensions,afterCompression:after.compressionExtensions,beforeInspectMs:Number(beforeInspectMs.toFixed(2)),candidateInspectMs:candidate?.stats.inspectMs==null?null:Number(candidate.stats.inspectMs.toFixed(2)),afterInspectMs:Number((accepted?(candidate?.stats.inspectMs??beforeInspectMs):beforeInspectMs).toFixed(2)),beforeTriangles:before.stats.triangleCount,afterTriangles:after.triangleCount,beforeGpuBytes:before.stats.estimatedDecodedGpuBytes,afterGpuBytes:after.estimatedDecodedGpuBytes,beforeTextureBytes:before.stats.estimatedTextureMemory,afterTextureBytes:after.estimatedTextureMemory});
   console.log(`${entry.name}: ${(before.stats.bytes/1048576).toFixed(2)} MB -> ${(after.bytes/1048576).toFixed(2)} MB (${reason})`);
 }
 const saved=beforeTotal-afterTotal,ratio=beforeTotal?saved/beforeTotal:0,report={schemaVersion:1,generatedAt:new Date().toISOString(),mode:dry?'dry-run':'apply',strategy:{geometry:'Meshopt medium via @gltf-transform/cli',textures:'preserved; no automatic lossy resize/recompression',draco:'rejected: redundant decoder/runtime complexity',ktx2:'deferred pending visual/browser validation',minimumPerAssetSavingsPercent:minAsset*100,minimumTotalSavingsPercent:minTotal*100},originalTotalBytes:beforeTotal,optimizedTotalBytes:afterTotal,savedBytes:saved,savedPercent:Number((ratio*100).toFixed(2)),results};
