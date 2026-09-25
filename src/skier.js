@@ -623,22 +623,23 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     const stance=1-airBlend;
 
     const hipFlex=pose.hipFlex-pose.takeoffExtend*.055+pose.trickTuck*.045+pose.crash*.10;
-    const hipLean=-pose.hipLean;
+    const balanceWobble=Math.sin(time*11.5)*pose.oil*.075*pose.secondaryWeight;
+    const hipLean=-pose.hipLean+balanceWobble+pose.crashDirection*.16;
     if(snowboardMode){
       // The carrier puts hips/feet almost square across the board. Open the
       // upper body only slightly downhill so the stance stays side-on.
       const downhillTurn=-snowboardSideSign;
       rotate('hips',hipFlex,carve*.020,hipLean,.22);
-      rotate('spine',-.065-speedCrouch*.03+pose.takeoffExtend*.025-pose.trickTuck*.035,downhillTurn*.050+carve*.010+pose.torsoCounter*.35,carve*.045*stance,.18);
-      rotate('chest',-.035-speedCrouch*.018+pose.takeoffExtend*.030-pose.trickTuck*.045,downhillTurn*.075+carve*.010+pose.torsoCounter*.55,carve*.030*stance,.18);
+      rotate('spine',-.065-speedCrouch*.03+pose.takeoffExtend*.025-pose.trickTuck*.035,downhillTurn*.050+carve*.010+pose.torsoCounter*.35,carve*.045*stance+pose.crashDirection*.10,.18);
+      rotate('chest',-.035-speedCrouch*.018+pose.takeoffExtend*.030-pose.trickTuck*.045,downhillTurn*.075+carve*.010+pose.torsoCounter*.55,carve*.030*stance+pose.crashDirection*.14,.18);
       // Torso opens only a little toward downhill; neck/head add the remaining
       // counter-turn so the gaze stays diagonal instead of becoming ski-forward.
       rotate('neck',.025+speedCrouch*.01+pose.descent*.015,downhillTurn*.17+pose.headLook*.42,-carve*.010,.17);
       rotate('head',.012+pose.descent*.012,downhillTurn*.31+pose.headLook*.68,-carve*.012,.15);
     }else{
       rotate('hips',hipFlex,0,hipLean,.22);
-      rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale-pose.trickTuck*.035+pose.takeoffExtend*.030,carve*.016+pose.torsoCounter*.46,carve*.055*stance,.18);
-      rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale-pose.trickTuck*.050+pose.takeoffExtend*.038,carve*.018+pose.torsoCounter*.62,carve*.038*stance,.18);
+      rotate('spine',-.055-speedCrouch*.03-ascent*.030*airScale+apex*.018+descent*.038*airScale-pose.trickTuck*.035+pose.takeoffExtend*.030,carve*.016+pose.torsoCounter*.46,carve*.055*stance+pose.crashDirection*.10,.18);
+      rotate('chest',-.028-speedCrouch*.018-ascent*.024*airScale+apex*.014+descent*.032*airScale-pose.trickTuck*.050+pose.takeoffExtend*.038,carve*.018+pose.torsoCounter*.62,carve*.038*stance+pose.crashDirection*.14,.18);
       rotate('neck',.022+speedCrouch*.01+descent*.012,pose.headLook*.38,-carve*.012,.16);
       rotate('head',.012+descent*.010,pose.headLook*.72,-carve*.014,.14);
     }
@@ -657,8 +658,9 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       const insideFlex=inside*pose.insideFlex;
       const boardToe=snowboardMode?pose.toeEdge:0;
       const boardHeel=snowboardMode?pose.heelEdge:0;
-      const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-pose.landingAbsorb*.14-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*(.045+outsideLoad*.045)-inside*(.055+insideFlex*.055)+pose.takeoffExtend*.10-pose.trickTuck*.12;
-      const shin=(snowboardMode?.62:.54)+speedCrouch*.08+pose.landingAbsorb*.23+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*(.065+outsideLoad*.075)+inside*(.075+insideFlex*.085)-pose.takeoffExtend*.16+pose.trickTuck*.18;
+      const crashSide=pose.crashDirection*sideSign;
+      const thigh=(snowboardMode?-.35:-.30)-speedCrouch*.07-pose.landingAbsorb*.14-ascent*.055*airScale-apex*.070*airScale-descent*.13*airScale+outside*(.045+outsideLoad*.045)-inside*(.055+insideFlex*.055)+pose.takeoffExtend*.10-pose.trickTuck*.12-Math.max(0,crashSide)*.10+Math.max(0,-crashSide)*.04;
+      const shin=(snowboardMode?.62:.54)+speedCrouch*.08+pose.landingAbsorb*.23+ascent*.075*airScale+apex*.11*airScale+descent*.19*airScale-outside*(.065+outsideLoad*.075)+inside*(.075+insideFlex*.085)-pose.takeoffExtend*.16+pose.trickTuck*.18+Math.max(0,crashSide)*.16-Math.max(0,-crashSide)*.06;
       const foot=(snowboardMode ? -.11 : -.20)+speedCrouch*.025+ascent*.060*airScale-descent*.055*airScale-carve*.025+boardToe*.045-boardHeel*.028;
 
       rotate(side+'Thigh',thigh,snowboardMode?sideSign*.11*snowboardSideSign:0,sideSign*((snowboardMode?.085:.025)+inside*.018),.22);
@@ -679,7 +681,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       upperArmTarget.copy(riderRight).multiplyScalar(authoredOutSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
         .addScaledVector(riderForward,upperForward)
-        .addScaledVector(riderRight,pose.armBalance*.10)
+        .addScaledVector(riderRight,(pose.armBalance+pose.crashDirection*.9)*.10)
         .normalize();
 
       if(!aimLimbFromRest(side+'UpperArm',upperArmTarget,.26)){
@@ -697,7 +699,7 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       forearmTarget.copy(riderRight).multiplyScalar(authoredOutSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
         .addScaledVector(riderForward,foreForward)
-        .addScaledVector(riderRight,pose.armBalance*.075)
+        .addScaledVector(riderRight,(pose.armBalance+pose.crashDirection*.9)*.075)
         .normalize();
 
       if(!aimLimbFromRest(side+'Forearm',forearmTarget,.27)){
