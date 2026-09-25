@@ -105,14 +105,20 @@ jobs:
             sleep 1
           done
       - name: AAA Chromium runtime regression
+        id: aaa_browser
+        continue-on-error: true
         env:
           AAA_BROWSER: chromium
           AAA_SOAK_SECONDS: 20
           AAA_ARTIFACT_DIR: artifacts/qa
         run: node checks/aaa-browser-regression.mjs
       - name: Existing desktop browser audit
+        id: desktop_browser
+        continue-on-error: true
         run: node checks/desktop-browser.mjs
       - name: Existing production release smoke
+        id: release_smoke
+        continue-on-error: true
         run: npm run smoke:production
       - name: Upload Chromium QA artifacts
         if: always()
@@ -121,6 +127,17 @@ jobs:
           name: ski-aaa-chromium-regression
           path: artifacts/qa/
           if-no-files-found: warn
+      - name: Chromium regression gate
+        if: always()
+        env:
+          AAA_BROWSER_RESULT: ${{ steps.aaa_browser.outcome }}
+          DESKTOP_BROWSER_RESULT: ${{ steps.desktop_browser.outcome }}
+          RELEASE_SMOKE_RESULT: ${{ steps.release_smoke.outcome }}
+        run: |
+          printf 'aaa_browser=%s desktop_browser=%s release_smoke=%s\n' "$AAA_BROWSER_RESULT" "$DESKTOP_BROWSER_RESULT" "$RELEASE_SMOKE_RESULT"
+          test "$AAA_BROWSER_RESULT" = success
+          test "$DESKTOP_BROWSER_RESULT" = success
+          test "$RELEASE_SMOKE_RESULT" = success
       - name: Stop local preview
         if: always()
         run: |
