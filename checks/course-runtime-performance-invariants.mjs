@@ -5,6 +5,7 @@ import {getCourseLookahead} from '../src/courseStreaming.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
 import {BATCHED_COURSE_KINDS} from '../src/courseRenderBatches.js';
 import {createCollisionBroadphase} from '../src/collisionBroadphase.js';
+import {COLLISION_QUERY_HALF_Z} from '../src/collisionRuntime.js';
 
 const playerZ=2.2;
 const recycleZ=17;
@@ -166,7 +167,8 @@ const mainSource=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
 const scoringSource=readFileSync(new URL('../src/airborneScoring.js',import.meta.url),'utf8');
 assert(mainSource.includes("createCourseRenderBatches"),'course batching integration is missing');
 assert(mainSource.includes("createCollisionBroadphase"),'collision broadphase integration is missing');
-assert(mainSource.includes("COLLISION_QUERY_HALF_Z=3.5"),'collision broadphase safety window changed unexpectedly');
+assert.equal(COLLISION_QUERY_HALF_Z,3.5,'collision broadphase safety window changed unexpectedly');
+assert(mainSource.includes('queryHalfZ:COLLISION_QUERY_HALF_Z'),'main runtime stopped using the authoritative collision query window');
 assert(mainSource.includes("removeCourseAt(i);"),'swap-remove course recycling is missing');
 assert(!mainSource.includes("course.splice(i,1);"),'splice returned to the course traversal hot path');
 assert(!mainSource.includes("world.remove(item);"),'pooled course objects still churn the scene graph');
