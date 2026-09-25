@@ -43,7 +43,7 @@ export function createRiderClipLayer(gltf,model){
   }
 
   let active=null;
-  function update(state,dt,{weight=.16,reducedMotion=false}={}){
+  function update(state,dt,weight=.16,reducedMotion=false){
     const next=byState.get(state)||byState.get(RIDER_ANIMATION_STATE.DOWNHILL_NEUTRAL)||null;
     const targetWeight=Math.max(0,Math.min(reducedMotion?.08:.22,Number(weight)||0));
     for(const action of actions)action.setEffectiveWeight(action===next?targetWeight:0);
