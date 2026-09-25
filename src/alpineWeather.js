@@ -134,13 +134,7 @@ export function createAlpineWeather({scene,camera,renderer,sun,ambient,rim,setti
     sky.position.copy(camera.position);skyMaterial.uniforms.time.value=time;skyMaterial.uniforms.top.value.copy(w.top);skyMaterial.uniforms.horizon.value.copy(w.horizon);skyMaterial.uniforms.sunColor.value.copy(w.sun);skyMaterial.uniforms.cover.value=w.cloud;skyMaterial.uniforms.night.value=w.night;skyMaterial.uniforms.flash.value=w.flash;skyMaterial.uniforms.wind.value=w.wind;
     const lowSun=w.preset==='sunset'?.30:.7;sunDirection.lerp(targetDirection.set(-.55,lowSun,-.65).normalize(),1-Math.exp(-dt*.55)).normalize();
     sun.color.copy(w.sun).lerp(white,w.flash*.75);sun.intensity=w.key+w.flash*2.5;
-    // Cover the visible downhill corridor, not just the few metres around the rider.
-    // Quantize lateral motion to shadow texels to reduce shimmering while carving.
-    const shadowSpan=Math.max(64,Math.abs(sun.shadow.camera.right)*2);
-    const texel=shadowSpan/Math.max(512,sun.shadow.mapSize.x);
-    const shadowX=Math.round(state.x*.45/texel)*texel;
-    sun.target.position.set(shadowX,0,-85);
-    sun.position.copy(sunDirection).multiplyScalar(280).add(sun.target.position);
+    sun.position.copy(sunDirection).multiplyScalar(24);sun.position.x+=state.x*.45;sun.position.z-=5;sun.target.position.set(state.x*.45,0,-5);
     ambient.color.copy(w.ambient);ambient.groundColor.setHex(0x566479);ambient.intensity=w.fill+w.flash*.25;
     rim.color.copy(w.ambient).lerp(white,w.flash*.16);rim.intensity=.22+w.night*.25+w.flash*.34;
     scene.background.copy(w.fog);scene.fog.color.copy(w.fog).lerp(white,w.flash*.13);if(scene.fog.isFogExp2)scene.fog.density=w.fogDensity;else{scene.fog.near=48-w.rain*12;scene.fog.far=Math.max(155,Math.min(280,2.2/w.fogDensity));}renderer.toneMappingExposure=w.exposure;

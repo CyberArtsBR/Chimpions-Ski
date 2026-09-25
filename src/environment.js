@@ -478,7 +478,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     const jumpHeight=Math.max(0,playerY-groundY);
     const heightFade=THREE.MathUtils.clamp(1-jumpHeight/4.6,0,1);
     const landingAccent=1+THREE.MathUtils.clamp(landingPulse,0,1)*.13;
-    contactShadow.visible=!!running&&heightFade>.018;
+    contactShadow.visible=false;
     contactShadow.position.set(playerX,Math.max(.006,groundY+.012),playerZ+.02);
     const targetShadowOpacity=.205*heightFade*(air?.84:1)*landingAccent;
     contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,targetShadowOpacity,1-Math.pow(.0009,dt));
