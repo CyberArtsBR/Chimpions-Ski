@@ -12,6 +12,8 @@ const flybys=read('../src/ambientFlybys.js');
 const premium=read('../src/premiumObstacles.js');
 const sky=read('../src/alpineSky.js');
 const landscape=read('../src/alpineLandscape.js');
+const courseSurface=read('../src/courseSurfaceVisuals.js');
+const main=read('../src/main.js');
 
 const defaults=normalizeEnvironmentQuality();
 assert.deepEqual(defaults,{
@@ -37,7 +39,16 @@ assert(
   premium.includes("rocks:Array.from({length:4}")&&premium.includes('function makeRock(variant)'),
   'rock prototype polish missing'
 );
-assert(env.includes("visualPrototype='readable-ramp-v2'"),'ramp readability prototype missing');
+assert(
+  courseSurface.includes('function rampSurface()')&&
+  courseSurface.includes("visualPrototype='competition-tech-kicker-v6-hdr'")&&
+  courseSurface.includes('export function createRampVisual()')&&
+  courseSurface.includes('underglow')&&
+  courseSurface.includes('bloom')&&
+  main.includes("import {createOilVisual,createRampVisual} from './courseSurfaceVisuals.js'")&&
+  main.includes('const g=createRampVisual();'),
+  'competition ramp readability prototype/integration missing'
+);
 assert(
   premium.includes('log:makeLog(false),wideLog:makeLog(true)')&&
   premium.includes('return library??='),
