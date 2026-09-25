@@ -18,6 +18,7 @@ const guide=readFileSync(guidePath,'utf8');
 
 assert(runner.includes("process.env.BASE_URL"),'Runner must accept BASE_URL');
 assert(runner.includes("DEFAULT_BASE_URL='http://localhost:4173'"),'Runner must have a local default target');
+assert(runner.includes("['auto','max','high','medium','low']"),'Runner must accept the valid MAX quality profile');
 assert(runner.includes("longRunSeconds:numberEnv('LONG_RUN_SECONDS'"),'LONG_RUN_SECONDS must be configurable');
 assert(runner.includes("process.env.RESULTS_PATH"),'Machine-readable results path must be configurable');
 assert(runner.includes("benchmark-results.json"),'Default machine-readable output must be benchmark-results.json');
@@ -56,6 +57,7 @@ console.log(JSON.stringify({
   check:'runtime-benchmark-harness-invariants',
   baseUrl:true,
   publicAndLocal:true,
+  maxQualityProfile:true,
   longRunConfigurable:true,
   machineReadableOutput:true,
   hardcodedCredentials:false,
