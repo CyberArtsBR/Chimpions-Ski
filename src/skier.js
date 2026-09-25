@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MeshoptDecoder} from 'three/addons/libs/meshopt_decoder.module.js';
 import {disposeAvatarObject} from './avatar-system.js';
 import {SKI_TUNING} from './gameplayTuning.js';
 import {RIDE_MODE,getRideSpeedFeel,normalizeRideMode} from './rideMode.js';
@@ -11,6 +12,7 @@ import {createRiderClipLayer} from './riderClipLayer.js';
 import {validateParsedLocalGlb} from './localAvatarUpload.js';
 
 const riderLoader=new GLTFLoader();
+riderLoader.setMeshoptDecoder(MeshoptDecoder);
 
 function createAbortError(){
   const error=new Error('Avatar load aborted');
