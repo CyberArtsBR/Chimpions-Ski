@@ -1,6 +1,6 @@
 import {SKI_TUNING as T,getSpeedProgress} from './gameplayTuning.js';
 import {OBSTACLE_TUNING,obstacleCollisionHalfWidth,obstacleHalfDepth} from './obstacleTuning.js';
-import {estimateRampFlightEnvelope} from './rampTrajectory.js';
+import {JUMP_SECTION_CONTRACT,calculateJumpSectionContract} from './courseSectionContract.js';
 import {createSafeRouteTracker,maxHumanReachableLateralDelta,validateReachableCorridor} from './courseSafety.js';
 import {createExpertRunDirector} from './courseRunDirector.js';
 import {
@@ -471,7 +471,11 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         }
         if(Math.abs(x-safe)<minGap)continue;
       }
-      placements.push(place(kind,x,z,safe,{formation:'SCATTER',special:true,safetyOptional:true}));
+      // This is the section's single authored special hazard, not density
+      // filler. Keep it through ordinary threat-budget pruning so the declared
+      // wide-log/log/oil mix survives generation. The later corridor validator
+      // remains authoritative and may still remove it if geometry is unsafe.
+      placements.push(place(kind,x,z,safe,{formation:'SCATTER',special:true,safetyOptional:false}));
       return true;
     }
     return false;
@@ -535,10 +539,14 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
           return Math.sign(existing.x)===side&&Math.abs(existing.x-x)<1.7&&dz<6.5;
         }))continue;
 
+        const sidePressureAnchor=added===0;
         placements.push(place(kind,x,z,safe,{
           formation:'EDGE_THREAT',
           sidePressure:true,
-          safetyOptional:true
+          sidePressureAnchor,
+          // Preserve one authored extreme-edge threat when the section elects
+          // to create side pressure; any second threat remains budget-prunable.
+          safetyOptional:!sidePressureAnchor
         }));
         previousZ=z;
         lastThreatSide=side;
@@ -1126,7 +1134,12 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         const placement=placements[i];
         if(!PHYSICAL_HAZARDS.has(placement.kind)||placement.jumpTarget||placement.landingProtected)continue;
         const distance=Math.abs(placement.z-failureZ);
-        const structuralPenalty=placement.commitmentDecision?180:0;
+        // Preserve the section's one authored shoulder-pressure anchor when
+        // another nearby hazard can be removed to recover the reachable corridor.
+        // The validator is still authoritative: this is a priority, not immunity.
+        const structuralPenalty=
+          (placement.commitmentDecision?180:0)+
+          (placement.sidePressureAnchor?240:0);
         const score=distance+structuralPenalty;
         if(score<candidateScore){
           candidateScore=score;
@@ -1350,17 +1363,20 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     }
 
     if(type==='RAMP'||type==='LOG JUMP'){
-      const rampZ=startZ-34;
+      const jumpContract=calculateJumpSectionContract({
+        startZ,
+        speed:currentSpeed,
+        reactionSpacingScale:runPlan.threatBudget?.reactionSpacingScale??1
+      });
+      const {approachZ,rampZ,touchdownZ,landingEndZ,postLandingZ,followUpZ,envelope}=jumpContract;
       const rampX=clamp(
         contentX(rampZ,pickRampBand(),.99),
         -(T.COURSE_OBJECT_HALF_WIDTH-.25),
         T.COURSE_OBJECT_HALF_WIDTH-.25
       );
       const rampTarget=clamp(rampX,-T.SAFE_ROUTE_HALF_WIDTH,T.SAFE_ROUTE_HALF_WIDTH);
-      const envelope=estimateRampFlightEnvelope(currentSpeed);
 
       // Track the route in chronological downhill order: approach first, ramp second.
-      const approachZ=startZ-12;
       const approachSafe=safeRoute.constrain(rampTarget,approachZ,currentSpeed);
       const rampSafe=safeRoute.constrain(rampTarget,rampZ,currentSpeed);
       addFormation(placements,'OFFSET_GATE',approachZ,approachSafe,{kinds:['tree','rock'],intensity:.42});
@@ -1386,9 +1402,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       // Keep flight visibly populated outside the landing corridor.
       populateFlight(placements,rampZ,rampSafe,envelope,type);
 
-      const touchdownZ=rampZ-envelope.landingDistance;
-      const landingEndZ=rampZ-envelope.protectedEndDistance;
-
       // Guarantee visible edge pressure at touchdown without invading the protected corridor.
       addFormation(
         placements,
@@ -1400,8 +1413,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
 
       // Resume pressure only after the protected touchdown envelope, then turn
       // the landing into a readable two-step route rather than an empty runway.
-      const landingGap=24*(runPlan.threatBudget?.reactionSpacingScale??1);
-      const postLandingZ=landingEndZ-18;
       const firstLandingTarget=clamp(
         rampSafe+(runPlan.side||1)*Math.min(2.8,1.25+runPlan.intensity*1.7),
         -T.SAFE_ROUTE_HALF_WIDTH,
@@ -1422,7 +1433,6 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         {riskReward:runPlan.intensity>.66?2:1,landingReward:true}
       ));
 
-      const followUpZ=postLandingZ-landingGap;
       const followUpTarget=clamp(
         postLandingSafe-(runPlan.side||1)*Math.min(3.6,1.6+runPlan.intensity*2.0),
         -T.SAFE_ROUTE_HALF_WIDTH,
@@ -1448,13 +1458,13 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         envelope
       };
 
-      length=Math.max(126,Math.abs(startZ-followUpZ)+14);
+      length=jumpContract.length;
     }
 
     if(type==='RECOVERY'){
       const landing=pendingLanding;
       const recoveryAnchor=landing?.safeX??anchor;
-      length=92;
+      length=JUMP_SECTION_CONTRACT.recoverySectionLength;
       // Recovery still asks for light carving: one easy readable obstacle,
       // generous route width and simple banana guidance instead of dead terrain.
       let z=startZ-24;
@@ -1528,18 +1538,21 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         postMaxPressure
       );
 
-      // Once 300 km/h has been reached, fill remaining sparse longitudinal
-      // patches gradually on top of the irregular base field.
-      addSparseGapPressure(
+    }
+
+    const threatBudgetResult=applyThreatBudget(placements,runPlan,currentSpeed);
+
+    if(type!=='RAMP'&&type!=='LOG JUMP'&&type!=='RECOVERY'){
+      threatBudgetResult.postMaxAdded=addSparseGapPressure(
         placements,
         startZ,
         length,
         safeRoute.previousSafeX,
         postMaxPressure
       );
+    }else{
+      threatBudgetResult.postMaxAdded=0;
     }
-
-    const threatBudgetResult=applyThreatBudget(placements,runPlan,currentSpeed);
 
     pruneExcessiveOverlap(placements);
 
