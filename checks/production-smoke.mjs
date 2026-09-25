@@ -28,8 +28,8 @@ async function boot(context){
   const glbs=trackHttpGlbs(page);
   page.on('pageerror',error=>runtimeErrors.push(String(error?.stack||error)));
   page.on('response',response=>{if(response.status()>=400)badResponses.push(response.status()+' '+response.url());});
-  await page.goto(base+'/',{waitUntil:'domcontentloaded',timeout:60000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:60000});
+  await page.goto(base+'/?test=1&quality=low',{waitUntil:'domcontentloaded',timeout:60000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:60000,polling:100});
   return {page,runtimeErrors,badResponses,glbs};
 }
 
@@ -38,6 +38,7 @@ try{
   const built=await boot(builtInContext);
   const {page}=built;
   const fresh=await page.evaluate(()=>window.chimpionsSki());
+  assert.equal(fresh.qualityProfile,'low','Release smoke must run the explicit LOW graphics profile');
   assert.equal(fresh.catalogSize,10,'Fresh runtime must expose exactly 10 built-in avatars');
   assert.equal(fresh.startCrowdCount,0,'Real Chimpion crowd must be disabled');
   assert.equal(fresh.startCrowdModelSources,0,'Crowd must own zero character GLB sources');
@@ -53,7 +54,7 @@ try{
   await domClick(selector.locator('.ride-mode-card[data-ride-mode="ski"]'));
   await page.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
   await dismissTutorial(page);
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT,polling:100});
   const ski=await page.evaluate(()=>window.chimpionsSki());
   assert.equal(ski.rideMode,'ski');
   assert.equal(Math.round(ski.baseSpeed*3.6),150,'SKI base speed must be 150 km/h');
@@ -65,15 +66,15 @@ try{
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
   await domClick(page.locator('#resume-game'));
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:5000,polling:100});
   await page.keyboard.press('Escape');
   await page.locator('#pause-overlay').waitFor({state:'visible',timeout:5000});
   await domClick(page.locator('#restart-pause'));
   await page.waitForFunction(()=>{
     const mode=window.chimpionsSki?.().mode;
     return mode==='countdown'||mode==='playing';
-  },null,{timeout:10000});
-  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
+  },null,{timeout:10000,polling:100});
+  await page.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT,polling:100});
   const restarted=await page.evaluate(()=>window.chimpionsSki());
   assert(restarted.distance<120,'Restart did not reset run distance');
   assert.equal(new Set(built.glbs).size,1,'Restart must reuse the selected rider without downloading additional GLBs');
@@ -102,7 +103,7 @@ try{
   await domClick(customSelector.locator('.ride-mode-card[data-ride-mode="snowboard"]'));
   await custom.locator('.session-tutorial:not([hidden])').waitFor({state:'visible',timeout:5000}).catch(()=>{});
   await dismissTutorial(custom);
-  await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT});
+  await custom.waitForFunction(()=>window.chimpionsSki?.().mode==='playing',null,{timeout:RUN_TIMEOUT,polling:100});
   const snowboard=await custom.evaluate(()=>window.chimpionsSki());
   assert.equal(snowboard.rideMode,'snowboard');
   assert.equal(Math.round(snowboard.baseSpeed*3.6),150,'SNOWBOARD base speed must be 150 km/h');

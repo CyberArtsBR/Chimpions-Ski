@@ -54,7 +54,7 @@ page.on('requestfailed',request=>{
 });
 
 try{
-  await page.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});
+  await page.goto('http://127.0.0.1:4173/?test=1&quality=low',{waitUntil:'domcontentloaded'});
 
   const start=page.getByRole('button',{name:'Start Game'});
   const back=page.getByRole('link',{name:'Back to the Game selection'});
@@ -109,6 +109,7 @@ try{
 
   await page.waitForFunction(()=>window.chimpionsSki?.().ready,null,{timeout:30000,polling:100});
   const state=await page.evaluate(()=>window.chimpionsSki());
+  assert.equal(state.qualityProfile,'low','Functional browser smoke must run the explicit LOW graphics profile');
   assert.equal(state.catalogSize,10,'Desktop build must expose exactly 10 built-in Chimpions');
   assert.equal(state.mode,'menu');
   assert.equal(state.skierFallback,true,'Desktop boot must stay procedural until the player selects a GLB');
@@ -368,8 +369,13 @@ try{
   });
   const touchPage=await touchContext.newPage();
   try{
-    await touchPage.goto('http://127.0.0.1:4173/?test=1',{waitUntil:'domcontentloaded'});
+    await touchPage.goto('http://127.0.0.1:4173/?test=1&quality=low',{waitUntil:'domcontentloaded'});
     await touchPage.waitForFunction(()=>window.chimpionsSki?.().ready===true,null,{timeout:30000,polling:100});
+    assert.equal(
+      (await touchPage.evaluate(()=>window.chimpionsSki())).qualityProfile,
+      'low',
+      'Touch smoke must run the explicit LOW graphics profile'
+    );
     await touchPage.getByRole('button',{name:'Start Game'}).evaluate(button=>button.click());
     const touchSelector=touchPage.locator('#chimpion-selector');
     await touchSelector.waitFor({state:'visible',timeout:10000});
