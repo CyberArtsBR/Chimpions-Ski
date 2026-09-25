@@ -3,7 +3,9 @@ import {
   TRICK_LANDING_SAFETY_MARGIN,
   TRICK_TIMING,
   estimateRemainingAirTime,
-  evaluateTrickTiming
+  evaluateTrickTiming,
+  getTrickDefinition,
+  getTrickRotationRadians
 } from './trickTiming.js';
 
 const TAU=Math.PI*2;
@@ -33,6 +35,10 @@ const SPEED={
   [TRICK_TYPE.SPIN_360]:THREE.MathUtils.degToRad(TRICK_TUNING.SPIN_360_DEGREES_PER_SECOND),
   [TRICK_TYPE.BACKFLIP]:THREE.MathUtils.degToRad(TRICK_TUNING.BACKFLIP_DEGREES_PER_SECOND)
 };
+const TARGET_ROTATION={
+  [TRICK_TYPE.SPIN_360]:getTrickRotationRadians(TRICK_TYPE.SPIN_360),
+  [TRICK_TYPE.BACKFLIP]:getTrickRotationRadians(TRICK_TYPE.BACKFLIP)
+};
 
 function activeState(type){
   return type===TRICK_TYPE.BACKFLIP?TRICK_STATE.BACKFLIP:TRICK_STATE.SPIN_360;
@@ -48,6 +54,8 @@ export function createTrickSystem({visualTarget=null}={}){
     type:'',
     progress:0,
     rotation:0,
+    targetRotation:0,
+    landingAlignmentError:0,
     startTime:0,
     source:'',
     completed:false,
@@ -84,10 +92,11 @@ export function createTrickSystem({visualTarget=null}={}){
 
   function applyVisual(){
     if(!visualPivot?.quaternion||!isActive())return;
-    const axis=snapshot.type===TRICK_TYPE.BACKFLIP?axisX:axisY;
+    const definition=getTrickDefinition(snapshot.type);
+    const axis=definition?.axis==='x'?axisX:axisY;
     // In this rider/camera coordinate frame positive X is the backward somersault
-    // direction. The old negative sign made BACKFLIP render as a front flip.
-    const angle=snapshot.rotation;
+    // direction. Definitions keep axis/direction data centralized for future tricks.
+    const angle=snapshot.rotation*(definition?.direction??1);
     trickQuaternion.setFromAxisAngle(axis,angle);
     visualPivot.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
   }
@@ -139,7 +148,7 @@ export function createTrickSystem({visualTarget=null}={}){
     gravity,
     landingSafetyMargin=TRICK_LANDING_SAFETY_MARGIN
   }={}){
-    if(!SPEED[type]){
+    if(!SPEED[type]||!Number.isFinite(TARGET_ROTATION[type])){
       snapshot.trickAllowed=false;
       snapshot.lastRejectedType=type||'';
       snapshot.rejectionReason='unknown-trick';
@@ -152,6 +161,8 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.type=type;
     snapshot.progress=0;
     snapshot.rotation=0;
+    snapshot.targetRotation=TARGET_ROTATION[type];
+    snapshot.landingAlignmentError=0;
     snapshot.startTime=Number(startTime)||0;
     snapshot.source=source||'manual';
     snapshot.completed=false;
@@ -202,7 +213,7 @@ export function createTrickSystem({visualTarget=null}={}){
     const completedType=snapshot.type;
     const completedSource=snapshot.source;
     const completedStartTime=snapshot.startTime;
-    snapshot.rotation=TAU;
+    snapshot.rotation=snapshot.targetRotation||TAU;
     snapshot.progress=1;
     snapshot.completed=true;
     snapshot.state=TRICK_STATE.COMPLETED;
@@ -224,6 +235,8 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.type='';
     snapshot.progress=0;
     snapshot.rotation=0;
+    snapshot.targetRotation=0;
+    snapshot.landingAlignmentError=0;
     snapshot.startTime=0;
     snapshot.source='';
     snapshot.completed=false;
@@ -233,9 +246,10 @@ export function createTrickSystem({visualTarget=null}={}){
 
   function step(dt){
     if(!isActive())return snapshot;
-    snapshot.rotation=Math.min(TAU,snapshot.rotation+SPEED[snapshot.type]*Math.max(0,Number(dt)||0));
-    snapshot.progress=Math.min(1,snapshot.rotation/TAU);
-    if(snapshot.rotation>=TAU-COMPLETE_EPSILON)completeActive();
+    const target=Math.max(.001,snapshot.targetRotation||TARGET_ROTATION[snapshot.type]||TAU);
+    snapshot.rotation=Math.min(target,snapshot.rotation+SPEED[snapshot.type]*Math.max(0,Number(dt)||0));
+    snapshot.progress=Math.min(1,snapshot.rotation/target);
+    if(snapshot.rotation>=target-COMPLETE_EPSILON)completeActive();
     else applyVisual();
     return snapshot;
   }
@@ -247,21 +261,34 @@ export function createTrickSystem({visualTarget=null}={}){
   }
 
   function land({jumpSource=''}={}){
-    const interrupted=isActive();
+    const active=isActive();
+    const target=Math.max(.001,snapshot.targetRotation||TARGET_ROTATION[snapshot.type]||TAU);
+    const modulo=active?((snapshot.rotation%TAU)+TAU)%TAU:0;
+    const alignmentError=active?Math.min(modulo,TAU-modulo):0;
+    const alignmentErrorDegrees=THREE.MathUtils.radToDeg(alignmentError);
+    const salvageable=active&&snapshot.progress>=.86&&alignmentErrorDegrees<=34;
+    const interrupted=active&&!salvageable;
+    const roughLanding=active&&salvageable;
     const result={
-      hadTrick:snapshot.tricksThisAir>0||interrupted,
+      hadTrick:snapshot.tricksThisAir>0||active,
       success:!interrupted,
       interrupted,
-      type:interrupted?snapshot.type:snapshot.lastCompletedType,
-      source:interrupted?snapshot.source:jumpSource,
-      completed:!interrupted,
+      rough:roughLanding,
+      type:active?snapshot.type:snapshot.lastCompletedType,
+      source:active?snapshot.source:jumpSource,
+      completed:!active,
       landingValid:!interrupted,
-      reason:interrupted?'landing-interruption':''
+      landingGrade:roughLanding?'rough':'',
+      alignmentErrorDegrees,
+      progress:active?snapshot.progress:1,
+      targetRotation:target,
+      reason:interrupted?'landing-interruption':roughLanding?'under-rotated':''
     };
 
     clearRampArm();
     snapshot.remainingAirTime=0;
     snapshot.trickAllowed=false;
+    snapshot.landingAlignmentError=alignmentErrorDegrees;
     previousAir=false;
 
     if(interrupted){
@@ -276,6 +303,7 @@ export function createTrickSystem({visualTarget=null}={}){
       snapshot.type='';
       snapshot.progress=0;
       snapshot.rotation=0;
+      snapshot.targetRotation=0;
       snapshot.startTime=0;
       snapshot.source='';
       snapshot.completed=false;
@@ -292,6 +320,8 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.type='';
     snapshot.progress=0;
     snapshot.rotation=0;
+    snapshot.targetRotation=0;
+    snapshot.landingAlignmentError=0;
     snapshot.startTime=0;
     snapshot.source='';
     snapshot.completed=false;
