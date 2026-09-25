@@ -7,6 +7,7 @@ const outDir=resolve(root,process.env.AAA_ARTIFACT_DIR||'artifacts/qa');mkdirSyn
 const checks=[
   ['course-authoritative','checks/course-invariants.mjs'],
   ['course-stress','checks/aaa-course-stress.mjs'],
+  ['render-collision-parity','checks/aaa-render-collision-parity.mjs'],
   ['physics','checks/physics-invariants.mjs'],
   ['physics-framerate','checks/aaa-physics-framerate.mjs'],
   ['input-collision','checks/input-collision-invariants.mjs'],
@@ -15,7 +16,8 @@ const checks=[
   ['trick-system','checks/trick-system-invariants.mjs'],
   ['ride-mode','checks/ride-mode-invariants.mjs'],
   ['avatar-compatibility','checks/avatar-compatibility-invariants.mjs'],
-  ['roster','checks/roster-bandwidth-invariants.mjs'],
+  ['avatar-rig-compatibility','checks/avatar-rig-compat-invariants.mjs'],
+  ['roster-local-glb','checks/roster-bandwidth-invariants.mjs'],
   ['performance-quality','checks/performance-quality-invariants.mjs'],
   ['weather-quality-soak','checks/aaa-weather-quality-soak.mjs'],
   ['long-run-static','checks/long-run-integration-invariants.mjs']

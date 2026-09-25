@@ -104,6 +104,8 @@ jobs:
           AAA_SOAK_SECONDS: 20
           AAA_ARTIFACT_DIR: artifacts/qa
         run: node checks/aaa-browser-regression.mjs
+      - name: Existing desktop browser audit
+        run: node checks/desktop-browser.mjs
       - name: Existing production release smoke
         run: npm run smoke:production
       - name: Upload Chromium QA artifacts
