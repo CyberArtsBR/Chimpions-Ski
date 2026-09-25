@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - integration/ski-full-audit-fixes
+      - fix/ski-ci-course-contract
   pull_request:
     branches:
       - main
