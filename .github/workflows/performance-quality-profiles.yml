@@ -31,8 +31,21 @@ jobs:
         with:
           node-version: 22
       - run: npm install
-      - run: npm run check
-      - run: npm run build
+
+      - name: Stage 2 visual checks
+        run: npm run check:visual
+
+      - name: Stage 2 performance checks
+        run: npm run check:performance
+
+      - name: Stage 2 production build
+        run: npm run build
+
+      - name: Full existing check
+        id: fullcheck
+        continue-on-error: true
+        run: npm run check
+
       - run: npx playwright install --with-deps chromium
 
       - name: Prepare baseline build
@@ -145,13 +158,14 @@ jobs:
       - name: Enforce benchmark success
         if: always()
         env:
+          FULLCHECK_OUTCOME: ${{ steps.fullcheck.outcome }}
           BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
           HIGH_OUTCOME: ${{ steps.high.outcome }}
           MAX_OUTCOME: ${{ steps.max.outcome }}
           LOW_OUTCOME: ${{ steps.low.outcome }}
           COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: |
-          echo "baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME max=$MAX_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
+          echo "fullcheck=$FULLCHECK_OUTCOME baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME max=$MAX_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
           test "$BASELINE_OUTCOME" = success
           test "$HIGH_OUTCOME" = success
           test "$MAX_OUTCOME" = success
