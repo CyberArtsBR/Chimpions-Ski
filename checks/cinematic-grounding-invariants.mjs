@@ -8,12 +8,12 @@ const pipeline=readFileSync(new URL('../src/renderPipeline.js',import.meta.url),
 const environment=readFileSync(new URL('../src/environment.js',import.meta.url),'utf8');
 
 assert.equal(QUALITY_PROFILES.high.shadows,false,'HIGH must stay close to baseline shadow cost');
-assert.equal(QUALITY_PROFILES.max.shadows,true,'MAX should own the near-field directional shadow');
+assert.equal(QUALITY_PROFILES.max.shadows,false,'MAX should disable realtime shadow maps');
 assert(QUALITY_PROFILES.max.shadowMapSize<=2048,'MAX shadow map must stay bounded');
 assert(QUALITY_PROFILES.max.shadowRadius<=24,'MAX shadow coverage must remain near-field');
-assert(QUALITY_PROFILES.max.shadowUpdateHz>0&&QUALITY_PROFILES.max.shadowUpdateHz<=30,'MAX shadows must be throttled');
+assert.equal(QUALITY_PROFILES.max.shadowUpdateHz,0,'MAX should not schedule realtime shadows');
 assert.equal(QUALITY_PROFILES.high.contactGrounding,true,'HIGH should retain cheap local grounding');
-assert.equal(QUALITY_PROFILES.max.contactGrounding,true,'MAX should retain local grounding');
+assert.equal(QUALITY_PROFILES.max.contactGrounding,false,'MAX should disable synthetic contact shadows');
 assert.equal(QUALITY_PROFILES.medium.contactGrounding,false,'MEDIUM cannot inherit cinematic grounding');
 assert.equal(QUALITY_PROFILES.low.contactGrounding,false,'LOW cannot inherit cinematic grounding');
 

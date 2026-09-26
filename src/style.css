@@ -46,7 +46,7 @@ canvas{display:block;width:100%;height:100%}
 
 .overlay{
   position:fixed;z-index:8;inset:0;display:grid;place-items:center;padding:28px;
-  background:linear-gradient(180deg,rgba(6,18,33,.28),rgba(6,18,33,.58)),url('/menu/alpine-menu.svg') center / cover no-repeat,#0b2b43;
+  background:linear-gradient(180deg,rgba(6,18,33,.28),rgba(6,18,33,.58)),url('/menu/alpine-background.jpg') center / cover no-repeat,#0b2b43;
   transition:opacity .22s ease,backdrop-filter .22s ease;
 }
 .overlay.is-leaving{opacity:0;pointer-events:none;backdrop-filter:blur(3px)}
@@ -827,7 +827,7 @@ body.bullet-time-active::after{content:"";position:fixed;inset:0;pointer-events:
 .presentation-overlay{
   background-image:
     linear-gradient(180deg,rgba(4,18,31,.38),rgba(3,16,29,.70)),
-    url('/menu/alpine-menu.svg');
+    url('/menu/alpine-background.jpg');
   background-position:center;
   background-size:cover;
   background-repeat:no-repeat;
@@ -853,7 +853,7 @@ body.bullet-time-active::after{content:"";position:fixed;inset:0;pointer-events:
   border:1px solid #a9e8ff;
   background-image:
     linear-gradient(155deg,rgba(8,35,55,.95),rgba(5,23,39,.97)),
-    url('/menu/alpine-menu.svg');
+    url('/menu/alpine-background.jpg');
   background-position:center 42%;
   background-size:cover;
   background-color:#071d30;
@@ -919,7 +919,7 @@ body.bullet-time-active::after{content:"";position:fixed;inset:0;pointer-events:
 .selector-dialog::backdrop{
   background-image:
     linear-gradient(180deg,rgba(3,15,27,.50),rgba(2,12,23,.78)),
-    url('/menu/alpine-menu.svg');
+    url('/menu/alpine-background.jpg');
   background-position:center;
   background-size:cover;
   background-color:#071b2d;
@@ -927,7 +927,7 @@ body.bullet-time-active::after{content:"";position:fixed;inset:0;pointer-events:
 .selector-shell{
   background-image:
     linear-gradient(155deg,rgba(7,29,47,.96),rgba(4,20,34,.98)),
-    url('/menu/alpine-menu.svg');
+    url('/menu/alpine-background.jpg');
   background-position:center;
   background-size:cover;
 }

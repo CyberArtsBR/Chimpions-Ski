@@ -1,10 +1,10 @@
 {
   "schemaVersion": 1,
-  "generatedAt": "2026-09-25T18:20:15.624Z",
+  "generatedAt": "2026-09-26T03:42:35.694Z",
   "scope": "public static assets excluding public/model/characters",
   "totals": {
-    "files": 3,
-    "bytes": 5094346
+    "files": 5,
+    "bytes": 5620019
   },
   "categories": {
     "audio": {
@@ -12,8 +12,8 @@
       "bytes": 4260793
     },
     "image": {
-      "files": 2,
-      "bytes": 833553
+      "files": 4,
+      "bytes": 1359226
     }
   },
   "largest": [
@@ -32,11 +32,25 @@
       "sha256": "d3a5237556ba4dfefcc85603a9c604dc93ef454ac21978561c2ab7e1605306ce"
     },
     {
+      "path": "public/menu/alpine-background.jpg",
+      "category": "image",
+      "extension": ".jpg",
+      "bytes": 524094,
+      "sha256": "58dd38766d30d3d544acf32b6b71d4c9a77d28c9cb2f9968ddba11ee32042a1f"
+    },
+    {
       "path": "public/menu/alpine-menu.svg",
       "category": "image",
       "extension": ".svg",
       "bytes": 2752,
       "sha256": "3a30a4cf69bbba4660fdbf01bf31058b0694100fdde10716901121b2d855ccaf"
+    },
+    {
+      "path": "public/ui/alpine-menu.svg",
+      "category": "image",
+      "extension": ".svg",
+      "bytes": 1579,
+      "sha256": "2ea26cb264d8542a90bef2b78b25821482b8d39ead2532ebfc493ad7c3347eba"
     }
   ],
   "duplicates": [],

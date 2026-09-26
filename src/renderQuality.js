@@ -49,14 +49,14 @@ const MAX=Object.freeze({
   bloomStrength:.72,
   bloomRadius:.50,
   bloomThreshold:1.55,
-  shadows:true,
-  shadowMapSize:2048,
-  shadowRadius:18,
+  shadows:false,
+  shadowMapSize:0,
+  shadowRadius:0,
   shadowVerticalScale:.72,
   shadowCameraFar:64,
-  shadowUpdateHz:24,
-  contactGrounding:true,
-  contactGroundingStrength:1,
+  shadowUpdateHz:0,
+  contactGrounding:false,
+  contactGroundingStrength:0,
   ambientOcclusion:false,
   aoResolutionScale:.80,
   screenSpaceReflections:false,
@@ -67,7 +67,7 @@ const MAX=Object.freeze({
   maxAnisotropy:16
 });
 
-// Manual premium mode. Keep legacy MAX intact for direct visual comparison.
+// Manual premium mode. MAX retains its quality tier without cast shadows.
 const MAX_CINEMATIC=Object.freeze({
   ...MAX,
   profile:'max-cinematic',
@@ -79,9 +79,9 @@ const MAX_CINEMATIC=Object.freeze({
   maxAnisotropy:8,
   shadows:false,
   shadowMapSize:0,
-  contactGrounding:true,
-  contactGroundingStrength:1,
-  ambientOcclusion:true,
+  contactGrounding:false,
+  contactGroundingStrength:0,
+  ambientOcclusion:false,
   aoResolutionScale:.5,
   aoIntensity:.38,
   aoRadius:.18,
