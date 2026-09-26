@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import {COURSE_FLAG_X} from './environmentCorridor.js';
+import {ALPINE_SECTOR_LENGTH} from './alpineBiomes.js';
 
 const SLOT_COUNT=4;
-const SLOT_SPACING=150;
+const SLOT_SPACING=ALPINE_SECTOR_LENGTH;
 const WRAP_DISTANCE=SLOT_COUNT*SLOT_SPACING;
 const SAFE_SIDE_X=COURSE_FLAG_X+15;
 const dummy=new THREE.Object3D();
