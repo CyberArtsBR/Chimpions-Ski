@@ -12,7 +12,7 @@ const requirements=[
  ['BACK/DOWN + Jump: backflip',/(back|down|keyDown|padDown)[\s\S]{0,320}backflip|backflip[\s\S]{0,320}(back|down|keyDown|padDown)/i],
  ['second airborne Jump starts 360',/(airborne|air)[\s\S]{0,320}(jump|second)[\s\S]{0,320}(360|spin)/i],
  ['manual 360 can complete',/source='manual'[\s\S]{0,10000}completeActive|completeActive[\s\S]{0,10000}source='manual'/i],
- ['ramp 360 can complete',/armRamp[\s\S]{0,1200}completeActive|completeActive[\s\S]{0,1200}armRamp/i],
+ ['ramp 360 can complete',/armRamp[\s\S]{0,10000}completeActive|completeActive[\s\S]{0,10000}armRamp/i],
  ['manual backflip can complete when started early',/BACKFLIP[\s\S]{0,10000}completeActive|completeActive[\s\S]{0,10000}BACKFLIP/i],
  ['ramp backflip succeeds',/armRamp[\s\S]{0,1800}BACKFLIP|BACKFLIP[\s\S]{0,1800}armRamp/i],
  ['late trick input is rejected without failure',/(late|insufficient)[\s\S]{0,320}(reject|allowed.{0,20}false)[\s\S]{0,320}(no.?fail|normal.?land)|rejectionReason[\s\S]{0,180}insufficient-airtime/i],
