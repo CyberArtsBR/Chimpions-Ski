@@ -1,17 +1,13 @@
 import * as THREE from 'three';
 
-const INITIAL_DELAY_MIN=.7;
-const INITIAL_DELAY_MAX=1.8;
-const REPEAT_DELAY_MIN=2.2;
-const REPEAT_DELAY_MAX=4.8;
-const MAX_ACTIVE=7;
-const TYPE_WEIGHTS=Object.freeze([
-  ['birds',.18],
-  ['plane',.26],
-  ['zeppelin',.14],
-  ['ufo',.24],
-  ['fighter',.18]
-]);
+const INITIAL_DELAY_MIN=4;
+const INITIAL_DELAY_MAX=8;
+const REPEAT_DELAY_MIN=10;
+const REPEAT_DELAY_MAX=18;
+const EXTRAORDINARY_DELAY_MIN=38;
+const EXTRAORDINARY_DELAY_MAX=72;
+const MAX_ACTIVE=3;
+const EXTRAORDINARY_TYPES=new Set(['zeppelin','ufo','fighter']);
 
 const clamp01=value=>THREE.MathUtils.clamp(value,0,1);
 const smoothstep=value=>{
@@ -180,13 +176,21 @@ function tintObject(object,skyColor){
   });
 }
 
-function chooseType(){
-  let roll=Math.random();
-  for(const [type,weight] of TYPE_WEIGHTS){
-    roll-=weight;
-    if(roll<=0)return type;
-  }
-  return 'plane';
+function chooseCommonType(conditions){
+  const birdChance=.68*clamp01(1-conditions.rain*.92-conditions.storm*.72-conditions.snow*.44);
+  return Math.random()<birdChance?'birds':'plane';
+}
+function chooseExtraordinaryType(conditions){
+  if(conditions.runTime<35)return null;
+  const eligible=[];
+  if(conditions.night<.42&&conditions.storm<.34&&conditions.snow<.58)eligible.push(['zeppelin',.42]);
+  if(conditions.night>.58&&conditions.storm<.74)eligible.push(['ufo',.34+.18*conditions.night]);
+  if(conditions.snow<.72&&conditions.rain<.80)eligible.push(['fighter',.22+.12*(1-conditions.night)]);
+  if(!eligible.length)return null;
+  let total=0;for(const [,weight] of eligible)total+=weight;
+  let roll=Math.random()*total;
+  for(const [type,weight] of eligible){roll-=weight;if(roll<=0)return type;}
+  return eligible[eligible.length-1][0];
 }
 
 export function createAmbientFlybys({scene,camera}){
@@ -204,8 +208,12 @@ export function createAmbientFlybys({scene,camera}){
   const active=[];
   let enabled=true;
   let nextEventIn=randomRange(INITIAL_DELAY_MIN,INITIAL_DELAY_MAX);
+  let nextExtraordinaryIn=randomRange(EXTRAORDINARY_DELAY_MIN,EXTRAORDINARY_DELAY_MAX);
   let eventCount=0;
+  let commonEventCount=0;
+  let extraordinaryEventCount=0;
   let lastType='none';
+  let conditions={preset:'day',night:0,rain:0,snow:0,storm:0,runTime:0};
 
   function removeAt(index){
     const item=active[index];
@@ -222,8 +230,28 @@ export function createAmbientFlybys({scene,camera}){
       initial?INITIAL_DELAY_MAX:REPEAT_DELAY_MAX
     );
   }
-  function spawn(type=chooseType()){
+  function scheduleExtraordinary(initial=false){
+    nextExtraordinaryIn=randomRange(
+      initial?EXTRAORDINARY_DELAY_MIN*.72:EXTRAORDINARY_DELAY_MIN,
+      initial?EXTRAORDINARY_DELAY_MAX*.82:EXTRAORDINARY_DELAY_MAX
+    );
+  }
+  function setConditions(weather={},runState={}){
+    const rain=clamp01(Number(weather.rain)||0),snow=clamp01(Number(weather.snowfall)||0);
+    const storm=clamp01(Math.max(rain,(Number(weather.cloud)||0)-.42));
+    conditions={
+      preset:String(weather.preset||weather.mode||conditions.preset||'day'),
+      night:clamp01(Number(weather.night)||0),
+      rain,
+      snow,
+      storm,
+      runTime:Math.max(0,Number(runState.time??runState.runTime??conditions.runTime)||0)
+    };
+    return conditions;
+  }
+  function spawn(type=chooseCommonType(conditions)){
     if(!enabled||active.length>=MAX_ACTIVE)return false;
+    if(EXTRAORDINARY_TYPES.has(type)&&active.some(item=>EXTRAORDINARY_TYPES.has(item.type)))return false;
     const prototype=prototypes[type]||prototypes.plane;
     const object=prototype.clone(true);
     object.visible=true;
@@ -275,6 +303,8 @@ export function createAmbientFlybys({scene,camera}){
       wobblePhase:randomRange(0,Math.PI*2)
     });
     eventCount++;
+    if(EXTRAORDINARY_TYPES.has(type))extraordinaryEventCount++;
+    else commonEventCount++;
     lastType=type;
     return true;
   }
@@ -282,12 +312,13 @@ export function createAmbientFlybys({scene,camera}){
   function reset(){
     clearActive();
     eventCount=0;
+    commonEventCount=0;
+    extraordinaryEventCount=0;
     lastType='none';
-    // Populate the sky immediately instead of waiting for one rare flyby.
-    spawn('birds');
-    spawn(Math.random()<.5?'plane':'fighter');
-    spawn(Math.random()<.5?'zeppelin':'ufo');
+    // A calm, believable flock can establish scale immediately. Spectacle waits.
+    if(conditions.storm<.62&&conditions.rain<.55)spawn('birds');
     scheduleNext(true);
+    scheduleExtraordinary(true);
   }
   function setEnabled(value=true){
     enabled=!!value;
@@ -301,9 +332,15 @@ export function createAmbientFlybys({scene,camera}){
 
     if(running){
       nextEventIn=Math.max(0,nextEventIn-dt);
+      nextExtraordinaryIn=Math.max(0,nextExtraordinaryIn-dt);
       if(nextEventIn<=0){
-        spawn();
+        spawn(chooseCommonType(conditions));
         scheduleNext(false);
+      }
+      if(nextExtraordinaryIn<=0){
+        const special=chooseExtraordinaryType(conditions);
+        if(special)spawn(special);
+        scheduleExtraordinary(false);
       }
     }
 
@@ -353,8 +390,12 @@ export function createAmbientFlybys({scene,camera}){
       activeType:active.map(item=>item.type).join(',')||'none',
       activeCount:active.length,
       nextEventIn,
+      nextExtraordinaryIn,
       eventCount,
+      commonEventCount,
+      extraordinaryEventCount,
       lastType,
+      conditions:{...conditions},
       sharedPrototypeCount:Object.keys(prototypes).length,
       maxActive:MAX_ACTIVE,
       enabled
@@ -362,5 +403,5 @@ export function createAmbientFlybys({scene,camera}){
   }
 
   reset();
-  return {root,update,reset,getDiagnostics,setEnabled};
+  return {root,update,reset,getDiagnostics,setEnabled,setConditions};
 }
