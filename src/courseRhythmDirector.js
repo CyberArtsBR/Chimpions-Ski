@@ -200,6 +200,9 @@ export function createCourseRhythmDirector({random=Math.random}={}){
     const preferredSections=forcedRecovery
       ?['RECOVERY']
       :[...(motif.sectionBias[beat]||['OPEN CARVE'])];
+    const jumpBias=beat==='REWARD'?clamp(.46+speed01*.20+post01*.04,0,1):0;
+    const rewardJump=beat==='REWARD'&&random()<jumpBias;
+    const rewardJumpType=rewardJump?(random()<.55?'RAMP':'LOG JUMP'):null;
 
     lastPlan={
       beat,
@@ -208,9 +211,10 @@ export function createCourseRhythmDirector({random=Math.random}={}){
       beatIndex,
       forcedRecovery,
       preferredSections,
-      forceType:beat==='RECOVER'?'RECOVERY':null,
+      forceType:beat==='RECOVER'?'RECOVERY':rewardJumpType,
       allowJump:beat==='REWARD',
-      jumpBias:beat==='REWARD'?clamp(.42+speed01*.20,0,1):0,
+      jumpBias,
+      rewardJump,
       intensityScale,
       threatBudgetScale,
       optionalHazardScale:Math.max(post01>.70?.58:.42,profile.optionalHazardScale),
