@@ -20,13 +20,14 @@ assert(luminance(fences.ledCoreMaterial.color)<threshold,'the main blue LED bloo
 assert(luminance(fences.ledCoreMaterial.color)>.40,'fence core cannot be seen at a distance');
 
 const ramp=createRampVisual();
-const rampHighlight=ramp.children.filter(mesh=>mesh.material?.color?.b>5);
-assert.equal(rampHighlight.length,1,'ramps need an HDR outline visible from afar');
-const rampAccent=rampHighlight[0];
+const rampBlue=ramp.children.filter(mesh=>mesh.material?.toneMapped===false&&mesh.material?.color?.b>1);
+assert(rampBlue.length>=2,'ramps need multiple blue readability layers');
+const rampAccent=rampBlue.reduce((best,mesh)=>mesh.material.color.b>best.material.color.b?mesh:best);
 rampAccent.geometry.computeBoundingBox();
-assert(rampAccent.geometry.boundingBox.getSize(new THREE.Vector3()).z>2.8,'ramp HDR outline must run the full length');
-assert(luminance(rampAccent.material.color)>threshold*2,'ramp HDR outline must reach the distant bloom pass');
-assert(rampAccent.material.color.b>rampAccent.material.color.g*5,'ramp bloom must remain blue');
+assert(rampAccent.geometry.boundingBox.getSize(new THREE.Vector3()).z>2.8,'ramp blue outline must run the full length');
+assert(luminance(rampAccent.material.color)>.55,'ramp distant blue outline became too dim');
+assert(luminance(rampAccent.material.color)<threshold,'ramp HDR outline clips toward white');
+assert(rampAccent.material.color.b>rampAccent.material.color.g*7,'ramp bloom must remain strongly blue');
 
 for(const mode of ['ski','snowboard']){
   const rider=createFallbackSkier({rideMode:mode});
