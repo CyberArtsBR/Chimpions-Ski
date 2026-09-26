@@ -166,6 +166,9 @@ export function createRenderPipeline({
   let shadowConfigChanges=0;
   let anisotropyRefreshes=0;
   let anisotropyTextures=0;
+  let shadowUpdates=0;
+  let shadowUpdateSkips=0;
+  let lastShadowUpdateAt=-Infinity;
 
   const cpuSamples=[];
   const postSamples=[];
@@ -202,11 +205,13 @@ export function createRenderPipeline({
     const enabled=!!next.shadows&&!!shadowLight;
     renderer.shadowMap.enabled=enabled;
     renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-    renderer.shadowMap.autoUpdate=enabled;
+    renderer.shadowMap.autoUpdate=false;
     if(!shadowLight)return;
 
     shadowLight.castShadow=enabled;
     if(!enabled){
+      renderer.shadowMap.needsUpdate=false;
+      lastShadowUpdateAt=-Infinity;
       if(shadowLight.shadow?.map){
         shadowLight.shadow.map.dispose?.();
         shadowLight.shadow.map=null;
@@ -215,28 +220,54 @@ export function createRenderPipeline({
       return;
     }
 
-    const mapSize=Math.max(512,Math.min(4096,Math.round(Number(next.shadowMapSize)||1024)));
-    const radius=clamp(Number(next.shadowRadius)||28,12,48);
+    const mapSize=Math.max(512,Math.min(2048,Math.round(Number(next.shadowMapSize)||1024)));
+    const radius=clamp(Number(next.shadowRadius)||18,10,32);
+    const verticalScale=clamp(Number(next.shadowVerticalScale)||.72,.45,1);
+    const far=clamp(Number(next.shadowCameraFar)||64,36,96);
     const shadow=shadowLight.shadow;
+    const top=radius*verticalScale;
     const changed=shadow.mapSize.x!==mapSize||shadow.mapSize.y!==mapSize||
-      shadow.camera.left!==-radius||shadow.camera.right!==radius;
+      shadow.camera.left!==-radius||shadow.camera.right!==radius||
+      shadow.camera.top!==top||shadow.camera.bottom!==-top||
+      shadow.camera.far!==far;
+
     shadow.mapSize.set(mapSize,mapSize);
     shadow.camera.left=-radius;
     shadow.camera.right=radius;
-    shadow.camera.top=radius*.72;
-    shadow.camera.bottom=-radius*.72;
+    shadow.camera.top=top;
+    shadow.camera.bottom=-top;
     shadow.camera.near=1;
-    shadow.camera.far=72;
+    shadow.camera.far=far;
     shadow.bias=Number(next.shadowBias)||0;
     shadow.normalBias=Math.max(0,Number(next.shadowNormalBias)||0);
-    shadow.radius=next.profile==='max'?2:1;
+    shadow.radius=next.profile==='max'?1.5:1;
     shadow.camera.updateProjectionMatrix();
+
     if(changed&&shadow.map){
       shadow.map.dispose?.();
       shadow.map=null;
     }
     renderer.shadowMap.needsUpdate=true;
+    lastShadowUpdateAt=-Infinity;
     shadowConfigChanges++;
+  }
+
+  function scheduleShadowUpdate(stamp=now(),force=false){
+    if(!renderer.shadowMap.enabled||!shadowLight?.castShadow){
+      renderer.shadowMap.needsUpdate=false;
+      return false;
+    }
+    const hz=clamp(Number(settings.shadowUpdateHz)||24,1,60);
+    const interval=1000/hz;
+    const due=force||!Number.isFinite(lastShadowUpdateAt)||stamp-lastShadowUpdateAt>=interval;
+    renderer.shadowMap.needsUpdate=due;
+    if(due){
+      lastShadowUpdateAt=stamp;
+      shadowUpdates++;
+      return true;
+    }
+    shadowUpdateSkips++;
+    return false;
   }
 
   function refreshTextureQuality(root=scene){
@@ -377,6 +408,7 @@ export function createRenderPipeline({
       lastStaticReason=null;
     }
 
+    scheduleShadowUpdate(stamp,invalidated);
     const queryStarted=gpuTimer.begin();
     const started=now();
     if(composer){
@@ -429,6 +461,12 @@ export function createRenderPipeline({
       shadowEnabled:!!renderer.shadowMap.enabled,
       shadowMapSize:shadowLight?.castShadow?shadowLight.shadow.mapSize.x:0,
       shadowRadius:shadowLight?.castShadow?Math.abs(shadowLight.shadow.camera.right):0,
+      shadowVerticalRadius:shadowLight?.castShadow?Math.abs(shadowLight.shadow.camera.top):0,
+      shadowCameraFar:shadowLight?.castShadow?shadowLight.shadow.camera.far:0,
+      shadowUpdateHz:shadowLight?.castShadow?clamp(Number(settings.shadowUpdateHz)||24,1,60):0,
+      shadowUpdates,
+      shadowUpdateSkips,
+      shadowRenderTargetCount:shadowLight?.shadow?.map?1:0,
       gpuTimerSupported:gpuTimer.supported,
       gpuTimerPending:gpuTimer.pending,
       gpuTimerDisjointCount:gpuTimer.disjointCount,
@@ -473,7 +511,14 @@ export function createRenderPipeline({
     unsubscribeQuality?.();
     disposePostPipeline();
     gpuTimer.dispose();
-    if(shadowLight)shadowLight.castShadow=false;
+    if(shadowLight){
+      shadowLight.castShadow=false;
+      if(shadowLight.shadow?.map){
+        shadowLight.shadow.map.dispose?.();
+        shadowLight.shadow.map=null;
+      }
+    }
+    renderer.shadowMap.needsUpdate=false;
     renderer.shadowMap.enabled=false;
   }
 
