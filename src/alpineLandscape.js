@@ -165,7 +165,6 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
     };
     applyPresentationDensity();
     boundsDirty=true;
-    refresh();
     return presentation;
   }
   function reset(){travel=0;boundsDirty=true;applyPresentationDensity();refresh();}
