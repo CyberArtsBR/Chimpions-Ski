@@ -105,10 +105,18 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
   });
   let activeForestCount=forestCapacity;
   let travel=0,detail=1,boundsDirty=true;
+  let presentation={forestDensity:1,mountainScale:1,visibility:1};
+
+  function applyPresentationDensity(){
+    const forestScale=THREE.MathUtils.clamp(Number(presentation.forestDensity)||1,.10,1.22);
+    const visibility=THREE.MathUtils.clamp(Number(presentation.visibility)||1,.34,1);
+    activeForestCount=Math.max(42,Math.min(forestCapacity,Math.round((80+200*detail)*forestScale*(.64+.36*visibility))));
+    bands[2].visible=detail>.75&&visibility>.55;
+  }
   function refresh(){
     for(const e of entries){
       const z=((e.z+travel*(.26+e.layer*.17)+310)%330+330)%330-310;
-      dummy.position.set(e.x,-5,z);dummy.rotation.set(0,0,0);dummy.scale.set(e.width,e.height,e.depth);dummy.updateMatrix();bands[e.layer].setMatrixAt(e.index,dummy.matrix);
+      dummy.position.set(e.x,-5,z);dummy.rotation.set(0,0,0);dummy.scale.set(e.width,e.height*presentation.mountainScale,e.depth);dummy.updateMatrix();bands[e.layer].setMatrixAt(e.index,dummy.matrix);
     }
     for(const mesh of bands){
       mesh.instanceMatrix.needsUpdate=true;
@@ -145,20 +153,33 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
   }
   function setDetail(value){
     detail=THREE.MathUtils.clamp(value,0,1);
-    activeForestCount=Math.round(80+200*detail);
-    bands[2].visible=detail>.75;
+    applyPresentationDensity();
     boundsDirty=true;
     refresh();
   }
-  function reset(){travel=0;boundsDirty=true;refresh();}
+  function setPresentation(value={}){
+    presentation={
+      forestDensity:THREE.MathUtils.clamp(Number(value.forestDensity)||1,.10,1.22),
+      mountainScale:THREE.MathUtils.clamp(Number(value.mountainScale)||1,.82,1.34),
+      visibility:THREE.MathUtils.clamp(Number(value.weather?.visibility??value.visibility??1),.34,1)
+    };
+    applyPresentationDensity();
+    boundsDirty=true;
+    refresh();
+    return presentation;
+  }
+  function reset(){travel=0;boundsDirty=true;applyPresentationDensity();refresh();}
   function update(dt,speed){if(!speed)return;travel+=dt*speed;refresh();}
   reset();return {
-    update,reset,setDetail,
+    update,reset,setDetail,setPresentation,
     getDiagnostics:()=>({
       forestActive:activeForestCount,
       forestChunks:forestChunks.length,
       forestVisibleChunks:forestChunks.reduce((sum,mesh)=>sum+Number(mesh.visible),0),
-      mountainBandsVisible:bands.reduce((sum,mesh)=>sum+Number(mesh.visible),0)
+      mountainBandsVisible:bands.reduce((sum,mesh)=>sum+Number(mesh.visible),0),
+      biomeForestDensity:presentation.forestDensity,
+      biomeMountainScale:presentation.mountainScale,
+      atmosphericVisibility:presentation.visibility
     })
   };
 }
