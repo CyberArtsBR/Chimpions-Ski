@@ -85,6 +85,7 @@ export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
 export function createCourseDirector({routeCenter,random:externalRandom=Math.random,seed=null}){
   let runSeed=seed==null?null:String(seed);
   let random=runSeed==null?externalRandom:createSeededRandom(runSeed);
+  let setPieceRandom=createSeededRandom(`setpiece:${runSeed??externalRandom()}`);
   let lastType='RECOVERY';
   let sectionIndex=0;
   let recentBands=[3];
@@ -97,7 +98,7 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   const safeRoute=createSafeRouteTracker(0,null);
   const runDirector=createExpertRunDirector({random:()=>random()});
   const rhythmDirector=createCourseRhythmDirector({random:()=>random()});
-  const setPieceDirector=createCourseSetPieceDirector({random:()=>random()});
+  const setPieceDirector=createCourseSetPieceDirector({random:()=>setPieceRandom()});
 
   // Bands guide macro route choices only. Physical hazards themselves are
   // placed continuously so the player cannot memorize a seven-column grid.
@@ -1750,10 +1751,13 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       if(nextSeed!=null){
         runSeed=String(nextSeed);
         random=createSeededRandom(runSeed);
+        setPieceRandom=createSeededRandom(`setpiece:${runSeed}`);
       }else if(runSeed!=null){
         random=createSeededRandom(runSeed);
+        setPieceRandom=createSeededRandom(`setpiece:${runSeed}`);
       }else{
         random=externalRandom;
+        setPieceRandom=createSeededRandom(`setpiece:${externalRandom()}`);
       }
       lastType='RECOVERY';
       sectionIndex=0;
