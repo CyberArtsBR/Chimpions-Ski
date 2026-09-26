@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      BASE_SHA: 744819df9486208e52dc9d922ce5732ec7c131b8
+      BASE_SHA: 2cccdfa62de98ec44870103e842efc5a71d09497
       BENCH_ENV: "GAMEPLAY_SECONDS=30 LONG_RUN_SECONDS=60 MODE_RUN_SECONDS=15 TRICK_RUN_SECONDS=15 RESTART_ITERATIONS=2 SELECTOR_ITERATIONS=2 SAMPLE_INTERVAL_MS=500"
     steps:
       - uses: actions/checkout@v7
@@ -88,6 +88,22 @@ jobs:
           done
           env $BENCH_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-high.json" node scripts/benchmark-ski-runtime.mjs
 
+      - name: Benchmark MAX
+        id: max
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/chimpions-max-preview.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/chimpions-max-preview.log || true; exit 1; fi
+            sleep 1
+          done
+          env $BENCH_ENV QUALITY_PROFILE=max BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-max.json" node scripts/benchmark-ski-runtime.mjs
+
       - name: Benchmark LOW
         id: low
         continue-on-error: true
@@ -131,11 +147,13 @@ jobs:
         env:
           BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
           HIGH_OUTCOME: ${{ steps.high.outcome }}
+          MAX_OUTCOME: ${{ steps.max.outcome }}
           LOW_OUTCOME: ${{ steps.low.outcome }}
           COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: |
-          echo "baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
+          echo "baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME max=$MAX_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
           test "$BASELINE_OUTCOME" = success
           test "$HIGH_OUTCOME" = success
+          test "$MAX_OUTCOME" = success
           test "$LOW_OUTCOME" = success
           test "$COMPARE_OUTCOME" = success
