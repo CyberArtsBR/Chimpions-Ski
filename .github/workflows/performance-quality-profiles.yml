@@ -202,3 +202,126 @@ jobs:
           test "$MAX_OUTCOME" = success
           test "$LOW_OUTCOME" = success
           test "$COMPARE_OUTCOME" = success
+
+  stage2-lighting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      BASE_SHA: 2cccdfa62de98ec44870103e842efc5a71d09497
+      LIGHTING_ENV: "VIEWPORT_WIDTH=960 VIEWPORT_HEIGHT=600 READY_TIMEOUT_MS=90000 GAMEPLAY_SECONDS=12 LONG_RUN_SECONDS=0 MODE_RUN_SECONDS=5 TRICK_RUN_SECONDS=5 RESTART_ITERATIONS=0 SELECTOR_ITERATIONS=0 SAMPLE_INTERVAL_MS=500"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+
+      - name: Prepare focused baseline build
+        run: |
+          set -euo pipefail
+          mkdir -p benchmark-artifacts
+          git worktree add --detach /tmp/chimpions-ski-stage2-base "$BASE_SHA"
+          ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-stage2-base/node_modules
+          (cd /tmp/chimpions-ski-stage2-base && npm run build)
+
+      - name: Focused baseline HIGH
+        id: focused_base_high
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd /tmp/chimpions-ski-stage2-base && exec "$GITHUB_WORKSPACE/node_modules/.bin/vite" preview --host 127.0.0.1 --port 4173) >/tmp/stage2-base-high.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/stage2-base-high.log || true; exit 1; fi
+            sleep 1
+          done
+          env $LIGHTING_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 BENCH_LABEL=baseline-high \
+            RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-baseline-high.json" \
+            SCREENSHOT_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-baseline-high.png" \
+            node scripts/benchmark-stage2-lighting.mjs
+
+      - name: Focused baseline MAX
+        id: focused_base_max
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd /tmp/chimpions-ski-stage2-base && exec "$GITHUB_WORKSPACE/node_modules/.bin/vite" preview --host 127.0.0.1 --port 4173) >/tmp/stage2-base-max.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/stage2-base-max.log || true; exit 1; fi
+            sleep 1
+          done
+          env $LIGHTING_ENV QUALITY_PROFILE=max BASE_URL=http://127.0.0.1:4173 BENCH_LABEL=baseline-max \
+            RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-baseline-max.json" \
+            SCREENSHOT_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-baseline-max.png" \
+            node scripts/benchmark-stage2-lighting.mjs
+
+      - name: Focused Stage 2 HIGH
+        id: focused_high
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/stage2-high.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/stage2-high.log || true; exit 1; fi
+            sleep 1
+          done
+          env $LIGHTING_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 BENCH_LABEL=stage2-high \
+            RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-high.json" \
+            SCREENSHOT_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-high.png" \
+            node scripts/benchmark-stage2-lighting.mjs
+
+      - name: Focused Stage 2 MAX
+        id: focused_max
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          (exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >/tmp/stage2-max.log 2>&1 &
+          PREVIEW_PID=$!
+          trap 'kill "$PREVIEW_PID" 2>/dev/null || true; wait "$PREVIEW_PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then break; fi
+            if [ "$i" = 90 ]; then cat /tmp/stage2-max.log || true; exit 1; fi
+            sleep 1
+          done
+          env $LIGHTING_ENV QUALITY_PROFILE=max BASE_URL=http://127.0.0.1:4173 BENCH_LABEL=stage2-max \
+            RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-max.json" \
+            SCREENSHOT_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/stage2-max.png" \
+            node scripts/benchmark-stage2-lighting.mjs
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage2-lighting-focused
+          path: benchmark-artifacts/stage2-*
+          if-no-files-found: warn
+
+      - name: Enforce focused benchmark success
+        if: always()
+        env:
+          BASE_HIGH: ${{ steps.focused_base_high.outcome }}
+          BASE_MAX: ${{ steps.focused_base_max.outcome }}
+          STAGE2_HIGH: ${{ steps.focused_high.outcome }}
+          STAGE2_MAX: ${{ steps.focused_max.outcome }}
+        run: |
+          echo "base_high=$BASE_HIGH base_max=$BASE_MAX stage2_high=$STAGE2_HIGH stage2_max=$STAGE2_MAX"
+          test "$BASE_HIGH" = success
+          test "$BASE_MAX" = success
+          test "$STAGE2_HIGH" = success
+          test "$STAGE2_MAX" = success
+
