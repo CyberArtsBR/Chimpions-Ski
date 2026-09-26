@@ -30,7 +30,7 @@ export function createGameFeedback({audio,ui,haptics}){
     if(!landing.landed)return null;
     const feedback=calculateLandingFeedback({...landing,...context});
     audio.play(feedback.sound,feedback.audioGain,feedback.rateScale);
-    if(feedback.dramatic||feedback.quality!=='clean')ui?.showLandingFeedback?.(feedback.quality,feedback.intensity);
+    // Physical landing feedback stays in snow, audio and haptics instead of interrupting play with text.
     return remember('landing',feedback);
   }
 
