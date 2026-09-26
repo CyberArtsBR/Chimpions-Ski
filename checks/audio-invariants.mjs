@@ -23,6 +23,10 @@ assert.equal(
 assert(audioSource.includes("JUMP_MUSIC_URL='/audio/music-full.mp3'"),'Audio must use the local music asset');
 assert(audioSource.includes("jumpMusic.preload='none'"),'music must not be eagerly preloaded from the menu');
 assert(audioSource.includes("ensureJumpMusic({load:needsMusic})"),'music must only promote to loading when countdown/gameplay needs it');
+assert(audioSource.includes('sfxBus.connect(compressor)'),'effects compression must be isolated from music');
+assert(audioSource.includes('compressor.connect(master)')&&!audioSource.includes('master.connect(compressor)'),'master music must not be ducked by compressed jump SFX');
+assert(audioSource.includes("?(.34-speed01*.09)")&&!audioSource.includes('air?.42:'),'airborne state must not attenuate or retune the music level');
+assert(audioSource.includes('musicBase=running?Math.max(.075,.118-speed01*.030)'),'procedural music gain must stay consistent while airborne');
 assert(!audioSource.includes('chimp-jump.onrender.com/audio/music-full.mp3'),'Runtime music hotlink returned');
 assert(audioSource.includes("type==='oil'"),'Distinct oil skid cue is missing');
 assert(audioSource.includes("type==='clear'"),'Airborne clear cue is missing');

@@ -82,9 +82,8 @@ export function createSkiAudio(){
     if(!media)return false;
     const playing=settings.musicEnabled&&jumpMusicReady&&!jumpMusicFailed;
     const speed01=getRideSpeedFeel(pendingState.speed,rideMode);
-    const air=!!pendingState.air;
     const levelBase=mode==='playing'
-      ?(air?.42:.34-speed01*.09)
+      ?(.34-speed01*.09)
       :mode==='countdown'?.22:mode==='paused'?.08:mode==='crashed'?.07:.16;
     const level=Math.max(.18,levelBase)*(pendingState.specialActive?.58:1);
     media.volume=playing?clamp(settings.master*settings.music*level):0;
@@ -352,13 +351,15 @@ export function createSkiAudio(){
     compressor.ratio.value=3.2;
     compressor.attack.value=.004;
     compressor.release.value=.16;
-    sfxBus.connect(master);
+    // Compress effects and movement audio before they reach the master bus.
+    // Jump/landing transients can no longer pull the soundtrack down.
+    sfxBus.connect(compressor);
+    compressor.connect(master);
     musicBus.connect(master);
     continuousBus.connect(worldFilter);
     worldFilter.connect(sfxBus);
     eventBus.connect(sfxBus);
-    master.connect(compressor);
-    compressor.connect(context.destination);
+    master.connect(context.destination);
 
     const contactSource=makeLoop(noiseBuffer(2.4,19531));
     const contactFilter=context.createBiquadFilter();
@@ -468,7 +469,7 @@ export function createSkiAudio(){
     const boardScrape=air?0:(running?(carve*(.010+speedEnergy*.043)+skid*.020)*profile.snowboardScrapeGain:0);
     const airWind=air?(rampAir?.070:.052):0;
     const wind=(running?(0.014+speedEnergy*.080+ferocity*.034+airWind):countdown?.006:0)*profile.windGain;
-    const musicBase=running?(air?.145:Math.max(.075,.118-speed01*.030)):countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
+    const musicBase=running?Math.max(.075,.118-speed01*.030):countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
     const usingJumpMusic=syncJumpMusic(mode);
 
