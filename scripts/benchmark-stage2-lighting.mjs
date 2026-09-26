@@ -54,8 +54,11 @@ async function main(){
     if(screenshotPath){
       await page.screenshot({path:screenshotPath,fullPage:false});
     }
-    if(results.gameplay?.status!=='PASS'){
-      results.fatal={message:`Gameplay benchmark did not reach PASS: ${results.gameplay?.reason||results.gameplay?.status||'unknown'}`};
+    if(results.gameplay?.status!=='PASS'||results.gameplay?.frames?.status!=='PASS'){
+      const reason=results.gameplay?.status!=='PASS'
+        ?results.gameplay?.reason||results.gameplay?.status||'unknown'
+        :results.gameplay?.frames?.reason||'no valid gameplay frame samples';
+      results.fatal={message:`Gameplay benchmark lacks valid frame coverage: ${reason}`};
       process.exitCode=1;
     }
   }catch(error){
