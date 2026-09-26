@@ -44,7 +44,7 @@ export function createCinematicGrounding({scene}={}){
         float snowboard=softEllipse(p,vec2(2.65,1.18),2.15);
         float equipment=mix(max(leftSki,rightSki),snowboard,rideMode);
         float contact=max(core*.46,equipment);
-        float edge=smoothstep(1.0,.72,max(abs(p.x),abs(p.y)));
+        float edge=1.0-smoothstep(.72,1.0,max(abs(p.x),abs(p.y)));
         float alpha=contact*edge*opacity*(1.0-airborne*.32);
         if(alpha<.002)discard;
         gl_FragColor=vec4(color,alpha);
@@ -115,7 +115,7 @@ export function createCinematicGrounding({scene}={}){
     uniforms.airborne.value=air?1:0;
 
     const spread=1+clamp(jumpHeight/3.2,0,1)*.34;
-    mesh.position.set(Number(x)||0,Math.max(.008,(Number(groundY)||0)+.014),Number(z)||0+.025);
+    mesh.position.set(Number(x)||0,Math.max(.008,(Number(groundY)||0)+.014),(Number(z)||0)+.025);
     mesh.scale.set(spread*landingAccent,spread,1);
     mesh.visible=uniforms.opacity.value>.002;
     if(mesh.visible)visibleFrames++;
