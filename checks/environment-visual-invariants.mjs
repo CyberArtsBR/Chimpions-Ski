@@ -31,7 +31,7 @@ assert.equal(clamped.distantSceneryDetail,.35);
 assert.equal(clamped.snowDetailLevel,1);
 
 assert(
-  premium.includes("root.userData.visualPrototype='premium-bare-'+kind")&&
+  premium.includes("root.userData.visualPrototype='premium-readability-'+kind")&&
   premium.includes("trees:Array.from({length:4}"),
   'shared gameplay tree prototype polish missing'
 );
@@ -41,10 +41,12 @@ assert(
 );
 assert(
   courseSurface.includes('function rampSurface()')&&
-  courseSurface.includes("visualPrototype='competition-tech-kicker-v6-hdr'")&&
+  courseSurface.includes("visualPrototype='competition-tech-kicker-v7-readability'")&&
   courseSurface.includes('export function createRampVisual()')&&
   courseSurface.includes('underglow')&&
   courseSurface.includes('bloom')&&
+  courseSurface.includes("visualRole='safe-opportunity'")&&
+  courseSurface.includes("edgeLightHue='blue'")&&
   main.includes("import {createOilVisual,createRampVisual} from './courseSurfaceVisuals.js'")&&
   main.includes('const g=createRampVisual();'),
   'competition ramp readability prototype/integration missing'
