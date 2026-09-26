@@ -4,6 +4,8 @@ import {applyPremiumObstacle,getPremiumObstacleLibrary} from './premiumObstacles
 import {createAlpineSky} from './alpineSky.js';
 import {createAlpineLandscape} from './alpineLandscape.js';
 import {createAlpineInfrastructure} from './alpineInfrastructure.js';
+import {createAlpineBiomeDirector} from './alpineBiomes.js';
+import {createAlpineLandmarks} from './alpineLandmarks.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
 import {terrainHeight} from './terrainContact.js';
@@ -188,8 +190,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
+  const biomeDirector=createAlpineBiomeDirector();
   const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
   const infrastructure=createAlpineInfrastructure({world,terrainHeight});
+  const landmarks=createAlpineLandmarks({world,terrainHeight,biomeDirector});
   const ambient=new THREE.HemisphereLight(0xffffff,0x818486,1.34);
   scene.add(ambient);
 
@@ -301,8 +305,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
     boundaryMarkers.setDecorativeShadows(false);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
+    biomeDirector.setDetail(environmentQuality.distantSceneryDetail);
     landscape.setDetail(environmentQuality.distantSceneryDetail);
     infrastructure.setDetail(environmentQuality.distantSceneryDetail);
+    landmarks.setDetail(environmentQuality.distantSceneryDetail);
     return getQualityProfile();
   }
   function getQualityProfile(){
@@ -328,6 +334,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       dynamicSceneryFrustumCulled:true,
       landscape:landscape.getDiagnostics?.()||null,
       infrastructure:infrastructure.getDiagnostics?.()||null,
+      biomes:biomeDirector.getDiagnostics?.()||null,
+      landmarks:landmarks.getDiagnostics?.()||null,
+      flybys:ambientFlybys.getDiagnostics?.()||null,
       snowParticlePool:snowParticles.getDiagnostics?.()||{densityScale:snowParticles.getDensityMultiplier?.()},
       snowSurfaceDetail:surfaceDetail.getDiagnostics?.()||{detailLevel:surfaceDetail.getDetailLevel?.()}
     };
@@ -384,8 +393,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     surfaceDetail.reset();
     boundaryMarkers.reset();
     ambientFlybys.reset();
+    biomeDirector.reset();
     landscape.reset();
     infrastructure.reset();
+    landmarks.reset();
     contactShadow.position.y=-100;
     contactShadow.visible=false;
     contactShadow.material.opacity=.18;
@@ -393,9 +404,18 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     dayCycle.apply(0);
     snowMaterials.setTravel(0);
   }
+  function setWeatherState(weather={},runState={}){
+    biomeDirector.setWeatherState(weather);
+    landmarks.setWeatherState(weather);
+    infrastructure.setWeatherState?.(weather);
+    ambientFlybys.setConditions?.(weather,runState);
+    sky.userData.setWeatherState?.(weather);
+    return weather;
+  }
   function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time,rideMode='ski',rideContacts=null){
     time+=dt;
     visualTravel+=worldSpeed*dt;
+    const biomePresentation=biomeDirector.update(visualTravel,runTime);
     sky.position.copy(camera.position);
     sky.material.uniforms.time.value=time;
     dayCycle.apply(runTime);
@@ -417,7 +437,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
     const speed01=getSpeedFeel(speed);
     if(refreshScenery){
+      landscape.setPresentation(biomePresentation);
       landscape.update(sceneryStep,worldSpeed);
+      landmarks.update(sceneryStep,worldSpeed);
       for(let i=0;i<activeBankCount;i++){
         const e=banks.entries[i];e.z+=worldSpeed*sceneryStep;
         if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
@@ -487,9 +509,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   }
 
   return {
-    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail,infrastructure},
+    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail,infrastructure,landmarks,biomeDirector,ambientFlybys},
     update,
     reset,
+    setWeatherState,
     ambientFlybys,
     setQualityProfile,
     getQualityProfile,
