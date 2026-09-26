@@ -4,6 +4,8 @@ import {applyPremiumObstacle,getPremiumObstacleLibrary} from './premiumObstacles
 import {createAlpineSky} from './alpineSky.js';
 import {createAlpineLandscape} from './alpineLandscape.js';
 import {createAlpineInfrastructure} from './alpineInfrastructure.js';
+import {createAlpineBiomeDirector} from './alpineBiomes.js';
+import {createAlpineLandmarks} from './alpineLandmarks.js';
 import {createSnowMaterials} from './snowMaterial.js';
 import {getSpeedFeel} from './gameplayTuning.js';
 import {terrainHeight} from './terrainContact.js';
@@ -14,6 +16,7 @@ import {createSnowSurfaceDetail} from './snowSurfaceDetail.js';
 import {createAmbientFlybys} from './ambientFlybys.js';
 import {normalizeEnvironmentQuality} from './environmentQuality.js';
 import {COURSE_FLAG_X,SCENERY_SIDE_MIN_CENTER_X,sideForIndex} from './environmentCorridor.js';
+import {createCinematicGrounding} from './cinematicGrounding.js';
 
 // clearHorizon contract: mountains stay on left/right sides outside the central exclusion corridor; recycled scenery preserves side assignment.
 
@@ -137,28 +140,6 @@ function makeSnowLayer(count,size,opacity,xSpread,zMin,zMax,speedBase,ground=fal
   };
 }
 
-function makeContactShadow(scene){
-  const size=64,data=new Uint8Array(size*size*4);
-  for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const r=Math.hypot((x+.5)/size*2-1,(y+.5)/size*2-1);
-    const i=(y*size+x)*4;data[i]=data[i+1]=data[i+2]=255;
-    data[i+3]=Math.pow(Math.max(0,1-r*r),2)*255;
-  }
-  const map=new THREE.DataTexture(data,size,size);map.magFilter=THREE.LinearFilter;map.needsUpdate=true;
-  const material=new THREE.MeshBasicMaterial({
-    color:0x385f76,map,
-    transparent:true,
-    opacity:.18,
-    depthWrite:false
-  });
-  const shadow=new THREE.Mesh(new THREE.CircleGeometry(.62,28),material);
-  shadow.rotation.x=-Math.PI/2;
-  shadow.scale.set(1.45,.52,1);
-  shadow.renderOrder=8;
-  scene.add(shadow);
-  return shadow;
-}
-
 export function decorateCourseObject(root,kind){
   if(!root||root.userData.environmentDecorated)return root;
   root.userData.environmentDecorated=true;
@@ -188,8 +169,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
   const atmosphere=new THREE.Group();
   scene.add(atmosphere);
+  const biomeDirector=createAlpineBiomeDirector();
   const landscape=createAlpineLandscape({world,atmosphere,terrainHeight});
   const infrastructure=createAlpineInfrastructure({world,terrainHeight});
+  const landmarks=createAlpineLandmarks({world,terrainHeight,biomeDirector});
   const ambient=new THREE.HemisphereLight(0xffffff,0x818486,1.34);
   scene.add(ambient);
 
@@ -255,8 +238,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     woodTexture:_barkTexture,
     decorativeShadows:false
   });
-  const contactShadow=makeContactShadow(scene);
-  contactShadow.visible=false;
+  const contactGrounding=createCinematicGrounding({scene});
   const dayCycle=createDayCycle({
     scene,sky,fog:scene.fog,hemisphere:ambient,sun,rim,fill,snowMaterials,atmosphere
   });
@@ -266,6 +248,7 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
   function setQualityProfile(overrides={}){
     const input=overrides||{};
     if(input.profile)environmentProfileName=String(input.profile);
+    contactGrounding.setProfile({...input,profile:environmentProfileName});
     if(Number.isFinite(Number(input.distantSceneryUpdateHz))){
       distantSceneryUpdateHz=Math.max(0,Number(input.distantSceneryUpdateHz));
       distantSceneryInterval=distantSceneryUpdateHz>0?1/distantSceneryUpdateHz:0;
@@ -301,8 +284,10 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     snowMaterials.setDetailLevel(environmentQuality.snowDetailLevel);
     boundaryMarkers.setDecorativeShadows(false);
     sky.material.uniforms.sceneryDetail.value=environmentQuality.distantSceneryDetail;
+    biomeDirector.setDetail(environmentQuality.distantSceneryDetail);
     landscape.setDetail(environmentQuality.distantSceneryDetail);
     infrastructure.setDetail(environmentQuality.distantSceneryDetail);
+    landmarks.setDetail(environmentQuality.distantSceneryDetail);
     return getQualityProfile();
   }
   function getQualityProfile(){
@@ -326,8 +311,12 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
       activeSnowLayerParticles:snowLayers.reduce((sum,layer)=>sum+(layer.activeCount??layer.count),0),
       realtimeDirectionalLights:3,
       dynamicSceneryFrustumCulled:true,
+      contactGrounding:contactGrounding.getDiagnostics?.()||null,
       landscape:landscape.getDiagnostics?.()||null,
       infrastructure:infrastructure.getDiagnostics?.()||null,
+      biomes:biomeDirector.getDiagnostics?.()||null,
+      landmarks:landmarks.getDiagnostics?.()||null,
+      flybys:ambientFlybys.getDiagnostics?.()||null,
       snowParticlePool:snowParticles.getDiagnostics?.()||{densityScale:snowParticles.getDensityMultiplier?.()},
       snowSurfaceDetail:surfaceDetail.getDiagnostics?.()||{detailLevel:surfaceDetail.getDetailLevel?.()}
     };
@@ -384,18 +373,26 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
     surfaceDetail.reset();
     boundaryMarkers.reset();
     ambientFlybys.reset();
+    biomeDirector.reset();
     landscape.reset();
     infrastructure.reset();
-    contactShadow.position.y=-100;
-    contactShadow.visible=false;
-    contactShadow.material.opacity=.18;
-    contactShadow.scale.set(1.45,.52,1);
+    landmarks.reset();
+    contactGrounding.reset();
     dayCycle.apply(0);
     snowMaterials.setTravel(0);
+  }
+  function setWeatherState(weather={},runState={}){
+    biomeDirector.setWeatherState(weather);
+    landmarks.setWeatherState(weather);
+    infrastructure.setWeatherState?.(weather);
+    ambientFlybys.setConditions?.(weather,runState);
+    sky.userData.setWeatherState?.(weather);
+    return weather;
   }
   function update(dt,worldSpeed,playerX,playerY,playerZ,speed,edge,air,landingPulse,running=true,groundY=playerY,runTime=time,rideMode='ski',rideContacts=null){
     time+=dt;
     visualTravel+=worldSpeed*dt;
+    const biomePresentation=biomeDirector.update(visualTravel,runTime);
     sky.position.copy(camera.position);
     sky.material.uniforms.time.value=time;
     dayCycle.apply(runTime);
@@ -417,7 +414,9 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
     const speed01=getSpeedFeel(speed);
     if(refreshScenery){
+      landscape.setPresentation(biomePresentation);
       landscape.update(sceneryStep,worldSpeed);
+      landmarks.update(sceneryStep,worldSpeed);
       for(let i=0;i<activeBankCount;i++){
         const e=banks.entries[i];e.z+=worldSpeed*sceneryStep;
         if(e.z>22){resetBank(e,i,true);e.z=-218-wave(time+i)*50;}
@@ -475,22 +474,26 @@ export function createSkiEnvironment({scene,world,renderer,camera,quality={}}){
 
     boundaryMarkers.update(dt,worldSpeed);
 
-    const jumpHeight=Math.max(0,playerY-groundY);
-    const heightFade=THREE.MathUtils.clamp(1-jumpHeight/4.6,0,1);
-    const landingAccent=1+THREE.MathUtils.clamp(landingPulse,0,1)*.13;
-    contactShadow.visible=false;
-    contactShadow.position.set(playerX,Math.max(.006,groundY+.012),playerZ+.02);
-    const targetShadowOpacity=.205*heightFade*(air?.84:1)*landingAccent;
-    contactShadow.material.opacity=THREE.MathUtils.lerp(contactShadow.material.opacity,targetShadowOpacity,1-Math.pow(.0009,dt));
-    const airborneSpread=1+THREE.MathUtils.clamp(jumpHeight/4.6,0,1)*.58;
-    contactShadow.scale.set(1.42*airborneSpread*landingAccent,.50*airborneSpread,1);
+    contactGrounding.update({
+      dt,
+      x:playerX,
+      y:playerY,
+      z:playerZ,
+      groundY,
+      air,
+      landingPulse,
+      running,
+      rideMode
+    });
   }
 
   return {
-    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail,infrastructure},
+    weatherBindings:{sky,snowLayers,sun,ambient,rim,fill,snowMaterials,atmosphere,snowParticles,surfaceDetail,infrastructure,landmarks,biomeDirector,ambientFlybys},
     update,
     reset,
+    setWeatherState,
     ambientFlybys,
+    contactGrounding,
     setQualityProfile,
     getQualityProfile,
     applyQuality,

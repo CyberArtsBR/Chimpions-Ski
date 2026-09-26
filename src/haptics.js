@@ -11,9 +11,12 @@ export const HAPTIC_PATTERNS=Object.freeze({
   speedTier:Object.freeze({duration:58,weakMagnitude:.14,strongMagnitude:.20}),
   newBest:Object.freeze({duration:120,weakMagnitude:.28,strongMagnitude:.42}),
   rampTakeoff:Object.freeze({duration:58,weakMagnitude:.18,strongMagnitude:.28}),
+  landTiny:Object.freeze({duration:30,weakMagnitude:.075,strongMagnitude:.10}),
   landSoft:Object.freeze({duration:44,weakMagnitude:.12,strongMagnitude:.20}),
-  landClean:Object.freeze({duration:66,weakMagnitude:.20,strongMagnitude:.32}),
-  landHard:Object.freeze({duration:112,weakMagnitude:.42,strongMagnitude:.68}),
+  landClean:Object.freeze({duration:62,weakMagnitude:.19,strongMagnitude:.30}),
+  landSolid:Object.freeze({duration:78,weakMagnitude:.27,strongMagnitude:.42}),
+  landRough:Object.freeze({duration:94,weakMagnitude:.35,strongMagnitude:.55}),
+  landHard:Object.freeze({duration:118,weakMagnitude:.44,strongMagnitude:.70}),
   trick360Start:Object.freeze({duration:44,weakMagnitude:.12,strongMagnitude:.19}),
   trickBackflipStart:Object.freeze({duration:62,weakMagnitude:.16,strongMagnitude:.31}),
   trick360Success:Object.freeze({duration:72,weakMagnitude:.24,strongMagnitude:.38}),
@@ -134,8 +137,6 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
     const step=Math.max(0,Math.min(.1,Number(dt)||0));
     eventLock=Math.max(0,eventLock-step);
     continuousClock+=step;
-    if(continuousClock<CONTINUOUS_INTERVAL)return false;
-    continuousClock=0;
 
     if(feel.mode!=='playing'||feel.air)return false;
 
@@ -144,19 +145,29 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
     const baseSpeed=Math.max(1,Number(feel.baseSpeed)||41.6667);
     const speedProgress=clamp((speed-baseSpeed)/Math.max(.001,maxSpeed-baseSpeed));
     const carve=clamp(Math.abs(Number(feel.edge)||0));
+    const carveLoad=clamp(Math.abs(Number(feel.carveLoad)||carve));
+    const brake=clamp(Number(feel.brakeAmount)||0);
+    const tuck=clamp(Number(feel.tuckAmount)||0);
+    const cadence=.102-speedProgress*.040-Math.max(carve,carveLoad)*.010;
+    if(continuousClock<Math.max(.050,cadence))return false;
+    continuousClock=0;
+
     const terrain=clamp(Math.abs(Number(feel.groundRoll)||0)*2.6+Math.abs(Number(feel.groundPitch)||0)*1.1);
     const oilActive=Number(feel.oilSlipTime)>0;
     const time=Number(feel.time)||0;
 
     if(eventLock>0)return false;
 
-    let weak=.035+speedProgress*.060+carve*.095+terrain*.035;
-    let strong=.025+speedProgress*.052+carve*.070+terrain*.055;
+    const edgeEnergy=clamp(carve*.58+carveLoad*.42+brake*.20);
+    let weak=.032+speedProgress*.070+edgeEnergy*.105+terrain*.035;
+    let strong=.023+speedProgress*.060+edgeEnergy*.078+terrain*.058;
+    weak*=1-tuck*.055;
+    strong*=1-tuck*.035;
 
-    if(speedProgress>.96){
-      const maxBlend=clamp((speedProgress-.96)/.04);
-      weak+=.025*maxBlend;
-      strong+=.035*maxBlend;
+    if(speedProgress>.92){
+      const maxBlend=clamp((speedProgress-.92)/.08);
+      weak+=.035*maxBlend;
+      strong+=.045*maxBlend;
     }
     if(oilActive){
       const wobble=.5+.5*Math.sin(time*31);
@@ -164,9 +175,9 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
       strong+=.045+.035*(1-wobble);
     }
 
-    weak=clamp(weak,0,.32);
-    strong=clamp(strong,0,.30);
-    return play({duration:96,weakMagnitude:weak,strongMagnitude:strong},{lock:false});
+    weak=clamp(weak,0,.34);
+    strong=clamp(strong,0,.32);
+    return play({duration:84,weakMagnitude:weak,strongMagnitude:strong},{lock:false});
   }
 
   function menuMove(intensity=1){return play(HAPTIC_PATTERNS.menuMove,{lock:false,intensity});}
@@ -181,9 +192,12 @@ export function createHaptics({getActiveGamepad=null,enabled=true}={}){
   function rampTakeoff(intensity=1){return play(HAPTIC_PATTERNS.rampTakeoff,{intensity});}
   function land(impact=0,quality='normal'){
     const amount=clamp(Number(impact)||0);
-    const intensity=clamp(.45+amount*.55);
-    if(quality==='hard'||amount>=.72)return play(HAPTIC_PATTERNS.landHard,{intensity});
-    if(quality==='clean'||amount>=.35)return play(HAPTIC_PATTERNS.landClean,{intensity});
+    const intensity=clamp(.38+amount*.62);
+    if(quality==='hard'||amount>=.80)return play(HAPTIC_PATTERNS.landHard,{intensity});
+    if(amount<.16)return play(HAPTIC_PATTERNS.landTiny,{intensity:.72+amount});
+    if(quality==='rough'||amount>=.61)return play(HAPTIC_PATTERNS.landRough,{intensity});
+    if(quality==='solid'||amount>=.39)return play(HAPTIC_PATTERNS.landSolid,{intensity});
+    if(quality==='clean'||amount>=.24)return play(HAPTIC_PATTERNS.landClean,{intensity});
     return play(HAPTIC_PATTERNS.landSoft,{intensity});
   }
   function trickStart(type,intensity=1){

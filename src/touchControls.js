@@ -21,10 +21,10 @@ export function createTouchControls({
       <div class="touch-steer-base"><div class="touch-steer-knob" id="touch-steer-knob"></div></div>
       <span>STEER</span>
     </div>
-    <div class="touch-action-cluster" aria-label="Jump and trick controls">
+    <div class="touch-action-cluster" aria-label="Jump, trick and style controls">
       <button type="button" class="touch-action touch-trick" data-touch-trick="360" aria-label="360 trick">360</button>
       <button type="button" class="touch-action touch-trick" data-touch-trick="backflip" aria-label="Backflip trick">FLIP</button>
-      <button type="button" class="touch-action touch-speed" id="touch-tuck" aria-label="Tuck for speed">TUCK</button>
+      <button type="button" class="touch-action touch-speed" id="touch-tuck" aria-label="Tuck for speed; hold in air for style">TUCK / STYLE</button>
       <button type="button" class="touch-action touch-speed" id="touch-brake" aria-label="Brake and skid">BRAKE</button>
       <button type="button" class="touch-action touch-jump" id="touch-jump" aria-label="Jump">JUMP</button>
     </div>

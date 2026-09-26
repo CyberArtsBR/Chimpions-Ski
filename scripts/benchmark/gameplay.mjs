@@ -6,7 +6,7 @@ async function completeStartSelectionIfNeeded(page){
     await page.waitForFunction(()=>{
       const d=window.chimpionsSki?.();
       return d?.mode==='playing'||document.querySelector('#chimpion-selector')?.open===true;
-    },undefined,{timeout:5000});
+    },undefined,{timeout:CONFIG.readyTimeoutMs});
   }catch{return {status:'PENDING',reason:'Start flow did not reach gameplay or open the selector'};}
 
   const mode=await readDiagnostics(page);
@@ -26,7 +26,7 @@ async function completeStartSelectionIfNeeded(page){
     await page.waitForFunction(()=>{
       const step=document.querySelector('#ride-mode-step');
       return !!step&&!step.hidden;
-    },undefined,{timeout:5000});
+    },undefined,{timeout:CONFIG.readyTimeoutMs});
   }catch{return {status:'PENDING',reason:'Ride-mode step did not open after selecting a Chimpion'};}
 
   const ride=await page.evaluate(()=>{
@@ -42,6 +42,19 @@ async function completeStartSelectionIfNeeded(page){
     return {ok:true,rideMode};
   });
   if(!ride.ok)return {status:'PENDING',reason:ride.reason};
+  // A fresh browser profile opens the first-run tutorial after ride selection.
+  // Finish that user-visible step before waiting for the countdown/play state.
+  try{
+    await page.waitForFunction(()=>{
+      const tutorial=document.querySelector('.session-tutorial');
+      const mode=window.chimpionsSki?.().mode;
+      return (tutorial&&!tutorial.hidden)||mode==='countdown'||mode==='playing';
+    },undefined,{timeout:CONFIG.readyTimeoutMs});
+    if(await page.evaluate(()=>{
+      const tutorial=document.querySelector('.session-tutorial');
+      return !!tutorial&&!tutorial.hidden;
+    }))await page.keyboard.press('Enter');
+  }catch{return {status:'PENDING',reason:'Ride selection did not open tutorial or countdown'};}
   return {status:'PASS',selectionRequired:true,avatarId:avatar.avatarId,rideMode:ride.rideMode};
 }
 
@@ -337,4 +350,3 @@ export function modeComparison(ski,snowboard){
     }
   };
 }
-

@@ -10,3 +10,6 @@ assert(source.includes("aimLimbFromRest(side+'UpperArm'"),'upper arms are aimed 
 assert(source.includes("aimLimbFromRest(side+'Forearm'"),'forearms are aimed from GLB rest pose');
 assert(source.includes("applyArmRestDelta(side+'Hand',0,0,0"),'hands keep the authored neutral wrist orientation');
 assert(source.includes('resetArmChainToRest()'),'ride-mode changes can restore the complete arm chain');
+assert(source.includes('const styleHand=styleReach*(sideSign===pose.styleSide?1:0)'),'style hold uses a directional arm reach without requiring hand IK');
+assert(source.includes('const coupling=snowboardMode?pose.legCoupling:0'),'snowboard leg coupling is applied separately from ski independent loading');
+assert(source.includes("applyArmRestDelta(side+'Hand',0,0,0"),'optional hands remain authored-neutral when present and are never required for playability');
