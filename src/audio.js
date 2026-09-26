@@ -81,8 +81,12 @@ export function createSkiAudio(){
     const media=ensureJumpMusic({load:needsMusic});
     if(!media)return false;
     const playing=settings.musicEnabled&&jumpMusicReady&&!jumpMusicFailed;
-    const levelBase=mode==='playing'?.38:mode==='countdown'?.22:mode==='paused'?.08:mode==='crashed'?.07:.16;
-    const level=levelBase*(pendingState.specialActive?.58:1);
+    const speed01=getRideSpeedFeel(pendingState.speed,rideMode);
+    const air=!!pendingState.air;
+    const levelBase=mode==='playing'
+      ?(air?.42:.34-speed01*.09)
+      :mode==='countdown'?.22:mode==='paused'?.08:mode==='crashed'?.07:.16;
+    const level=Math.max(.18,levelBase)*(pendingState.specialActive?.58:1);
     media.volume=playing?clamp(settings.master*settings.music*level):0;
     if(playing&&media.paused)media.play().catch(()=>{});
     if(!playing&&!media.paused)media.pause();
@@ -447,6 +451,11 @@ export function createSkiAudio(){
       air
     });
     const carve=carveFeedback.intensity;
+    const skid=clamp(Number(pendingState.skidAmount)||0);
+    const brake=clamp(Number(pendingState.brakeAmount)||0);
+    const tuck=clamp(Number(pendingState.tuckAmount)||0);
+    const speedEnergy=Math.pow(speed01,.72);
+    const ferocity=Math.pow(speed01,2.35);
     lastSemanticFeedback={...lastSemanticFeedback,carve:carveFeedback};
     const mode=pendingState.mode||'menu';
     const running=mode==='playing';
@@ -454,12 +463,12 @@ export function createSkiAudio(){
     const response=instant?.01:.09;
 
     const rampAir=air&&pendingState.jumpSource==='ramp';
-    const contact=air?0:(running?(0.024+speed01*.058+carve*.032)*profile.contactGain:0);
-    const edge=air?0:(running?carve*(.014+speed01*.072)*profile.carveGain:0);
-    const boardScrape=air?0:(running?carve*(.010+speed01*.038)*profile.snowboardScrapeGain:0);
-    const airWind=air?(rampAir?.058:.038):0;
-    const wind=(running?(0.014+speed01*.076+airWind):countdown?.006:0)*profile.windGain;
-    const musicBase=running?.13:countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
+    const contact=air?0:(running?(0.022+speedEnergy*.060+carve*.034+skid*.018+brake*.010)*(1-tuck*.06)*profile.contactGain:0);
+    const edge=air?0:(running?(carve*(.014+speedEnergy*.078)+skid*.017+brake*.010)*profile.carveGain:0);
+    const boardScrape=air?0:(running?(carve*(.010+speedEnergy*.043)+skid*.020)*profile.snowboardScrapeGain:0);
+    const airWind=air?(rampAir?.070:.052):0;
+    const wind=(running?(0.014+speedEnergy*.080+ferocity*.034+airWind):countdown?.006:0)*profile.windGain;
+    const musicBase=running?(air?.145:Math.max(.075,.118-speed01*.030)):countdown?.07:mode==='paused'?.025:mode==='crashed'?.018:.035;
     const intensity=clamp(pendingState.intensity??speed01);
     const usingJumpMusic=syncJumpMusic(mode);
 
@@ -467,11 +476,11 @@ export function createSkiAudio(){
     setTarget(graph.carveGain.gain,edge,response);
     setTarget(graph.boardScrapeGain.gain,boardScrape,response);
     setTarget(graph.windGain.gain,wind,response);
-    setTarget(graph.contactFilter.frequency,(560+speed01*720+carve*300)*profile.contactFrequencyScale,.12);
-    setTarget(graph.carveFilter.frequency,(980+carve*1280+speed01*520)*profile.carveFrequencyScale,.10);
-    setTarget(graph.carveFilter.Q,profile.carveQ,.12);
-    setTarget(graph.boardScrapeFilter.frequency,360+speed01*420+carve*260,.12);
-    setTarget(graph.windFilter.frequency,620+speed01*1640+(air?(rampAir?460:300):0),.20);
+    setTarget(graph.contactFilter.frequency,(520+speedEnergy*820+carve*340+skid*180)*profile.contactFrequencyScale,.12);
+    setTarget(graph.carveFilter.frequency,(920+carve*1440+speedEnergy*610+skid*220)*profile.carveFrequencyScale,.10);
+    setTarget(graph.carveFilter.Q,profile.carveQ+skid*.08,.12);
+    setTarget(graph.boardScrapeFilter.frequency,340+speedEnergy*500+carve*300+skid*240,.12);
+    setTarget(graph.windFilter.frequency,600+speedEnergy*1840+ferocity*760+(air?(rampAir?560:360):0),.18);
     setTarget(graph.worldFilter.frequency,specialActive?1380:14000,specialActive?.08:.22);
     setTarget(graph.musicFilter.frequency,specialActive?920:1250+intensity*1100,specialActive?.10:.28);
     // Keep the procedural bed as a graceful fallback if the bundled local Chimp Jump track cannot play.
@@ -503,7 +512,9 @@ export function createSkiAudio(){
     const variation=type==='go'?0:type==='crash'?.035:type==='deathCry'?.022:type==='banana'?.055:type==='jump'?.04:type==='clear'?.012:
       type.startsWith('trick')?.012:.03;
     source.playbackRate.value=clamp(rateScale,.72,1.65)*(1+(Math.random()*2-1)*variation);
-    amp.gain.value=Math.min(1.08,Math.max(0,gain));
+    const gainVariation=type==='go'?0:type==='crash'?.018:type==='deathCry'?.012:type==='banana'?.022:type==='nearMiss'?.030:type.startsWith('trick')?.014:.024;
+    const gainJitter=1+(Math.random()*2-1)*gainVariation;
+    amp.gain.value=Math.min(1.08,Math.max(0,gain*gainJitter));
     source.connect(amp);
     if(panner){
       panner.pan.value=clamp(pan,-1,1);
@@ -662,7 +673,9 @@ export function createSkiAudio(){
     }
     const stamp=context.currentTime;if(stamp-lastWeatherUpdate<.12)return;lastWeatherUpdate=stamp;
     const audible=globalThis.document?.hidden||mode==='paused'?0:1;
-    setTarget(weatherGraph.rain.gain,weather.rain*.13*audible,.3);setTarget(weatherGraph.wind.gain,weather.wind*.05*audible,.5);
+    const speed01=getRideSpeedFeel(pendingState.speed,rideMode);
+    const hierarchyDuck=Math.max(.46,1-speed01*.44+(pendingState.air?.08:0));
+    setTarget(weatherGraph.rain.gain,weather.rain*.12*hierarchyDuck*audible,.3);setTarget(weatherGraph.wind.gain,weather.wind*.045*hierarchyDuck*audible,.5);
   }
   function playWeatherThunder(){
     if(!graph||!context||!weatherNoise||!settings.sfxEnabled||globalThis.document?.hidden)return;

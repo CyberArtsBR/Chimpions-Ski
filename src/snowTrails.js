@@ -137,7 +137,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     alphas.fill(0,index*VERTICES_PER_SEGMENT,(index+1)*VERTICES_PER_SEGMENT);
   }
 
-  function writeSegment(skiIndex,x,z,edge,travel,snowboard=false){
+  function writeSegment(skiIndex,x,z,edge,travel,snowboard=false,brakeAmount=0,skidAmount=0,tuckAmount=0,snowDisplacementScale=1){
     const base=skiIndex*capacity;
     const index=base+cursors[skiIndex];
     cursors[skiIndex]=(cursors[skiIndex]+1)%capacity;
@@ -148,17 +148,23 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     const carve=Math.abs(edge);
     const outside=Math.max(0,-sideSign*edge);
     const speed01=THREE.MathUtils.clamp((currentSpeed-35)/50,0,1);
-    const halfWidth=snowboard
-      ?.205+carve*.082
-      :(.045+carve*.012+outside*.009);
+    const brake=THREE.MathUtils.clamp(Number(brakeAmount)||0,0,1);
+    const skid=THREE.MathUtils.clamp(Number(skidAmount)||0,0,1);
+    const tuck=THREE.MathUtils.clamp(Number(tuckAmount)||0,0,1);
+    const displacement=THREE.MathUtils.clamp(Number(snowDisplacementScale)||1,.72,1.45);
+    const looseSnow=THREE.MathUtils.clamp(skid*.72+brake*.48+(1-tuck)*.06,0,1);
+    const halfWidth=(snowboard
+      ?.205+carve*.092+looseSnow*.060
+      :(.045+carve*.014+outside*.011+looseSnow*.009))*displacement;
     const normalX=-dz/length,normalZ=dx/length;
-    const outerWidth=halfWidth*(snowboard?1.8:2.0);
-    const bermHeight=(snowboard?.080:.036)+carve*(snowboard?.098:.052)+speed01*(snowboard?.018:.008);
-    const strength=snowboard
-      ?.80+carve*.14+speed01*.04
-      :.70+carve*.17+outside*.07+speed01*.035;
-    lifetimes[index]=TRACK_LIFE*(.82+speed01*.32+carve*.10);
-    fadeStarts[index]=2.15+speed01*.65+carve*.30;
+    const outerWidth=halfWidth*(snowboard?1.84:2.04);
+    const loadedDrive=snowboard?carve:outside;
+    const bermHeight=((snowboard?.084:.037)+carve*(snowboard?.108:.058)+speed01*(snowboard?.022:.010)+loadedDrive*.014+looseSnow*.018)*displacement;
+    const strength=(snowboard
+      ?.79+carve*.17+speed01*.065+looseSnow*.055
+      :.69+carve*.19+outside*.095+speed01*.050+looseSnow*.045)*THREE.MathUtils.lerp(.92,1.08,displacement-.72);
+    lifetimes[index]=TRACK_LIFE*(.82+speed01*.36+carve*.12)*(1-looseSnow*.06);
+    fadeStarts[index]=2.05+speed01*.78+carve*.34+looseSnow*.12;
     const v=index*VERTICES_PER_SEGMENT;
     for(let row=0;row<2;row++){
       const cx=row?x:prevX[skiIndex],cz=row?z:prevZ[skiIndex];
@@ -167,7 +173,9 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
         const px=cx+normalX*side*outerWidth,pz=cz+normalZ*side*outerWidth;
         const broken=.86+.14*Math.sin(px*19.7+(pz-travel)*10.3+skiIndex*2.7);
         const loadedSide=snowboard?-Math.sign(edge||1):0;
-        const edgeLoad=snowboard?THREE.MathUtils.clamp(.62+.38*side*loadedSide,.28,1):1;
+        const edgeLoad=snowboard
+          ?THREE.MathUtils.clamp(.58+.42*side*loadedSide,.22,1)
+          :THREE.MathUtils.clamp(.76+outside*.30+carve*.06,.76,1.08);
         const crest=edgeDistance>.70&&edgeDistance<.85?bermHeight*broken*edgeLoad:0;
         const wall=edgeDistance>.50&&edgeDistance<.70?bermHeight*.24*edgeLoad:0;
         const compression=snowboard?(1-edgeDistance)*(.018+carve*.018):Math.max(0,1-edgeDistance*1.9)*(.010+carve*.014);
@@ -184,7 +192,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
     strengths[index]=strength;
   }
 
-  function emit({x,z,travel,heading=0,edge=0,spacing=.245,skis,rideMode='ski'}){
+  function emit({x,z,travel,heading=0,edge=0,spacing=.245,skis,rideMode='ski',brakeAmount=0,skidAmount=0,tuckAmount=0,snowDisplacementScale=1}){
     const c=Math.cos(heading);
     const s=Math.sin(heading);
     const snowboard=rideMode==='snowboard';
@@ -202,7 +210,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
         sx=(contact.x+contactB.x)*.5;
         sz=(contact.z+contactB.z)*.5;
       }
-      if(hasPrev[0])writeSegment(0,sx,sz,edge,travel,true);
+      if(hasPrev[0])writeSegment(0,sx,sz,edge,travel,true,brakeAmount,skidAmount,tuckAmount,snowDisplacementScale);
       prevX[0]=sx;prevZ[0]=sz;hasPrev[0]=1;
       // Slot 1 is reserved for the second ski groove and must stay broken
       // while riding a snowboard.
@@ -217,7 +225,7 @@ export function createSkiTrails({world,terrainHeight,capacity=192}){
         }
         const sx=ski?contact.x:x+sideSign*spacing*c;
         const sz=ski?contact.z:z+.48+sideSign*spacing*s;
-        if(hasPrev[skiIndex])writeSegment(skiIndex,sx,sz,edge,travel,false);
+        if(hasPrev[skiIndex])writeSegment(skiIndex,sx,sz,edge,travel,false,brakeAmount,skidAmount,tuckAmount,snowDisplacementScale);
         prevX[skiIndex]=sx;
         prevZ[skiIndex]=sz;
         hasPrev[skiIndex]=1;

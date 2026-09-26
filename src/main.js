@@ -1289,6 +1289,7 @@ function update(dt,frameMs=dt*1000){
           rideMode:state.rideMode,
           skidAmount:state.skidRatio,
           brakeAmount:state.brakeAmount,
+          tuckAmount:state.tuckAmount,
           snowDisplacementScale:getRideProfile(state.rideMode).snowDisplacementScale
         });
         const trailQualityScale=quality.active==='low'?1.65:quality.active==='medium'?1.28:1;
@@ -1333,7 +1334,18 @@ function update(dt,frameMs=dt*1000){
         radiusX,
         paddingX:SKI_TUNING.COURSE_COLLISION_PADDING_X
       });
-      if(nearMissEvent)feedback.onNearMiss?.(nearMissEvent);
+      if(nearMissEvent){
+        feedback.onNearMiss?.(nearMissEvent);
+        environment.weatherBindings?.snowParticles?.nearMiss?.({
+          x:state.x,
+          y:state.y,
+          z:player.position.z,
+          intensity:nearMissEvent.intensity,
+          side:Math.sign(item.position.x-state.x)||1,
+          speed:state.speed,
+          rideMode:state.rideMode
+        });
+      }
 
       performanceTelemetry.increment('collisionChecks',1);
       if(dz>radiusZ+SKI_TUNING.COURSE_COLLISION_PADDING_Z||dx>radiusX+SKI_TUNING.COURSE_COLLISION_PADDING_X)continue;
@@ -1552,6 +1564,9 @@ function update(dt,frameMs=dt*1000){
     baseSpeed:state.baseSpeed,
     maxSpeed:state.maxSpeed,
     edge:state.edge,
+    carveLoad:state.carveLoad,
+    brakeAmount:state.brakeAmount,
+    tuckAmount:state.tuckAmount,
     air:state.air,
     oilSlipTime:state.oilSlipTime,
     groundRoll:state.groundRoll,
