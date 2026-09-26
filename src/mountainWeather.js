@@ -41,6 +41,7 @@ export function createMountainWeather({app,scene,camera,renderer,environment,aud
   }
   function update(dt,state){
     const w=controller.update(dt);rendererWeather.update(dt,state,w);
+    environment.setWeatherState?.(w,state);
     const wet=THREE.MathUtils.clamp(Number(w.wet)||0,0,1);
     fill.color.copy(w.ambient).lerp(lightningTint,w.flash*.10);fill.intensity=.25+w.night*.14+w.flash*.16;
     snowMaterials.setWeatherState?.(w);snowMaterials.setWetness?.(wet);
