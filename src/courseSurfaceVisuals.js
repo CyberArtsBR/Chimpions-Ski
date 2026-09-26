@@ -11,7 +11,7 @@ function oilSurface(){
   const {visualScaleX:sx,visualScaleZ:sz}=OBSTACLE_TUNING.oil;
   for(let ring=1;ring<=rings;ring++)for(let i=0;i<segments;i++){
     const a=i/segments*Math.PI*2,t=ring/rings;
-    const contour=.90+.085*Math.sin(a*3+.6)+.065*Math.sin(a*5-1.2)+.040*Math.cos(a*2+.8);
+    const contour=THREE.MathUtils.clamp(.90+.085*Math.sin(a*3+.6)+.065*Math.sin(a*5-1.2)+.040*Math.cos(a*2+.8),.84,1.02);
     const x=Math.cos(a)*sx*contour*t,z=Math.sin(a)*sz*contour*t;
     // Broad broken streaks and a slightly lifted ragged perimeter stay legible
     // in snow/rain without turning the oil into a chrome mirror.
