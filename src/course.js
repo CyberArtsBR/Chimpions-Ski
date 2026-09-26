@@ -3,6 +3,8 @@ import {OBSTACLE_TUNING,obstacleCollisionHalfWidth,obstacleHalfDepth} from './ob
 import {JUMP_SECTION_CONTRACT,calculateJumpSectionContract} from './courseSectionContract.js';
 import {createSafeRouteTracker,maxHumanReachableLateralDelta,validateReachableCorridor} from './courseSafety.js';
 import {createExpertRunDirector} from './courseRunDirector.js';
+import {createCourseRhythmDirector} from './courseRhythmDirector.js';
+import {createCourseSetPieceDirector} from './courseSetPieceDirector.js';
 import {
   COURSE_OBJECT_COLLISION_HALF_WIDTH,
   FLAG_VISUAL_MARGIN,
@@ -83,6 +85,7 @@ export function getCourseDifficulty(distance=0,speed=T.BASE_SPEED){
 export function createCourseDirector({routeCenter,random:externalRandom=Math.random,seed=null}){
   let runSeed=seed==null?null:String(seed);
   let random=runSeed==null?externalRandom:createSeededRandom(runSeed);
+  let setPieceRandom=createSeededRandom(`setpiece:${runSeed??externalRandom()}`);
   let lastType='RECOVERY';
   let sectionIndex=0;
   let recentBands=[3];
@@ -94,13 +97,19 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   let denseFormationStreak=0;
   const safeRoute=createSafeRouteTracker(0,null);
   const runDirector=createExpertRunDirector({random:()=>random()});
+  const rhythmDirector=createCourseRhythmDirector({random:()=>random()});
+  const setPieceDirector=createCourseSetPieceDirector({random:()=>setPieceRandom()});
 
   // Bands guide macro route choices only. Physical hazards themselves are
   // placed continuously so the player cannot memorize a seven-column grid.
   const bands=[-1,-.68,-.34,0,.34,.68,1];
+  // Preserve an authored opening cadence without making the first minute a
+  // memorized fixed track. Each slot stays within the original section
+  // vocabulary and the seeded RNG makes the variation deterministic.
   const opening=[
-    'OPEN CARVE','BANANA LINE','GATE','FOREST',
-    'LOG JUMP','RECOVERY','ROCK SLALOM','OPEN CARVE','GATE','RAMP','RECOVERY'
+    ['OPEN CARVE'],
+    ['BANANA LINE','GATE'],
+    ['GATE','OPEN CARVE']
   ];
 
   const rand=(min,max)=>min+(max-min)*random();
@@ -758,9 +767,51 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     return {type:'movement-bait',count};
   }
 
-  function chooseType(difficulty,runPlan=null){
-    if(sectionIndex<opening.length)return opening[sectionIndex];
+  function tuneRunPlanForRhythm(runPlan,rhythmPlan){
+    if(!runPlan||!rhythmPlan)return runPlan;
+    const budget=runPlan.threatBudget||{};
+    const scaledBudget={
+      ...budget,
+      target:clamp((Number(budget.target)||0)*(rhythmPlan.threatBudgetScale??1),0,1),
+      maxCost:Math.max(4,(Number(budget.maxCost)||0)*(rhythmPlan.threatBudgetScale??1)),
+      maxOptionalHazards:Math.max(
+        rhythmPlan.beat==='RECOVER'?0:1,
+        Math.round((Number(budget.maxOptionalHazards)||0)*(rhythmPlan.optionalHazardScale??1))
+      ),
+      reactionSpacingScale:clamp(
+        (Number(budget.reactionSpacingScale)||1)+(rhythmPlan.reactionSpacingBonus??0),
+        JUMP_SECTION_CONTRACT.reactionSpacingScaleMin,
+        JUMP_SECTION_CONTRACT.reactionSpacingScaleMax
+      ),
+      routeCommitment:clamp(
+        (Number(budget.routeCommitment)||0)*(rhythmPlan.routeCommitmentScale??1),
+        .20,
+        .94
+      ),
+      rewardBias:clamp(
+        Math.max(Number(budget.rewardBias)||0,Number(rhythmPlan.rewardBias)||0),
+        0,
+        1
+      )
+    };
+
+    return {
+      ...runPlan,
+      intensity:clamp((Number(runPlan.intensity)||0)*(rhythmPlan.intensityScale??1),.08,1),
+      expertPressure:clamp((Number(runPlan.expertPressure)||0)*(rhythmPlan.threatBudgetScale??1),0,1),
+      threatBudget:scaledBudget,
+      rhythmBeat:rhythmPlan.beat,
+      rhythmMotif:rhythmPlan.motif
+    };
+  }
+
+  function chooseType(difficulty,runPlan=null,rhythmPlan=null){
+    if(sectionIndex<opening.length){
+      const choices=opening[sectionIndex];
+      return choices[Math.floor(random()*choices.length)]||choices[0]||'OPEN CARVE';
+    }
     if(lastType==='RAMP'||lastType==='LOG JUMP')return 'RECOVERY';
+    if(rhythmPlan?.forceType)return rhythmPlan.forceType;
     if(runPlan?.phase==='RECOVERY')return 'RECOVERY';
 
     const transitions={
@@ -783,6 +834,16 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         ?runPlan.preferredSections.filter(type=>type!=='RAMP'&&type!=='LOG JUMP')
         :runPlan.preferredSections;
       for(let repeat=0;repeat<repeats;repeat++)options.push(...(preferred.length?preferred:runPlan.preferredSections));
+    }
+    if(rhythmPlan?.preferredSections?.length){
+      const rhythmRepeats=rhythmPlan.beat==='EXECUTE'?3:2;
+      for(let repeat=0;repeat<rhythmRepeats;repeat++)options.push(...rhythmPlan.preferredSections);
+      if(rhythmPlan.beat==='REWARD'&&rhythmPlan.jumpBias>0){
+        if(random()<rhythmPlan.jumpBias)options.push('RAMP','LOG JUMP');
+        options.push('BANANA LINE','OPEN CARVE');
+      }
+      if(rhythmPlan.beat==='READ')options.push('OPEN CARVE','OPEN CARVE','GATE');
+      if(rhythmPlan.beat==='COMMIT')options.push('GATE','ROCK SLALOM');
     }
 
     if(difficulty>.45)options.push('FOREST','ROCK SLALOM');
@@ -812,7 +873,10 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       }
     }
 
-    return options[Math.floor(random()*options.length)]||'OPEN CARVE';
+    const playableOptions=rhythmPlan?.allowJump===false
+      ?options.filter(type=>type!=='RAMP'&&type!=='LOG JUMP')
+      :options;
+    return playableOptions[Math.floor(random()*playableOptions.length)]||'OPEN CARVE';
   }
 
   function estimateThreatCost(placement,currentSpeed,plan){
@@ -1207,7 +1271,7 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   function next({startZ,difficulty=0,speed,postMaxTime=0,runTime=0,performance=null}){
     const currentSpeed=effectiveSpeed(speed,difficulty);
     const sectionStartSafeX=safeRoute.previousSafeX??0;
-    const runPlan=runDirector.plan({
+    const baseRunPlan=runDirector.plan({
       runTime,
       difficulty,
       speed:currentSpeed,
@@ -1217,8 +1281,22 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       sectionIndex,
       performance
     });
-    const type=chooseType(difficulty,runPlan);
-    const hazardProgress=clamp(difficulty*.55+getSpeedProgress(currentSpeed)*.45,0,1);
+    const rhythmPlan=rhythmDirector.plan({
+      difficulty,
+      speed:currentSpeed,
+      postMaxTime,
+      lastType,
+      pendingLanding:!!pendingLanding,
+      sectionIndex
+    });
+    const runPlan=tuneRunPlanForRhythm(baseRunPlan,rhythmPlan);
+    const type=chooseType(difficulty,runPlan,rhythmPlan);
+    const rhythmDifficulty=clamp(
+      difficulty*(rhythmPlan.beat==='EXECUTE'?1.04:rhythmPlan.intensityScale),
+      0,
+      1
+    );
+    const hazardProgress=clamp(rhythmDifficulty*.55+getSpeedProgress(currentSpeed)*.45,0,1);
     const elapsedPostMax=Math.max(0,Number(postMaxTime)||0);
     const postMaxPressure=elapsedPostMax>0
       ?clamp(
@@ -1229,6 +1307,16 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
         1
       )
       :0;
+    const setPiecePlan=setPieceDirector.plan({
+      sectionType:type,
+      rhythmBeat:rhythmPlan.beat,
+      rhythmMotif:rhythmPlan.motif,
+      runPhase:runPlan.phase,
+      difficulty,
+      speed:currentSpeed,
+      postMaxTime,
+      sectionIndex
+    });
     const placements=[];
     const phase=sectionIndex*.73;
     const sectionBand=pickBand();
@@ -1595,6 +1683,10 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       placement.runPhase=placement.runPhase||runPlan.phase;
       placement.expertPattern=placement.expertPattern||runPlan.pattern||'';
       placement.routePressure=runPlan.expertPressure;
+      placement.rhythmBeat=rhythmPlan.beat;
+      placement.rhythmMotif=rhythmPlan.motif;
+      placement.setPieceTag=setPiecePlan.tag;
+      placement.setPieceId=setPiecePlan.id;
     }
 
     const physicalKinds=[
@@ -1613,6 +1705,10 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       obstacleFamily:physicalKinds.join('+'),
       threatCost:threatBudgetResult.estimatedCost
     });
+    rhythmDirector.noteSection({
+      beat:rhythmPlan.beat,
+      sectionType:type
+    });
 
     lastType=type;
     sectionIndex++;
@@ -1627,6 +1723,12 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       runPhase:runPlan.phase,
       expertPattern:runPlan.pattern,
       expertPressure:runPlan.expertPressure,
+      rhythmBeat:rhythmPlan.beat,
+      rhythmMotif:rhythmPlan.motif,
+      rhythmCycle:rhythmPlan.cycleIndex,
+      setPieceTag:setPiecePlan.tag,
+      setPiece:setPiecePlan,
+      semanticEvents:[...setPiecePlan.semanticEvents],
       mastery:runPlan.mastery,
       threatBudget:threatBudgetResult,
       runSeed,
@@ -1649,10 +1751,13 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       if(nextSeed!=null){
         runSeed=String(nextSeed);
         random=createSeededRandom(runSeed);
+        setPieceRandom=createSeededRandom(`setpiece:${runSeed}`);
       }else if(runSeed!=null){
         random=createSeededRandom(runSeed);
+        setPieceRandom=createSeededRandom(`setpiece:${runSeed}`);
       }else{
         random=externalRandom;
+        setPieceRandom=createSeededRandom(`setpiece:${externalRandom()}`);
       }
       lastType='RECOVERY';
       sectionIndex=0;
@@ -1664,6 +1769,8 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
       recentFormations=[];
       denseFormationStreak=0;
       runDirector.reset();
+      rhythmDirector.reset();
+      setPieceDirector.reset();
       safeRoute.reset(0,null);
     },
     get lastType(){return lastType;},
@@ -1673,6 +1780,9 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
     get pendingLanding(){return pendingLanding;},
     get recentRunPhases(){return runDirector.recentPhases;},
     get recentExpertPatterns(){return runDirector.recentPatterns;},
+    get recentRhythmBeats(){return rhythmDirector.recentBeats;},
+    get recentRhythmMotifs(){return rhythmDirector.recentMotifs;},
+    get activeSetPieceTag(){return setPieceDirector.activeTag;},
     get runSeed(){return runSeed;},
     get mastery(){return runDirector.mastery;}
   };
