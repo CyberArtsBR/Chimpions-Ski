@@ -5,10 +5,10 @@ import {OBSTACLE_TUNING} from './obstacleTuning.js';
 
 const hash=n=>{const x=Math.sin(n*127.1+311.7)*43758.5453;return x-Math.floor(x);};
 const bark=makeBarkTexture(256);
-const wood=new THREE.MeshStandardMaterial({color:0x936d49,map:bark,bumpMap:bark,bumpScale:.045,roughness:.94,vertexColors:true});
-const foliage=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.86,sheen:.22,sheenColor:new THREE.Color(0x517b56),sheenRoughness:.9,side:THREE.DoubleSide});
-const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.93,flatShading:true});
-const snowCover=new THREE.MeshPhysicalMaterial({color:0xf5fbff,roughness:.70,metalness:0,clearcoat:.06,clearcoatRoughness:.64,sheen:.25,sheenColor:new THREE.Color(0xd8f1ff)});
+const wood=new THREE.MeshStandardMaterial({color:0xa06f42,map:bark,bumpMap:bark,bumpScale:.052,roughness:.91,vertexColors:true});
+const foliage=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.88,sheen:.20,sheenColor:new THREE.Color(0x608768),sheenRoughness:.94,side:THREE.DoubleSide});
+const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.90,flatShading:true});
+const snowCover=new THREE.MeshPhysicalMaterial({color:0xf7fbff,roughness:.82,metalness:0,clearcoat:.035,clearcoatRoughness:.78,sheen:.22,sheenColor:new THREE.Color(0xd7edff)});
 
 function paint(geometry,fn){
   const p=geometry.attributes.position,colors=[];
@@ -24,6 +24,24 @@ function merge(parts){
   for(const part of parts)part.dispose();
   result.computeBoundingBox();result.computeBoundingSphere();
   return result;
+}
+function snowContactRibbon(halfWidth,halfDepth,seed){
+  const segments=32,positions=[],indices=[];
+  for(let i=0;i<=segments;i++){
+    const a=i/segments*Math.PI*2;
+    const irregular=1+.035*Math.sin(a*3+seed*.17)+.022*Math.cos(a*7-seed*.11);
+    const ox=Math.cos(a)*halfWidth*irregular,oz=Math.sin(a)*halfDepth*irregular;
+    const ix=Math.cos(a)*halfWidth*.76,iz=Math.sin(a)*halfDepth*.62;
+    positions.push(ix,.010,iz,ox,.030+.010*Math.sin(a*5+seed),oz);
+    if(i<segments){
+      const a0=i*2,b=a0+2;
+      indices.push(a0,b,a0+1,a0+1,b,b+1);
+    }
+  }
+  const g=new THREE.BufferGeometry();
+  g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  g.setIndex(indices);g.computeVertexNormals();
+  return g;
 }
 function branchBetween(a,b,r1,r2,seed){
   const delta=b.clone().sub(a);
@@ -45,7 +63,9 @@ function branchBetween(a,b,r1,r2,seed){
 function makeFir(variant){
   const seed=19+variant*41,woodParts=[],leaves=[];
   const height=[3.64,3.68,3.58,3.70][variant];
-  const width=[.83,1.03,.92,1.08][variant];
+  // Keep foliage close to the actual collision contract: tall and readable,
+  // but never a visually huge fake wall around a narrow trunk collider.
+  const width=[.62,.68,.65,.70][variant];
   woodParts.push(branchBetween(new THREE.Vector3(0,-.035,0),new THREE.Vector3(.035,3.40,-.015),.19,.026,seed));
   for(let i=0;i<5;i++){
     const a=i*Math.PI*2/5;
@@ -74,7 +94,11 @@ function makeFir(variant){
         const mid=[dx*reach*tipT,cy+.065,dz*reach*tipT];
         const back=[cx-dx*.09,cy+.045,cz-dz*.09];
         const green=.13+hash(seed+tier*13+j*7+k)*.11;
-        const baseTone=[green*.30,green,green*.65],snowLoad=THREE.MathUtils.clamp((tier-4)/6,0,1)*(.30+hash(seed+tier*17+j+k)*.27),winter=[.76,.86,.90];
+        const snowLoad=THREE.MathUtils.clamp(
+          .055+(1-t)*.13+(tier/9)*.15+hash(seed+tier*17+j+k)*.10,
+          0,.42
+        );
+        const baseTone=[green*.27,green,green*.60],winter=[.91,.965,1.0];
         const tone=baseTone.map((value,index)=>THREE.MathUtils.lerp(value,winter[index],snowLoad));
         triangle(back,[cx+px*spread,cy-.08,cz+pz*spread],mid,tone);
         triangle(back,mid,[cx-px*spread,cy-.08,cz-pz*spread],tone.map(v=>v*.8));
@@ -104,14 +128,16 @@ function makeFir(variant){
   for(const [geometry,material] of [[merge(woodParts),wood],[merge(leaves),foliage]]){
     const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
   }
-  group.userData.visualPrototype='premium-bare-fir-'+variant;
+  group.userData.visualPrototype='premium-readability-fir-'+variant;
   return group;
 }
 
 function makeRock(variant){
-  const sides=13,rings=6,positions=[],colors=[],uvs=[],indices=[];
+  const sides=11,rings=6,positions=[],colors=[],uvs=[],indices=[];
   const seed=variant*31+7;
-  const radius=[.69,.72,.67,.70][variant];
+  // Compact angular mass stays close to the .55 m collision half-width while
+  // gaining vertical/tonal separation from white terrain.
+  const radius=[.61,.64,.60,.63][variant];
   for(let r=0;r<rings;r++){
     const t=r/(rings-1);
     const envelope=[.80,1,.94,.76,.47,.13][r];
@@ -120,16 +146,23 @@ function makeRock(variant){
       const shape=1+.105*Math.sin(a*3+seed)+.065*Math.cos(a*5+seed);
       const x=Math.cos(a)*radius*envelope*shape+.09*t;
       const z=Math.sin(a)*radius*.85*envelope*shape-.05*t;
-      const y=-.035+t*.795+(r>0&&r<rings-1?Math.sin(a*3+seed)*.045:0);
+      const y=-.035+t*.845+(r>0&&r<rings-1?Math.sin(a*3+seed)*.050:0);
       positions.push(x,y,z);uvs.push(s/sides,t);
-      const grain=hash(s%sides+r*37+seed),v=.31+t*.12+grain*.09;
-      const snowCap=THREE.MathUtils.smoothstep(t,.58,.94)*(.55+.45*Math.max(0,Math.cos(a*2+seed))),rockColor=[v*.77,v*.9,v];
-      colors.push(THREE.MathUtils.lerp(rockColor[0],.80,snowCap),THREE.MathUtils.lerp(rockColor[1],.88,snowCap),THREE.MathUtils.lerp(rockColor[2],.92,snowCap));
+      const grain=hash(s%sides+r*37+seed),v=.235+t*.10+grain*.07;
+      const snowCap=THREE.MathUtils.smoothstep(t,.48,.84)*(.62+.38*Math.max(0,Math.cos(a*2+seed)));
+      const embeddedSnow=(1-THREE.MathUtils.smoothstep(t,.04,.23))*Math.max(0,Math.sin(a*3+seed))*.24;
+      const rockColor=[v*.61,v*.76,v*.89],snowTone=[.91,.965,1.0];
+      const capMix=Math.max(snowCap,embeddedSnow);
+      colors.push(
+        THREE.MathUtils.lerp(rockColor[0],snowTone[0],capMix),
+        THREE.MathUtils.lerp(rockColor[1],snowTone[1],capMix),
+        THREE.MathUtils.lerp(rockColor[2],snowTone[2],capMix)
+      );
       if(r<rings-1&&s<sides){const a0=r*(sides+1)+s,b=a0+sides+1;indices.push(a0,b,a0+1,a0+1,b,b+1);}
     }
   }
   const top=positions.length/3;
-  positions.push(.09,.76,-.05);colors.push(.35,.40,.45);uvs.push(.5,1);
+  positions.push(.09,.82,-.05);colors.push(.93,.97,1.0);uvs.push(.5,1);
   for(let j=0;j<sides;j++){const a=(rings-1)*(sides+1)+j;indices.push(a,top,a+1);}
   const g=new THREE.BufferGeometry();
   g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
@@ -163,17 +196,39 @@ function makeLog(wide,variant=0){
   const radius=wide?.35:.28,parts=[],phase=variant*1.73;
   const body=new THREE.CylinderGeometry(radius*.83,radius,tuning.length,36,16,true),p=body.attributes.position;
   for(let i=0;i<p.count;i++){const y=p.getY(i),a=Math.atan2(p.getZ(i),p.getX(i)),ridge=1+.050*Math.sin(a*(12+variant)+y*(.72+variant*.11)+phase)+.021*Math.sin(a*(23-variant)-y*(1.7+variant*.16)-phase*.7)+.010*Math.cos(a*7+y*3.4+phase);p.setX(i,p.getX(i)*ridge);p.setZ(i,p.getZ(i)*ridge);}
-  paint(body,(x,y,z)=>{const a=Math.atan2(z,x),grain=.5+.5*Math.sin(a*(8+variant)+y*(.55+variant*.08)+phase),knots=.5+.5*Math.sin(y*2.7+Math.cos(a*3+phase)*2.1),v=.61+grain*.23+knots*.07;return [v,v*.86,v*.72];});
+  paint(body,(x,y,z)=>{const a=Math.atan2(z,x),grain=.5+.5*Math.sin(a*(8+variant)+y*(.55+variant*.08)+phase),knots=.5+.5*Math.sin(y*2.7+Math.cos(a*3+phase)*2.1),v=.53+grain*.24+knots*.08;return [Math.min(1,v*1.08),v*.74,v*.46];});
   body.rotateZ(Math.PI/2);body.translate(0,radius,0);body.computeVertexNormals();parts.push(body);
   const stubCount=wide?4:3;
   for(let i=0;i<stubCount;i++){const offset=(i-(stubCount-1)*.5)*tuning.length*(wide?.19:.25),side=i%2===0?1:-1,z=.08+side*.055;parts.push(branchBetween(new THREE.Vector3(offset,radius,z),new THREE.Vector3(offset+.06*side,radius*(1.48+.08*variant),z+side*(.16+.025*i)),.062,.029,variant*17+i+41));}
   for(let i=0;i<(wide?3:2);i++){const x=(i-(wide?1:.5))*tuning.length*.22+Math.sin(phase+i)*.10;parts.push(branchBetween(new THREE.Vector3(x,radius*.92,-.07),new THREE.Vector3(x+.035,radius*1.18,-.15),.040,.012,variant*29+i+71));}
   const group=new THREE.Group(),mesh=new THREE.Mesh(merge(parts),wood);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
   const snowPositions=[],snowIndices=[],steps=28,across=7;
-  for(let i=0;i<=steps;i++)for(let j=0;j<=across;j++){const u=i/steps,v=j/across*2-1,x=(u-.5)*tuning.length*.90,width=radius*(.42+.105*Math.sin(u*(16+variant*2)+phase)+.055*Math.sin(u*31-phase))*Math.pow(Math.sin(u*Math.PI),.34),z=v*width;snowPositions.push(x,radius+Math.sqrt(Math.max(0,radius*radius-z*z))+.013+Math.sin(u*19+v*4+phase)*.004,z);if(i<steps&&j<across){const a=i*(across+1)+j,b=a+across+1;snowIndices.push(a,a+1,b,a+1,b+1,b);}}
-  const snowGeometry=new THREE.BufferGeometry();snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(snowPositions,3));snowGeometry.setIndex(snowIndices);snowGeometry.computeVertexNormals();const snowStrip=new THREE.Mesh(snowGeometry,snowCover);snowStrip.receiveShadow=true;group.add(snowStrip);
-  const caps=[];for(const sign of [-1,1]){const g=new THREE.CircleGeometry(radius*(sign<0?.83:.995),36);g.rotateY(sign*Math.PI/2);g.translate(sign*(tuning.length*.5+.002),radius,0);caps.push(g);}const ends=new THREE.Mesh(merge(caps),endMaterial);ends.castShadow=ends.receiveShadow=true;group.add(ends);
-  group.userData.visualPrototype='premium-'+(wide?'wide-':'')+'log-v'+variant;return group;
+  for(let i=0;i<=steps;i++)for(let j=0;j<=across;j++){
+    const u=i/steps,v=j/across*2-1,x=(u-.5)*tuning.length*.90;
+    const familyBreak=wide?.84+.16*Math.cos(u*Math.PI*4+phase):1;
+    const width=radius*(.56+.115*Math.sin(u*(16+variant*2)+phase)+.060*Math.sin(u*31-phase))*Math.pow(Math.sin(u*Math.PI),.31)*familyBreak;
+    const z=v*width;
+    snowPositions.push(x,radius+Math.sqrt(Math.max(0,radius*radius-z*z))+.014+Math.sin(u*19+v*4+phase)*.004,z);
+    if(i<steps&&j<across){const a=i*(across+1)+j,b=a+across+1;snowIndices.push(a,a+1,b,a+1,b+1,b);}
+  }
+  const snowGeometry=new THREE.BufferGeometry();
+  snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(snowPositions,3));
+  snowGeometry.setIndex(snowIndices);snowGeometry.computeVertexNormals();
+  const contactLip=snowContactRibbon(
+    Math.min(tuning.visualHalfWidth-.04,tuning.collisionHalfWidth+.07),
+    Math.min(tuning.radiusZ*.92,radius*(wide?1.50:1.42)),
+    variant*23+(wide?101:47)
+  );
+  const snowStrip=new THREE.Mesh(merge([snowGeometry,contactLip]),snowCover);snowStrip.receiveShadow=true;group.add(snowStrip);
+  const caps=[];
+  for(const sign of [-1,1]){
+    const endX=sign*(tuning.length*.5+.002);
+    const g=new THREE.CircleGeometry(radius*(sign<0?.83:.995),36);g.rotateY(sign*Math.PI/2);g.translate(endX,radius,0);caps.push(g);
+    const rim=new THREE.TorusGeometry(radius*(wide?.93:.90),wide?.032:.020,6,28);
+    rim.rotateY(Math.PI/2);rim.translate(endX+sign*.004,radius,0);caps.push(rim);
+  }
+  const ends=new THREE.Mesh(merge(caps),endMaterial);ends.castShadow=ends.receiveShadow=true;group.add(ends);
+  group.userData.visualPrototype='premium-readability-'+(wide?'wide-':'')+'log-v'+variant;return group;
 }
 
 let library;
@@ -196,6 +251,6 @@ export function applyPremiumObstacle(root,kind){
   else for(const child of source.children)root.add(child.clone());
   for(const geometry of old)geometry.dispose();
   if(variants)root.userData.visualVariants=variants;
-  root.userData.visualPrototype='premium-bare-'+kind;
+  root.userData.visualPrototype='premium-readability-'+kind;
   return true;
 }
