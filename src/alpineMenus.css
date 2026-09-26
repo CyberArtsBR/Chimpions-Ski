@@ -1,6 +1,6 @@
-:root{--ski-loading-art:url('/ui/alpine-menu.svg')}
+:root{--ski-loading-art:url('/menu/alpine-background.jpg')}
 /* Opaque alpine surfaces keep the unloaded 3D rider out of menu transitions. */
-#overlay,.presentation-overlay,.selector-dialog::backdrop{background:linear-gradient(90deg,#05152680,#06192db3 40%,#06192db3 60%,#05152680),url('/ui/alpine-menu.svg') center/cover no-repeat #0b2237;backdrop-filter:none}
+#overlay,.presentation-overlay,.selector-dialog::backdrop{background:linear-gradient(90deg,#05152680,#06192db3 40%,#06192db3 60%,#05152680),url('/menu/alpine-background.jpg') center/cover no-repeat #0b2237;backdrop-filter:none}
 .selector-dialog{background:linear-gradient(145deg,#102c46f5,#071c32f5);border:1px solid #a4e6ff42;box-shadow:0 24px 90px #0008}
 .presentation-card{background:linear-gradient(145deg,#102b458c,#06182bbd);border:1px solid #b3eaff30;border-radius:24px;box-shadow:0 20px 65px #0004}
 .selector-featured,.chimpion-card,.selector-search,.result-grid>div{background:#14385388;border:1px solid #c6ecff22;border-radius:12px}
