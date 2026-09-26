@@ -7,8 +7,12 @@ const tuning=read(root,'src/gameplayTuning.js');
 const main=read(root,'src/main.js');
 const collisionRuntime=read(root,'src/collisionRuntime.js');
 
-const diff=spawnSync('git',['diff','--name-only',BASE+'...HEAD'],{cwd:root,encoding:'utf8'});
-if(diff.status===0){
+const branch=process.env.GITHUB_HEAD_REF||process.env.GITHUB_REF_NAME||spawnSync('git',['branch','--show-current'],{cwd:root,encoding:'utf8'}).stdout.trim();
+const qaOnlyBranch=branch==='test/ski-aaa-regression';
+const diff=qaOnlyBranch?spawnSync('git',['diff','--name-only',BASE+'...HEAD'],{cwd:root,encoding:'utf8'}):null;
+if(!qaOnlyBranch){
+ results.push(result('QA-only branch file scope applies only to its QA branch',STATUS.PASS,'branch: '+(branch||'detached checkout')));
+}else if(diff.status===0){
  const files=diff.stdout.trim().split(/\r?\n/).filter(Boolean);
  const allowed=function(p){
    return p.startsWith('checks/')||
