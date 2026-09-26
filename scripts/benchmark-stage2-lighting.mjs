@@ -38,7 +38,11 @@ async function main(){
   };
   let browser=null;
   try{
-    browser=await chromium.launch({headless:CONFIG.headless});
+    const softwareGl=process.env.BENCH_SOFTWARE_GL==='1';
+    browser=await chromium.launch({
+      headless:CONFIG.headless,
+      args:softwareGl?['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']:[]
+    });
     const context=await browser.newContext({viewport:{width:CONFIG.viewportWidth,height:CONFIG.viewportHeight}});
     const page=await context.newPage();
     await attachFrameProbe(page);
