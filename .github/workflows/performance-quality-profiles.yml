@@ -56,7 +56,7 @@ jobs:
           ln -s "$GITHUB_WORKSPACE/node_modules" /tmp/chimpions-ski-base/node_modules
           (cd /tmp/chimpions-ski-base && npm run build)
 
-      - name: Benchmark baseline
+      - name: Benchmark baseline HIGH
         id: baseline
         continue-on-error: true
         shell: bash
@@ -83,7 +83,36 @@ jobs:
           start_preview /tmp/chimpions-ski-base /tmp/chimpions-base-preview.log
           trap stop_preview EXIT
           wait_preview
-          env $BENCH_ENV BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-baseline.json" node scripts/benchmark-ski-runtime.mjs
+          env $BENCH_ENV QUALITY_PROFILE=high BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-baseline.json" node scripts/benchmark-ski-runtime.mjs
+
+      - name: Benchmark baseline MAX
+        id: baseline_max
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          start_preview () {
+            local dir="$1"
+            local log="$2"
+            (cd "$dir" && exec ./node_modules/.bin/vite preview --host 127.0.0.1 --port 4173) >"$log" 2>&1 &
+            PREVIEW_PID=$!
+          }
+          stop_preview () {
+            kill "$PREVIEW_PID" 2>/dev/null || true
+            wait "$PREVIEW_PID" 2>/dev/null || true
+          }
+          wait_preview () {
+            for i in $(seq 1 90); do
+              if curl -fsS http://127.0.0.1:4173/ >/dev/null; then return 0; fi
+              sleep 1
+            done
+            cat /tmp/chimpions-base-max-preview.log || true
+            return 1
+          }
+          start_preview /tmp/chimpions-ski-base /tmp/chimpions-base-max-preview.log
+          trap stop_preview EXIT
+          wait_preview
+          env $BENCH_ENV QUALITY_PROFILE=max BASE_URL=http://127.0.0.1:4173 RESULTS_PATH="$GITHUB_WORKSPACE/benchmark-artifacts/benchmark-baseline-max.json" node scripts/benchmark-ski-runtime.mjs
 
       - name: Benchmark HIGH
         id: high
@@ -139,7 +168,7 @@ jobs:
         if: always()
         run: |
           set -euo pipefail
-          for file in benchmark-baseline.json benchmark-high.json benchmark-low.json; do
+          for file in benchmark-baseline.json benchmark-baseline-max.json benchmark-high.json benchmark-max.json benchmark-low.json; do
             test -s "benchmark-artifacts/$file"
           done
           node scripts/compare-performance-results.mjs \
@@ -160,13 +189,15 @@ jobs:
         env:
           FULLCHECK_OUTCOME: ${{ steps.fullcheck.outcome }}
           BASELINE_OUTCOME: ${{ steps.baseline.outcome }}
+          BASELINE_MAX_OUTCOME: ${{ steps.baseline_max.outcome }}
           HIGH_OUTCOME: ${{ steps.high.outcome }}
           MAX_OUTCOME: ${{ steps.max.outcome }}
           LOW_OUTCOME: ${{ steps.low.outcome }}
           COMPARE_OUTCOME: ${{ steps.compare.outcome }}
         run: |
-          echo "fullcheck=$FULLCHECK_OUTCOME baseline=$BASELINE_OUTCOME high=$HIGH_OUTCOME max=$MAX_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
+          echo "fullcheck=$FULLCHECK_OUTCOME baseline_high=$BASELINE_OUTCOME baseline_max=$BASELINE_MAX_OUTCOME high=$HIGH_OUTCOME max=$MAX_OUTCOME low=$LOW_OUTCOME compare=$COMPARE_OUTCOME"
           test "$BASELINE_OUTCOME" = success
+          test "$BASELINE_MAX_OUTCOME" = success
           test "$HIGH_OUTCOME" = success
           test "$MAX_OUTCOME" = success
           test "$LOW_OUTCOME" = success
