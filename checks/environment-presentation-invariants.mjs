@@ -28,6 +28,7 @@ assert(!biomes.includes('Math.random'),'biome streaming must remain deterministi
 
 assert(
   landmarks.includes('const SLOT_COUNT=4')&&
+  landmarks.includes('const SLOT_SPACING=ALPINE_SECTOR_LENGTH')&&
   landmarks.includes('const SAFE_SIDE_X=COURSE_FLAG_X+15')&&
   landmarks.includes("root.userData.environmentOnly=true"),
   'landmark stream lost fixed pooling or corridor-safe ownership'
