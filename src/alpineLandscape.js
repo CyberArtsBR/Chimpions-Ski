@@ -108,9 +108,11 @@ export function createAlpineLandscape({world,atmosphere,terrainHeight}){
   let presentation={forestDensity:1,mountainScale:1,visibility:1};
 
   function applyPresentationDensity(){
+    activeForestCount=Math.round(80+200*detail);
+    const qualityForestCount=activeForestCount;
     const forestScale=THREE.MathUtils.clamp(Number(presentation.forestDensity)||1,.10,1.22);
     const visibility=THREE.MathUtils.clamp(Number(presentation.visibility)||1,.34,1);
-    activeForestCount=Math.max(42,Math.min(forestCapacity,Math.round((80+200*detail)*forestScale*(.64+.36*visibility))));
+    activeForestCount=Math.max(42,Math.min(forestCapacity,Math.round(qualityForestCount*forestScale*(.64+.36*visibility))));
     bands[2].visible=detail>.75&&visibility>.55;
   }
   function refresh(){
