@@ -1,0 +1,46 @@
+name: Stage 2 course validation (temporary)
+
+on:
+  push:
+    branches:
+      - feat/ski-stage2-course-director
+
+permissions:
+  contents: read
+
+jobs:
+  validate-course-stage2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Integration checks
+        id: integration
+        continue-on-error: true
+        run: npm run check:integration
+      - name: Max-speed late-game course stress
+        id: lategame
+        if: always()
+        continue-on-error: true
+        run: node checks/course-collision-lategame-invariants.mjs
+      - name: Production build
+        id: build
+        if: always()
+        continue-on-error: true
+        run: npm run build
+      - name: Validation gate
+        if: always()
+        env:
+          INTEGRATION: ${{ steps.integration.outcome }}
+          LATEGAME: ${{ steps.lategame.outcome }}
+          BUILD: ${{ steps.build.outcome }}
+        run: |
+          echo "integration=$INTEGRATION lategame=$LATEGAME build=$BUILD"
+          test "$INTEGRATION" = success
+          test "$LATEGAME" = success
+          test "$BUILD" = success
