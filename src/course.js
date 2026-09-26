@@ -108,10 +108,7 @@ export function createCourseDirector({routeCenter,random:externalRandom=Math.ran
   const opening=[
     ['OPEN CARVE'],
     ['BANANA LINE','GATE'],
-    ['GATE','OPEN CARVE'],
-    ['FOREST','ROCK SLALOM'],
-    ['RAMP','LOG JUMP'],
-    ['RECOVERY']
+    ['GATE','OPEN CARVE']
   ];
 
   const rand=(min,max)=>min+(max-min)*random();
