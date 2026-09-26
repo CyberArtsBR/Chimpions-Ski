@@ -30,6 +30,7 @@ export function createCourseSetPieceDirector({random=Math.random}={}){
   let activeTag=null;
   let activeId=0;
   let sectionsRemaining=0;
+  let activeZoneLength=0;
   let recentTags=[];
   let previousTag=null;
 
@@ -117,11 +118,12 @@ export function createCourseSetPieceDirector({random=Math.random}={}){
       // Two to four sections is long enough for artists to establish a place
       // without making the gameplay track itself deterministic.
       sectionsRemaining=2+Math.floor(random()*3);
+      activeZoneLength=sectionsRemaining;
       if(previousTag&&previousTag!==activeTag)events.push(`SET_PIECE_EXIT:${previousTag}`);
       events.push(`SET_PIECE_ENTER:${activeTag}`);
     }
 
-    const zoneLength=sectionsRemaining;
+    const zoneLength=activeZoneLength;
     sectionsRemaining=Math.max(0,sectionsRemaining-1);
     const exiting=sectionsRemaining===0;
     events.push(`RHYTHM_BEAT:${context.rhythmBeat||'READ'}`);
@@ -148,6 +150,7 @@ export function createCourseSetPieceDirector({random=Math.random}={}){
     activeTag=null;
     activeId=0;
     sectionsRemaining=0;
+    activeZoneLength=0;
     recentTags=[];
     previousTag=null;
   }
