@@ -1,5 +1,5 @@
 import {TRICK_TYPE} from './trickSystem.js';
-import {readAirborneTrickIntent,readTrickIntent} from './trickInput.js';
+import {readAirborneTrickIntent,readStyleHoldIntent,readTrickIntent} from './trickInput.js';
 
 const EDITABLE='input,textarea,select,[contenteditable="true"]';
 
@@ -100,6 +100,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
     const cameraMotionPressed=cameraMotionQueued||!!pad?.edges?.pressed?.cameraMotion;
     const pausePressed=pauseQueued||!!pad?.edges?.pressed?.menu;
     const tuckHeld=touchTuck||keys.has('ShiftLeft')||keys.has('ShiftRight')||!!pad?.tuck;
+    const styleHeld=readStyleHoldIntent({tuckHeld});
     const brakeHeld=touchBrake||keys.has('ControlLeft')||keys.has('ControlRight')||!!pad?.brake;
 
     jumpQueued=false;
@@ -120,6 +121,7 @@ export function createGameplayInput({windowRef=globalThis.window,documentRef=glo
       cameraMotionPressed,
       pausePressed,
       tuckHeld,
+      styleHeld,
       brakeHeld,
       keyboardActive:keyboardSteer!==0||keys.has('Space')||keys.has('KeyQ')||keys.has('KeyE')||keys.has('KeyR')||keys.has('ShiftLeft')||keys.has('ShiftRight')||keys.has('ControlLeft')||keys.has('ControlRight'),
       touchActive:Math.abs(touchSteer)>.01||touchJump||touchTuck||touchBrake||touchTricks.size>0,

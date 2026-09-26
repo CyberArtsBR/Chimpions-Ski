@@ -20,7 +20,7 @@ export const RIDER_ANIMATION_STATE=Object.freeze({
   CRASH:'CRASH'
 });
 
-const clamp=(v,min,max)=>Math.max(min,Math.min(max,Number(v)||0));
+const clamp=(v,min=0,max=1)=>Math.max(min,Math.min(max,Number(v)||0));
 const sign=v=>v>0?1:v<0?-1:0;
 
 export function createRiderAnimationStateMachine(){
@@ -28,6 +28,8 @@ export function createRiderAnimationStateMachine(){
   let previous=current;
   let stateTime=0;
   let lastEdge=0;
+  let previousEdge=0;
+  let previousLoad=0;
   let reversalTime=0;
   let landingRecovery=0;
   let previousAir=false;
@@ -39,9 +41,16 @@ export function createRiderAnimationStateMachine(){
     stateTime:0,
     transition:1,
     edgeSign:0,
+    edgeMagnitude:0,
     hardCarve:0,
     reversal:0,
-    airborneTime:0
+    airborneTime:0,
+    carvePhase:'neutral',
+    anticipation:0,
+    edgeEngagement:0,
+    loadedCarve:0,
+    release:0,
+    crossover:0
   };
 
   function transition(next){
@@ -60,44 +69,63 @@ export function createRiderAnimationStateMachine(){
     previous=next;
     stateTime=0;
     lastEdge=0;
+    previousEdge=0;
+    previousLoad=0;
     reversalTime=0;
     landingRecovery=0;
     previousAir=false;
     airborneTime=0;
     startTime=0;
-    snapshot.state=next;
-    snapshot.previousState=next;
-    snapshot.stateTime=0;
-    snapshot.transition=1;
-    snapshot.edgeSign=0;
-    snapshot.hardCarve=0;
-    snapshot.reversal=0;
-    snapshot.airborneTime=0;
+    Object.assign(snapshot,{
+      state:next,previousState:next,stateTime:0,transition:1,
+      edgeSign:0,edgeMagnitude:0,hardCarve:0,reversal:0,airborneTime:0,
+      carvePhase:'neutral',anticipation:0,edgeEngagement:0,loadedCarve:0,release:0,crossover:0
+    });
     return snapshot;
   }
 
   function update(frame={}){
-    const dt=clamp(frame.dt??1/60,0,0.1);
+    const dt=clamp(frame.dt??1/60,0,.1);
     stateTime+=dt;
     const edge=clamp(frame.steer??frame.edge??0,-1,1);
-    const edgeSign=Math.abs(edge)>.055?sign(edge):0;
-    const carveLoad=clamp(frame.carveLoad??Math.abs(edge),0,1);
-    const hard=Math.max(Math.abs(edge),carveLoad);
+    const edgeMagnitude=Math.abs(edge);
+    const edgeSign=edgeMagnitude>.055?sign(edge):0;
+    const carveLoad=clamp(frame.carveLoad??edgeMagnitude,0,1);
+    const hard=Math.max(edgeMagnitude,carveLoad);
     const air=!!frame.air;
     const landing=clamp(frame.landing,0,1);
     const vy=Number(frame.verticalVelocity)||0;
     const mode=String(frame.mode||'playing').toLowerCase();
+    const safeDt=Math.max(1/240,dt||1/60);
+    const edgeRate=(edge-previousEdge)/safeDt;
+    const loadRate=(carveLoad-previousLoad)/safeDt;
 
-    if(edgeSign&&lastEdge&&edgeSign!==lastEdge&&Math.abs(edge)>.12)reversalTime=.26;
+    if(edgeSign&&lastEdge&&edgeSign!==lastEdge&&edgeMagnitude>.12)reversalTime=.26;
     if(edgeSign)lastEdge=edgeSign;
     reversalTime=Math.max(0,reversalTime-dt);
+    const crossover=reversalTime>0?reversalTime/.26:0;
+
+    const loadedCarve=clamp((hard-.48)/.44)*(1-crossover*.72);
+    const edgeEngagement=clamp((edgeMagnitude-.055)/.52)*(1-loadedCarve*.55)*(1-crossover*.72);
+    const anticipation=clamp(Math.abs(edgeRate)/24)*(.34+.66*(1-edgeMagnitude))*(1-loadedCarve)*(1-crossover*.75);
+    const releasingSameEdge=(previousEdge&&edge&&Math.sign(previousEdge)===Math.sign(edge))
+      ?Math.max(0,Math.abs(previousEdge)-edgeMagnitude)/safeDt
+      :0;
+    const release=clamp(releasingSameEdge/14+Math.max(0,-loadRate)/8)*(1-crossover*.70);
+    const carvePhase=crossover>.12?'crossover'
+      :release>.18?'release'
+      :loadedCarve>.58?'loaded'
+      :edgeEngagement>.20?'engagement'
+      :anticipation>.14?'anticipation'
+      :'neutral';
+    previousEdge=edge;
+    previousLoad=carveLoad;
 
     if(landing>.04)landingRecovery=Math.max(landingRecovery,.46);
     else landingRecovery=Math.max(0,landingRecovery-dt);
 
-    if(air){
-      airborneTime=previousAir?airborneTime+dt:0;
-    }else airborneTime=0;
+    if(air)airborneTime=previousAir?airborneTime+dt:0;
+    else airborneTime=0;
     previousAir=air;
 
     if(mode==='countdown')startTime+=dt;
@@ -142,13 +170,22 @@ export function createRiderAnimationStateMachine(){
     }
 
     transition(next);
-    snapshot.state=current;
-    snapshot.stateTime=stateTime;
-    snapshot.transition=Math.min(1,snapshot.transition+dt*7.5);
-    snapshot.edgeSign=edgeSign;
-    snapshot.hardCarve=hard;
-    snapshot.reversal=reversalTime>0?reversalTime/.26:0;
-    snapshot.airborneTime=airborneTime;
+    Object.assign(snapshot,{
+      state:current,
+      stateTime,
+      transition:Math.min(1,snapshot.transition+dt*7.5),
+      edgeSign,
+      edgeMagnitude,
+      hardCarve:hard,
+      reversal:crossover,
+      airborneTime,
+      carvePhase,
+      anticipation,
+      edgeEngagement,
+      loadedCarve,
+      release,
+      crossover
+    });
     return snapshot;
   }
 

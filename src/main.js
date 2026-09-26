@@ -32,7 +32,7 @@ import {createScorePresentation} from './scorePresentation.js';
 import {createCourseRenderBatches} from './courseRenderBatches.js';
 import {createCollisionBroadphase} from './collisionBroadphase.js';
 import {createTrickSystem} from './trickSystem.js';
-import {announceTrickStart,resetTrickScoring,scoreTrickCompletion,scoreTrickFailure,scoreTrickLandingBonus} from './trickScoring.js';
+import {announceTrickStart,resetTrickScoring,scoreStyleHoldCompletion,scoreTrickCompletion,scoreTrickFailure,scoreTrickLandingBonus} from './trickScoring.js';
 import {createHaptics} from './haptics.js';
 import {RIDE_MODE,getRideProfile,normalizeRideMode,speedToKmh} from './rideMode.js';
 import {resetPlayerOrientation,updateRidingOrientation,updateCrashOrientation} from './playerOrientation.js';
@@ -591,7 +591,7 @@ sessionTutorialRoot.innerHTML=`
     </header>
     <div class="session-tutorial-grid">
       <section><h3><b>1</b> MOVEMENT</h3><div class="tutorial-controls"><kbd>A</kbd><kbd>D</kbd><span>or</span><i>LEFT STICK / D-PAD</i></div><p>Carve left and right to avoid obstacles.</p><strong class="tutorial-highlight">SHIFT / LT · TUCK &nbsp; CTRL / RT · BRAKE</strong></section>
-      <section><h3><b>2</b> JUMP + TRICKS</h3><div class="tutorial-controls"><kbd>SPACE</kbd><span>or</span><i class="pad-a">A</i></div><p>Jump ramps and clear hazards.</p><strong class="tutorial-highlight">↑ + JUMP · 360° SPIN &nbsp; ↓ + JUMP · BACKFLIP</strong></section>
+      <section><h3><b>2</b> JUMP + TRICKS</h3><div class="tutorial-controls"><kbd>SPACE</kbd><span>or</span><i class="pad-a">A</i></div><p>Jump ramps and clear hazards.</p><strong class="tutorial-highlight">↑ + JUMP · 360° SPIN &nbsp; ↓ + JUMP · BACKFLIP &nbsp; AIR + TUCK / LT · STYLE HOLD</strong></section>
       <section><h3><b>3</b> 🍌 BANANA POWER</h3><p>Collect 10 bananas to charge 1 Banana Power.</p><div class="tutorial-controls"><kbd>Q</kbd><span>or</span><i class="pad-x">X</i><strong>= BULLET TIME</strong></div><p>Bullet Time lasts 3 seconds.</p></section>
       <section><h3><b>4</b> CAMERA</h3><div class="tutorial-controls"><kbd>E</kbd><span>or</span><i class="pad-y">Y</i><strong>CHANGE VIEW</strong></div><p>Chase · Fixed View · High + Far · First Person</p><div class="tutorial-controls tutorial-motion-row"><kbd>R</kbd><span>or</span><i class="pad-b">B</i><strong>CAMERA MOTION</strong></div><p>Full · Fixed · Reduced</p></section>
       <section><h3><b>5</b> GOAL</h3><p>🏔️ Ski as far as possible.</p><p>🌲 Avoid trees, rocks, logs and oil.</p><p>🍌 Grab bananas and survive the increasing speed.</p></section>
@@ -1155,6 +1155,13 @@ function update(dt,frameMs=dt*1000){
     const ridingRamp=!!(activeRamp&&activeRamp.visible&&activeRamp.userData.activated&&Math.abs(activeRamp.position.x-state.x)<=1.46&&Math.abs(activeRamp.position.z-player.position.z)<=1.78);
     if(!ridingRamp&&!activeRamp)tricks.clearRampArm();
     tricks.updateTiming(state,{landingHeight:groundY,gravity:SKI_TUNING.GRAVITY});
+    tricks.updateStyleHold(actions.styleHeld,state,{
+      dt,
+      landingHeight:groundY,
+      gravity:SKI_TUNING.GRAVITY
+    });
+    const completedStyleHold=tricks.consumeStyleCompletion();
+    if(completedStyleHold)scoreStyleHoldCompletion(state,completedStyleHold);
 
     if(pressedThisStep&&state.air){
       const airborneTrick=actions.airborneTrickIntent;
@@ -1205,6 +1212,8 @@ function update(dt,frameMs=dt*1000){
     const landing=stepAir(state,dt,groundY);
     if(landing.landed){
       const trickLanding=tricks.land({jumpSource:landingSource});
+      const landingStyleHold=tricks.consumeStyleCompletion();
+      if(landingStyleHold)scoreStyleHoldCompletion(state,landingStyleHold);
       applyTrickLandingQuality(state,trickLanding);
       landing.quality=state.landingQuality;
 
@@ -1251,6 +1260,9 @@ function update(dt,frameMs=dt*1000){
       trickActive:tricks.state.state==='SPIN_360'||tricks.state.state==='BACKFLIP',
       trickType:tricks.state.type,
       trickProgress:tricks.state.progress,
+      styleHold:tricks.state.styleAmount,
+      styleSide:tricks.state.styleSide,
+      styleDuration:tricks.state.styleDuration,
       reducedMotion:cameraMotionMode===CAMERA_MOTION.REDUCED,
       groundPitch:state.groundPitch,
       groundRoll:state.groundRoll,
@@ -1693,6 +1705,13 @@ window.chimpionsSki=()=>{
     trickAllowed:trickSnapshot.trickAllowed,
     pendingTrick:trickSnapshot.pendingTrick,
     trickRejectionReason:trickSnapshot.rejectionReason,
+    styleActive:trickSnapshot.styleActive,
+    styleAmount:trickSnapshot.styleAmount,
+    styleDuration:trickSnapshot.styleDuration,
+    styleSide:trickSnapshot.styleSide,
+    styleAllowed:trickSnapshot.styleAllowed,
+    styleHoldsThisAir:trickSnapshot.styleHoldsThisAir,
+    styleAutoReleased:trickSnapshot.styleAutoReleased,
     trickVisualPivot:trickVisualPivot.name,
     rendererCalls:renderer.info.render.calls,
     rendererTriangles:renderer.info.render.triangles,
