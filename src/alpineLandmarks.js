@@ -257,7 +257,12 @@ export function createAlpineLandmarks({world,terrainHeight,biomeDirector}){
       wet:clamp01(next.wet),
       visibility:clamp01(1-(Number(next.fogDensity)||0)*34)
     };
-    refresh();
+    const night=clamp01(weather.night),storm=clamp01(weather.storm),wet=clamp01(weather.wet);
+    warmMaterial.opacity=.32+.58*Math.max(night,.15)+storm*.10;
+    lightMaterial.opacity=.18+.72*Math.max(night,storm*.55,weather.snow*.30);
+    roofMaterial.roughness=.68-wet*.18;
+    rockMaterial.roughness=.92-wet*.24;
+    tempColor.setHex(0x7edcf2).lerp(iceNightColor,night*.35);iceMaterial.color.copy(tempColor);
     return weather;
   }
   function reset(){
