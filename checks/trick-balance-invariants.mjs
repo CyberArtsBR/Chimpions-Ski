@@ -6,7 +6,7 @@ import {getRideProfile} from '../src/rideMode.js';
 import {getCourseLookahead} from '../src/courseStreaming.js';
 import {updateJumpAssist,tryManualJump,launchRamp} from '../src/skiPhysics.js';
 import {createTrickSystem,TRICK_TYPE} from '../src/trickSystem.js';
-import {evaluateTrickTiming} from '../src/trickTiming.js';
+import {STYLE_HOLD_TIMING,evaluateStyleHoldTiming,evaluateTrickTiming} from '../src/trickTiming.js';
 
 const results=[];
 const add=(name,detail)=>{results.push({name,status:'PASS',detail});console.log('PASS    '+name+': '+detail);};
@@ -58,6 +58,17 @@ for(const kmh of [150,180,220,260,300]){
   assert(timing.allowed,`ramp backflip must fit at ${kmh} km/h`);
 }
 add('ramp backflip possible through 300 km/h',`minimum modeled remaining airtime=${minimumRampAir.toFixed(4)}s`);
+
+let minimumStyleAir=Infinity;
+for(const kmh of [150,180,220,260,300]){
+  const state=makeState(kmh/3.6);
+  assert.equal(launchRamp(state,0),true,'ramp launch must succeed');
+  const timing=evaluateStyleHoldTiming(state,{landingHeight:GROUND_Y,gravity:T.GRAVITY});
+  minimumStyleAir=Math.min(minimumStyleAir,timing.remainingAirTime);
+  assert(timing.allowed,`style hold must fit a ramp arc at ${kmh} km/h`);
+}
+assert(STYLE_HOLD_TIMING.autoReleaseAirTime>=.14,'style hold landing release window became too small');
+add('style hold safe through 300 km/h',`minimum modeled remaining airtime=${minimumStyleAir.toFixed(4)}s auto-release=${STYLE_HOLD_TIMING.autoReleaseAirTime.toFixed(2)}s`);
 
 {
   const state=makeState();

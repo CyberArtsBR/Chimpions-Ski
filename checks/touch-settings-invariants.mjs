@@ -40,6 +40,12 @@ action=input.read(neutralPad);
 assert.equal(action.jumpPressed,true,'touch trick did not request a jump/trick edge');
 assert.equal(action.trickIntent,TRICK_TYPE.BACKFLIP,'touch backflip semantic intent was lost');
 input.setTouchTrick(TRICK_TYPE.BACKFLIP,false);
+input.setTouchTuck(true);
+action=input.read(neutralPad);
+assert.equal(action.styleHeld,true,'touch TUCK does not expose airborne style-hold semantics');
+input.setTouchTuck(false);
+action=input.read({...neutralPad,tuck:true});
+assert.equal(action.styleHeld,true,'controller LT/tuck does not expose airborne style-hold semantics');
 input.resetTransient();
 assert.equal(input.read(neutralPad).steer,0,'reset left touch steering stuck');
 
@@ -59,6 +65,7 @@ assert(main.includes('createTouchControls({'),'touch controls are not wired into
 assert(main.includes('actions.steer')&&main.includes('actions.jumpPressed'),'main bypasses semantic steer/jump actions');
 assert(touch.includes('pointercancel'),'touch controls do not clear cancelled pointers');
 assert(touch.includes('setPointerCapture'),'touch controls do not own active pointers');
+assert(touch.includes('TUCK / STYLE'),'touch UI does not communicate the airborne style hold');
 assert(css.includes('env(safe-area-inset-left)')&&css.includes('env(safe-area-inset-bottom)'),'touch controls ignore mobile safe areas');
 assert(css.includes('orientation:portrait'),'portrait orientation recommendation is missing');
 assert(ui.includes("settings.id='settings-overlay'")||ui.includes('id="settings-overlay"'),'coherent settings dialog is missing');

@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import {
+  STYLE_HOLD_TIMING,
   TRICK_LANDING_SAFETY_MARGIN,
   TRICK_TIMING,
   estimateRemainingAirTime,
+  evaluateStyleHoldTiming,
   evaluateTrickTiming,
   getTrickDefinition,
   getTrickRotationRadians
@@ -10,6 +12,7 @@ import {
 
 const TAU=Math.PI*2;
 const COMPLETE_EPSILON=THREE.MathUtils.degToRad(8);
+const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,Number(value)||0));
 
 export const TRICK_STATE=Object.freeze({
   NONE:'NONE',
@@ -24,12 +27,16 @@ export const TRICK_TYPE=Object.freeze({
   BACKFLIP:'BACKFLIP'
 });
 
+export const STYLE_TYPE='STYLE_HOLD';
+
 export const TRICK_TUNING=Object.freeze({
   SPIN_360_DEGREES_PER_SECOND:TRICK_TIMING[TRICK_TYPE.SPIN_360].degreesPerSecond,
   BACKFLIP_DEGREES_PER_SECOND:TRICK_TIMING[TRICK_TYPE.BACKFLIP].degreesPerSecond,
   LANDING_SAFETY_MARGIN:TRICK_LANDING_SAFETY_MARGIN,
   COMPLETE_EPSILON_DEGREES:8
 });
+
+export const STYLE_HOLD_TUNING=STYLE_HOLD_TIMING;
 
 const SPEED={
   [TRICK_TYPE.SPIN_360]:THREE.MathUtils.degToRad(TRICK_TUNING.SPIN_360_DEGREES_PER_SECOND),
@@ -66,12 +73,23 @@ export function createTrickSystem({visualTarget=null}={}){
     pendingTrick:'',
     lastCompletedType:'',
     lastRejectedType:'',
-    rejectionReason:''
+    rejectionReason:'',
+    styleActive:false,
+    styleAmount:0,
+    styleDuration:0,
+    styleSide:1,
+    styleSource:'',
+    styleQualified:false,
+    styleAutoReleased:false,
+    styleHoldsThisAir:0,
+    styleAllowed:false,
+    styleReleaseReason:''
   };
   let visualPivot=null;
   let pendingRampType=null;
   let completion=null;
   let completionId=0;
+  let styleCompletion=null;
   let previousAir=false;
 
   function isActive(){
@@ -94,11 +112,21 @@ export function createTrickSystem({visualTarget=null}={}){
     if(!visualPivot?.quaternion||!isActive())return;
     const definition=getTrickDefinition(snapshot.type);
     const axis=definition?.axis==='x'?axisX:axisY;
-    // In this rider/camera coordinate frame positive X is the backward somersault
-    // direction. Definitions keep axis/direction data centralized for future tricks.
     const angle=snapshot.rotation*(definition?.direction??1);
     trickQuaternion.setFromAxisAngle(axis,angle);
     visualPivot.quaternion.copy(baseQuaternion).multiply(trickQuaternion);
+  }
+
+  function clearStyleState({keepAmount=false}={}){
+    snapshot.styleActive=false;
+    if(!keepAmount)snapshot.styleAmount=0;
+    snapshot.styleDuration=0;
+    snapshot.styleSide=1;
+    snapshot.styleSource='';
+    snapshot.styleQualified=false;
+    snapshot.styleAutoReleased=false;
+    snapshot.styleAllowed=false;
+    snapshot.styleReleaseReason='';
   }
 
   function beginAirIfNeeded(physicsState){
@@ -108,6 +136,9 @@ export function createTrickSystem({visualTarget=null}={}){
       snapshot.lastCompletedType='';
       snapshot.lastRejectedType='';
       snapshot.rejectionReason='';
+      snapshot.styleHoldsThisAir=0;
+      clearStyleState();
+      styleCompletion=null;
     }
     previousAir=air;
   }
@@ -117,6 +148,7 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.remainingAirTime=estimateRemainingAirTime(physicsState,{landingHeight,gravity});
     if(!physicsState?.air){
       snapshot.trickAllowed=false;
+      snapshot.styleAllowed=false;
       snapshot.remainingAirTime=0;
     }
     return snapshot.remainingAirTime;
@@ -174,8 +206,6 @@ export function createTrickSystem({visualTarget=null}={}){
 
   function requestAirborne(type,physicsState,options={}){
     if(!physicsState?.air)return false;
-    // Consume the airborne Jump request regardless of acceptance. This prevents
-    // rejected/late trick input from surviving as a landing bounce/double jump.
     physicsState.jumpBufferTime=0;
     physicsState.jumpBuffered=false;
     return start(type,{
@@ -209,6 +239,81 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.pendingTrick='';
   }
 
+  function resolveStyleSide(physicsState){
+    const directional=Number(physicsState?.edge??physicsState?.steer??physicsState?.vx)||0;
+    return directional<0?-1:1;
+  }
+
+  function finishStyle(reason='released',{award=true}={}){
+    if(!snapshot.styleActive)return null;
+    const duration=snapshot.styleDuration;
+    const qualified=duration+1e-6>=STYLE_HOLD_TIMING.minimumHoldSeconds;
+    const autoReleased=reason==='landing-window'||reason==='landing';
+    snapshot.styleActive=false;
+    snapshot.styleQualified=qualified;
+    snapshot.styleAutoReleased=autoReleased;
+    snapshot.styleAllowed=false;
+    snapshot.styleReleaseReason=reason;
+    if(qualified&&award){
+      snapshot.styleHoldsThisAir++;
+      styleCompletion={
+        type:STYLE_TYPE,
+        duration,
+        side:snapshot.styleSide,
+        source:snapshot.styleSource||'manual',
+        autoReleased,
+        releaseReason:reason
+      };
+    }
+    return styleCompletion;
+  }
+
+  function updateStyleHold(held,physicsState,{dt=1/60,landingHeight=0,gravity}={}){
+    beginAirIfNeeded(physicsState);
+    const safeDt=clamp(dt,0,.1);
+    const timing=evaluateStyleHoldTiming(physicsState,{landingHeight,gravity});
+    snapshot.remainingAirTime=timing.remainingAirTime;
+
+    if(!physicsState?.air){
+      if(snapshot.styleActive)finishStyle('ground',{award:false});
+      snapshot.styleAmount=0;
+      snapshot.styleAllowed=false;
+      return snapshot;
+    }
+
+    snapshot.styleAllowed=timing.allowed&&snapshot.styleHoldsThisAir===0;
+    if(snapshot.styleActive){
+      if(held&&timing.remainingAirTime>STYLE_HOLD_TIMING.autoReleaseAirTime){
+        snapshot.styleDuration+=safeDt;
+        snapshot.styleQualified=snapshot.styleDuration+1e-6>=STYLE_HOLD_TIMING.minimumHoldSeconds;
+        snapshot.styleAmount=clamp(snapshot.styleAmount+safeDt*6.5);
+      }else{
+        finishStyle(held?'landing-window':'released',{award:true});
+        snapshot.styleAmount=Math.max(0,snapshot.styleAmount-safeDt*8);
+      }
+      return snapshot;
+    }
+
+    snapshot.styleAmount=Math.max(0,snapshot.styleAmount-safeDt*8);
+    if(held&&snapshot.styleAllowed){
+      snapshot.styleActive=true;
+      snapshot.styleDuration=safeDt;
+      snapshot.styleSide=resolveStyleSide(physicsState);
+      snapshot.styleSource=physicsState.jumpSource||'manual';
+      snapshot.styleQualified=safeDt+1e-6>=STYLE_HOLD_TIMING.minimumHoldSeconds;
+      snapshot.styleAutoReleased=false;
+      snapshot.styleReleaseReason='';
+      snapshot.styleAmount=clamp(snapshot.styleAmount+safeDt*6.5);
+    }
+    return snapshot;
+  }
+
+  function consumeStyleCompletion(){
+    const event=styleCompletion;
+    styleCompletion=null;
+    return event;
+  }
+
   function completeActive(){
     const completedType=snapshot.type;
     const completedSource=snapshot.source;
@@ -229,8 +334,6 @@ export function createTrickSystem({visualTarget=null}={}){
       startTime:completedStartTime
     };
 
-    // A full rotation is equivalent to neutral. Reset the pivot and active
-    // rotation immediately so another trick may begin in the same airtime.
     snapshot.state=TRICK_STATE.NONE;
     snapshot.type='';
     snapshot.progress=0;
@@ -261,6 +364,8 @@ export function createTrickSystem({visualTarget=null}={}){
   }
 
   function land({jumpSource=''}={}){
+    if(snapshot.styleActive)finishStyle('landing',{award:true});
+    snapshot.styleAmount=0;
     const active=isActive();
     const target=Math.max(.001,snapshot.targetRotation||TARGET_ROTATION[snapshot.type]||TAU);
     const modulo=active?((snapshot.rotation%TAU)+TAU)%TAU:0;
@@ -270,7 +375,7 @@ export function createTrickSystem({visualTarget=null}={}){
     const interrupted=active&&!salvageable;
     const roughLanding=active&&salvageable;
     const result={
-      hadTrick:snapshot.tricksThisAir>0||active,
+      hadTrick:snapshot.tricksThisAir>0||snapshot.styleHoldsThisAir>0||active,
       success:!interrupted,
       interrupted,
       rough:roughLanding,
@@ -282,12 +387,14 @@ export function createTrickSystem({visualTarget=null}={}){
       alignmentErrorDegrees,
       progress:active?snapshot.progress:1,
       targetRotation:target,
+      styleHoldsThisAir:snapshot.styleHoldsThisAir,
       reason:interrupted?'landing-interruption':roughLanding?'under-rotated':''
     };
 
     clearRampArm();
     snapshot.remainingAirTime=0;
     snapshot.trickAllowed=false;
+    snapshot.styleAllowed=false;
     snapshot.landingAlignmentError=alignmentErrorDegrees;
     previousAir=false;
 
@@ -309,6 +416,8 @@ export function createTrickSystem({visualTarget=null}={}){
       snapshot.completed=false;
       snapshot.landingValid=true;
       snapshot.tricksThisAir=0;
+      snapshot.styleHoldsThisAir=0;
+      snapshot.styleDuration=0;
       normalizeVisual();
     }
     return result;
@@ -331,11 +440,16 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.trickAllowed=false;
     snapshot.lastRejectedType='';
     snapshot.rejectionReason='';
+    snapshot.styleHoldsThisAir=0;
+    clearStyleState();
     normalizeVisual();
     return wasTerminal;
   }
 
   function abort({reason='interrupted'}={}){
+    if(snapshot.styleActive)finishStyle(reason,{award:false});
+    styleCompletion=null;
+    snapshot.styleAmount=0;
     if(!isActive()){
       clearRampArm();
       return null;
@@ -384,8 +498,11 @@ export function createTrickSystem({visualTarget=null}={}){
     snapshot.lastCompletedType='';
     snapshot.lastRejectedType='';
     snapshot.rejectionReason='';
+    snapshot.styleHoldsThisAir=0;
+    clearStyleState();
     pendingRampType=null;
     completion=null;
+    styleCompletion=null;
     previousAir=false;
   }
 
@@ -401,6 +518,8 @@ export function createTrickSystem({visualTarget=null}={}){
     clearRampArm,
     updateTiming,
     evaluateStart,
+    updateStyleHold,
+    consumeStyleCompletion,
     step,
     consumeCompletion,
     land,

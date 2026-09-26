@@ -58,6 +58,8 @@ const toe=board.update({dt:1/60,steer:.8,carveLoad:.8,speed:35,rideMode:'snowboa
 assert(toe.toeEdge>0&&toe.heelEdge===0,'snowboard toe edge is distinct');
 assert(toe.snowboardSideOn>.7,'snowboard keeps a side-on torso bias');
 assert(toe.legCoupling>.5,'snowboard legs are visually coupled rather than ski-independent');
+const boardStyle=board.update({dt:1/60,air:true,verticalVelocity:0,jumpSource:'ramp',styleHold:1,styleSide:1,rideMode:'snowboard'});
+assert(boardStyle.styleReach>.15&&boardStyle.snowboardSideOn>.7,'snowboard style hold keeps its distinct side-on airborne silhouette');
 for(let i=0;i<20;i++)board.update({dt:1/60,steer:-.8,carveLoad:.8,speed:35,rideMode:'snowboard'});
 const heel=board.pose;
 assert(heel.heelEdge>0,'snowboard heel edge is distinct');

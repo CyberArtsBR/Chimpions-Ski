@@ -324,7 +324,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     const airScale=rampAir?1:.72;
     const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
 
-    const crouch=pose.speed*.06+pose.landing*.12+pose.air*.025+descent*.045*airScale+(rampContact&&!air?.085:0)+pose.styleHold*.028;
+    const crouch=pose.speed*.06+pose.landing*.12+pose.air*.025+descent*.045*airScale+(rampContact&&!air ? .085 : 0)+pose.styleHold*.028;
     riderVisual.rotation.z=mix(riderVisual.rotation.z,-pose.carve*.11,.18);
     riderVisual.rotation.x=mix(riderVisual.rotation.x,.035+pose.speed*.025-ascent*.070*airScale+descent*.052*airScale,.14);
     riderVisual.position.y=-crouch+pose.air*.055+Math.sin(time*5)*.006;

@@ -24,7 +24,10 @@ const requirements=[
  ['no double-jump',/no.?double|double.?jump|does not.*jump|verticalVelocity|\bvy\b/i],
  ['trick transform isolated from physics/collision/camera root',/(visualPivot|trickPivot|visual.*pivot)[\s\S]{0,600}(rotation|quaternion)/i],
  ['completed trick normalizes visual rotation',/(complete|completed|finish)[\s\S]{0,380}(normalize|identity|set\s*\(\s*0\s*,\s*0\s*,\s*0|rotation)/i],
- ['failed/restart clears trick state',/(fail|restart|reset)[\s\S]{0,520}(trickState|trickType|trickProgress|failedTrick)/i]
+ ['failed/restart clears trick state',/(fail|restart|reset)[\s\S]{0,520}(trickState|trickType|trickProgress|failedTrick)/i],
+ ['airborne tuck style hold',/(styleHold|STYLE_HOLD)[\s\S]{0,900}(tuck|SHIFT|LT|TUCK)|(tuck|SHIFT|LT|TUCK)[\s\S]{0,900}(styleHold|STYLE_HOLD)/i],
+ ['style auto-opens before landing',/(autoReleaseAirTime|landing-window)[\s\S]{0,900}(style|hold)|(style|hold)[\s\S]{0,900}(autoReleaseAirTime|landing-window)/i],
+ ['style scoring has repetition control',/(STYLE_REPETITION_SCALE|styleRepeatCount)[\s\S]{0,1200}(score|points|bonusScale)/i]
 ];
 
 if(!present.length){

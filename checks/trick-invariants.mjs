@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {updateJumpAssist,tryManualJump,stepAir,launchRamp} from '../src/skiPhysics.js';
-import {readAirborneTrickIntent,readTrickIntent} from '../src/trickInput.js';
+import {readAirborneTrickIntent,readStyleHoldIntent,readTrickIntent} from '../src/trickInput.js';
 import {createTrickSystem,TRICK_STATE,TRICK_TYPE,TRICK_TUNING} from '../src/trickSystem.js';
-import {estimateRemainingAirTime,evaluateTrickTiming} from '../src/trickTiming.js';
+import {STYLE_HOLD_TIMING,estimateRemainingAirTime,evaluateStyleHoldTiming,evaluateTrickTiming} from '../src/trickTiming.js';
 import {
   announceTrickStart,
   resetTrickScoring,
+  scoreStyleHoldCompletion,
   scoreTrickCompletion,
   scoreTrickFailure,
+  STYLE_HOLD_POINTS,
   TRICK_POINTS
 } from '../src/trickScoring.js';
 import {SKI_TUNING as T} from '../src/gameplayTuning.js';
@@ -268,7 +270,57 @@ assert.equal(readTrickIntent(new Set(),{axisY:1,dpad:{}}),TRICK_TYPE.BACKFLIP);
 assert.equal(readAirborneTrickIntent(new Set(['ArrowUp']),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
 assert.equal(readAirborneTrickIntent(new Set(['ArrowDown']),{axisY:0,dpad:{}}),TRICK_TYPE.BACKFLIP);
 assert.equal(readAirborneTrickIntent(new Set(),{axisY:0,dpad:{}}),TRICK_TYPE.SPIN_360);
+assert.equal(readStyleHoldIntent({tuckHeld:true}),true,'air style hold must reuse the tuck control');
+assert.equal(readStyleHoldIntent({tuckHeld:false}),false);
 assert.equal(TRICK_TYPE.FRONTFLIP,undefined,'front flip must not be exposed through normal trick types');
+
+// Q) STYLE HOLD: existing tuck control adds expression without changing physics.
+{
+  const state=makePhysicsState();
+  const {tricks,visual}=makeRig();
+  resetTrickScoring(state);
+  beginRamp(state);
+  const timing=evaluateStyleHoldTiming(state,{landingHeight:GROUND_Y,gravity:T.GRAVITY});
+  assert(timing.allowed,'early ramp style hold should fit the landing window');
+
+  const beforeStartVy=state.vy;
+  tricks.updateStyleHold(true,state,{dt:DT,landingHeight:GROUND_Y,gravity:T.GRAVITY});
+  assert.equal(state.vy,beforeStartVy,'style hold start must not alter vertical velocity');
+
+  for(let i=0;i<49;i++){
+    state.time+=DT;
+    tricks.updateTiming(state,{landingHeight:GROUND_Y,gravity:T.GRAVITY});
+    const beforeStyleVy=state.vy;
+    tricks.updateStyleHold(true,state,{dt:DT,landingHeight:GROUND_Y,gravity:T.GRAVITY});
+    assert.equal(state.vy,beforeStyleVy,'style hold update must stay physics-neutral');
+    tricks.step(DT);
+    const landing=stepAir(state,DT,GROUND_Y);
+    assert.equal(landing.landed,false,'style hold landed before minimum expressive duration');
+  }
+  tricks.updateStyleHold(false,state,{dt:DT,landingHeight:GROUND_Y,gravity:T.GRAVITY});
+  const styleEvent=tricks.consumeStyleCompletion();
+  assert(styleEvent&&styleEvent.duration>=STYLE_HOLD_TIMING.minimumHoldSeconds,'qualified style hold did not emit completion');
+  const scored=scoreStyleHoldCompletion(state,styleEvent);
+  assert(scored?.points>0,'qualified style hold did not score');
+  assert(scored.points>=STYLE_HOLD_POINTS.BASE,'style hold scored below its authored base');
+  assert(visual.quaternion.equals(new THREE.Quaternion()),'style hold must not rotate the trick visual pivot');
+  const terminal=finishAir(state,tricks);
+  assert.equal(terminal.interrupted,false,'style hold must integrate with safe normal landing');
+}
+
+// R) STYLE HOLD late input is rejected and landing remains safe.
+{
+  const state=makePhysicsState();
+  const {tricks}=makeRig();
+  resetTrickScoring(state);
+  beginManual(state);
+  advanceUntilRemainingBelow(state,tricks,STYLE_HOLD_TIMING.minimumStartAirTime-.01);
+  tricks.updateStyleHold(true,state,{dt:DT,landingHeight:GROUND_Y,gravity:T.GRAVITY});
+  assert.equal(tricks.state.styleActive,false,'late style hold should not start inside landing safety window');
+  assert.equal(tricks.consumeStyleCompletion(),null);
+  assert.equal(finishAir(state,tricks).interrupted,false);
+}
+
 
 // Genuine interruption can still fail, but timing rejection does not.
 {
@@ -305,10 +357,11 @@ assert.equal(TRICK_TUNING.LANDING_SAFETY_MARGIN,.11);
 console.log(JSON.stringify({
   check:'trick-invariants',
   manualJumpAirtime:Number(manualAirtime.toFixed(4)),
-  controls:{normal:'SPACE/A',spin:'UP + SPACE/A or second airborne SPACE/A',backflip:'BACK/DOWN + SPACE/A',frontflip:'not mapped'},
+  controls:{normal:'SPACE/A',spin:'UP + SPACE/A or second airborne SPACE/A',backflip:'BACK/DOWN + SPACE/A',style:'hold SHIFT/LT/TUCK in air',frontflip:'not mapped'},
   angularSpeedDegPerSec:{spin360:TRICK_TUNING.SPIN_360_DEGREES_PER_SECOND,backflip:TRICK_TUNING.BACKFLIP_DEGREES_PER_SECOND},
   durationsSeconds:{spin360:Number(spinTiming.trickDuration.toFixed(4)),backflip:Number(backflipTiming.trickDuration.toFixed(4))},
   landingSafetyMargin:TRICK_TUNING.LANDING_SAFETY_MARGIN,
+  styleHoldTiming:STYLE_HOLD_TIMING,
   latestSafeManualStartSeconds:{
     spin360:Number((manualAirtime-spinTiming.requiredAirTime).toFixed(4)),
     backflip:Number((manualAirtime-backflipTiming.requiredAirTime).toFixed(4))
