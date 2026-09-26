@@ -9,6 +9,11 @@ const wood=new THREE.MeshStandardMaterial({color:0xa06f42,map:bark,bumpMap:bark,
 const foliage=new THREE.MeshPhysicalMaterial({color:0xffffff,vertexColors:true,roughness:.88,sheen:.20,sheenColor:new THREE.Color(0x608768),sheenRoughness:.94,side:THREE.DoubleSide});
 const stone=new THREE.MeshStandardMaterial({color:0xffffff,vertexColors:true,roughness:.90,flatShading:true});
 const snowCover=new THREE.MeshPhysicalMaterial({color:0xf7fbff,roughness:.82,metalness:0,clearcoat:.035,clearcoatRoughness:.78,sheen:.22,sheenColor:new THREE.Color(0xd7edff)});
+const snowmanSnow=new THREE.MeshPhysicalMaterial({color:0xf5fbff,roughness:.88,clearcoat:.08,clearcoatRoughness:.8,sheen:.32,sheenColor:new THREE.Color(0xc8e7ff)});
+const snowmanDark=new THREE.MeshStandardMaterial({color:0x172536,roughness:.72});
+const snowmanNose=new THREE.MeshStandardMaterial({color:0xef762e,roughness:.62});
+const snowmanScarf=[0xb32737,0x1769aa,0x26834f,0x7336a8].map(color=>new THREE.MeshStandardMaterial({color,roughness:.68}));
+const snowmanTwig=new THREE.MeshStandardMaterial({color:0x62432f,roughness:.92});
 
 function paint(geometry,fn){
   const p=geometry.attributes.position,colors=[];
@@ -95,8 +100,8 @@ function makeFir(variant){
         const back=[cx-dx*.09,cy+.045,cz-dz*.09];
         const green=.13+hash(seed+tier*13+j*7+k)*.11;
         const snowLoad=THREE.MathUtils.clamp(
-          .055+(1-t)*.13+(tier/9)*.15+hash(seed+tier*17+j+k)*.10,
-          0,.42
+          .22+(1-t)*.18+(tier/9)*.25+hash(seed+tier*17+j+k)*.14,
+          0,.78
         );
         const baseTone=[green*.27,green,green*.60],winter=[.91,.965,1.0];
         const tone=baseTone.map((value,index)=>THREE.MathUtils.lerp(value,winter[index],snowLoad));
@@ -129,6 +134,38 @@ function makeFir(variant){
     const mesh=new THREE.Mesh(geometry,material);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);
   }
   group.userData.visualPrototype='premium-readability-fir-'+variant;
+  return group;
+}
+
+function makeSnowman(variant){
+  const group=new THREE.Group(),offset=(variant-1.5)*.035;
+  const ball=(radius,y,x=0,z=0,material=snowmanSnow)=>{const mesh=new THREE.Mesh(new THREE.SphereGeometry(radius,18,14),material);mesh.position.set(x,y,z);mesh.castShadow=mesh.receiveShadow=true;group.add(mesh);return mesh;};
+  ball(.47,.48,offset);
+  ball(.35,1.18,-offset*.5,-.015);
+  ball(.245,1.78,offset*.25,-.025);
+  // A tailored wool scarf with a short front tail and three coal buttons.
+  const scarf=new THREE.Mesh(new THREE.TorusGeometry(.31,.075,8,24),snowmanScarf[variant]);
+  scarf.rotation.x=Math.PI/2;scarf.position.set(0,1.43,-.015);scarf.castShadow=true;group.add(scarf);
+  const tail=new THREE.Mesh(new THREE.BoxGeometry(.12,.40,.085),snowmanScarf[variant]);tail.position.set(.19,1.23,.255);tail.rotation.z=-.18;tail.castShadow=true;group.add(tail);
+  const eyeMaterial=snowmanDark;
+  for(const side of [-1,1]){ball(.034,1.84,offset*.25+side*.084,.193,eyeMaterial);}
+  const nose=new THREE.Mesh(new THREE.ConeGeometry(.065,.34,9),snowmanNose);nose.rotation.x=Math.PI/2;nose.rotation.z=-.12;nose.position.set(0,1.75,.31);nose.castShadow=true;group.add(nose);
+  for(let i=0;i<3;i++)ball(.036,1.20-i*.16,-offset*.5,.326,snowmanDark);
+  // Twig arms spread into a clear obstacle silhouette; collision remains the
+  // tree course object's original .62 x .68 footprint.
+  for(const side of [-1,1]){
+    const arm=new THREE.Mesh(new THREE.CylinderGeometry(.035,.052,.62,7),snowmanTwig);
+    arm.position.set(side*.59,1.33,.005);arm.rotation.z=side*.91;arm.rotation.x=.10;arm.castShadow=true;group.add(arm);
+    for(const twigSide of [-1,1]){
+      const twig=new THREE.Mesh(new THREE.CylinderGeometry(.018,.026,.23,6),snowmanTwig);
+      twig.position.set(side*.72,1.52+twigSide*.03,.005);twig.rotation.z=side*(.91+twigSide*.68);twig.castShadow=true;group.add(twig);
+    }
+  }
+  // A compact top hat gives the head a distinctive outline at course speed.
+  const brim=new THREE.Mesh(new THREE.CylinderGeometry(.28,.28,.055,18),snowmanDark);brim.position.set(offset*.25,2.00,-.025);brim.castShadow=true;group.add(brim);
+  const crown=new THREE.Mesh(new THREE.CylinderGeometry(.17,.19,.30,16),snowmanDark);crown.position.set(offset*.25,2.17,-.025);crown.castShadow=true;group.add(crown);
+  const band=new THREE.Mesh(new THREE.CylinderGeometry(.192,.192,.055,16),snowmanScarf[(variant+1)%snowmanScarf.length]);band.position.set(offset*.25,2.08,-.025);group.add(band);
+  group.userData.visualPrototype='premium-course-snowman-'+variant;
   return group;
 }
 
@@ -236,13 +273,13 @@ export function getPremiumObstacleLibrary(){
   if(library)return library;
   const logs=Array.from({length:3},(_,i)=>makeLog(false,i));
   const wideLogs=Array.from({length:3},(_,i)=>makeLog(true,i));
-  library={trees:Array.from({length:4},(_,i)=>makeFir(i)),rocks:Array.from({length:4},(_,i)=>makeRock(i)),logs,wideLogs,log:logs[0],wideLog:wideLogs[0]};
+  library={trees:Array.from({length:4},(_,i)=>makeFir(i)),snowmen:Array.from({length:4},(_,i)=>makeSnowman(i)),rocks:Array.from({length:4},(_,i)=>makeRock(i)),logs,wideLogs,log:logs[0],wideLog:wideLogs[0]};
   return library;
 }
 
 export function applyPremiumObstacle(root,kind){
   const assets=getPremiumObstacleLibrary();
-  const variants=kind==='tree'?assets.trees:kind==='rock'?assets.rocks:kind==='log'?assets.logs:kind==='wideLog'?assets.wideLogs:null;
+  const variants=kind==='tree'?[...assets.trees,...assets.snowmen]:kind==='rock'?assets.rocks:kind==='log'?assets.logs:kind==='wideLog'?assets.wideLogs:null;
   const source=variants?.[0]??assets[kind];
   if(!source)return false;
   const old=new Set();root.traverse(node=>{if(node.isMesh)old.add(node.geometry);});

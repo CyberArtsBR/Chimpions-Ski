@@ -104,7 +104,7 @@ export const SKI_TUNING=Object.freeze({
   LANDING_REENGAGE_TIME:.18,
 
   // Oil puddles preserve momentum but temporarily reduce ski authority/grip.
-  OIL_SLIP_SECONDS:1.05,
+  OIL_SLIP_SECONDS:1.0,
   OIL_CONTROL_SCALE:.52,
   OIL_GRIP:.26,
 
