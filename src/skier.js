@@ -254,7 +254,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
 
   const body=new THREE.Group();
   riderVisual.add(body);
-  const fur=material(0x5a3623), skin=material(0xb98155), dark=material(0x172533,.42);
+  const fur=material(0x5a3623), skin=material(0xb98155);
   const torso=mesh(new THREE.CapsuleGeometry(.36,.72,6,12),fur,body);torso.position.y=1.55;torso.rotation.z=.08;
   const headPivot=new THREE.Group();headPivot.position.set(0,2.25,-.03);body.add(headPivot);
   const head=mesh(new THREE.SphereGeometry(.38,20,16),fur,headPivot);
@@ -265,15 +265,17 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     const arm=mesh(new THREE.CapsuleGeometry(.10,.55,5,8),fur,body);arm.position.set(side*.39,1.43,.02);arm.rotation.z=side*.68;arms.push(arm);
     const leg=mesh(new THREE.CapsuleGeometry(.12,.62,5,8),fur,body);leg.position.set(side*.2,.62,0);leg.rotation.z=side*.16;legs.push(leg);
   }
+  const fallbackHands={leftHand:new THREE.Group(),rightHand:new THREE.Group()};
+  fallbackHands.leftHand.position.set(0,-.36,0);fallbackHands.rightHand.position.set(0,-.36,0);
+  arms[0].add(fallbackHands.leftHand);arms[1].add(fallbackHands.rightHand);
 
   const equipmentRoot=new THREE.Group();
   riderVisual.add(equipmentRoot);
+  const poleEquipment=makeSkiPoles(riderVisual);
   const fallbackSkiAssets=createSkiAssets(0x235f88);
   const skis=[];
-  const poles=[];
   for(const side of [-1,1]){
     const ski=createStyledSki(fallbackSkiAssets);ski.position.set(side*.22,.12,.05);ski.rotation.y=side*.035;ski.userData.restPosition=ski.position.clone();equipmentRoot.add(ski);skis.push(ski);
-    const pole=mesh(new THREE.CylinderGeometry(.018,.018,1.65,8),dark,equipmentRoot);pole.position.set(side*.58,.86,.15);pole.rotation.z=side*.18;pole.rotation.x=.18;poles.push(pole);
   }
   const snowboard=createSnowboardEquipment({centerX:0,z:.04,boardY:.040,topColor:0x7a3ec5,stanceHalfLength:.24});
   riderVisual.add(snowboard.root);
@@ -286,6 +288,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
     currentRideMode=normalizeRideMode(mode);
     const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
     equipmentRoot.visible=!snowboardMode;
+    poleEquipment.root.visible=!snowboardMode;
     snowboard.root.visible=snowboardMode;
     root.userData.rideMode=currentRideMode;
     root.userData.equipmentType=snowboardMode?'snowboard':'skis';
@@ -343,6 +346,7 @@ export function createFallbackSkier({rideMode=RIDE_MODE.SKI}={}){
       const armForward=snowboardMode ? .012 : .025;
       arm.rotation.x=mix(arm.rotation.x,armForward+pose.speed*.006-ascent*.022*airScale+apex*.008+descent*.012*airScale+styleReach*.22,.16);
     });
+    poleEquipment.update(riderVisual,fallbackHands);
     legs.forEach((leg,index)=>{
       const side=index===0?-1:1;
       const outside=Math.max(0,pose.carve*-side);
@@ -384,6 +388,33 @@ function fitModel(root){
   root.position.x-=center.x;
   root.position.z-=center.z;
   root.position.y-=fitted.min.y;
+}
+
+function makeSkiPoles(parent){
+  const root=new THREE.Group();root.name='ski-poles';parent.add(root);
+  const poles=[];
+  const shaftMaterial=material(0x283744,.48),gripMaterial=material(0x121a20,.72),basketMaterial=material(0xc4eaff,.52);
+  for(const side of [-1,1]){
+    const pole=new THREE.Group();pole.userData.side=side;root.add(pole);
+    const shaft=mesh(new THREE.CylinderGeometry(.014,.020,.96,8),shaftMaterial,pole);shaft.position.y=.49;
+    const grip=mesh(new THREE.CylinderGeometry(.025,.025,.13,8),gripMaterial,pole);grip.rotation.z=Math.PI/2;grip.position.y=-.045;
+    const basket=mesh(new THREE.CylinderGeometry(.025,.085,.026,10),basketMaterial,pole);basket.position.y=.81;
+    const tip=mesh(new THREE.ConeGeometry(.023,.11,7),gripMaterial,pole);tip.position.y=.88;
+    poles.push(pole);
+  }
+  const hand=new THREE.Vector3(),tip=new THREE.Vector3(),direction=new THREE.Vector3(),up=new THREE.Vector3(0,1,0);
+  function update(riderVisual,rig=null,fallbackHands=null){
+    riderVisual.updateWorldMatrix(true,true);
+    for(const pole of poles){
+      const side=pole.userData.side,handBone=rig?.[side<0?'leftHand':'rightHand'];
+      if(handBone){handBone.getWorldPosition(hand);riderVisual.worldToLocal(hand);}
+      else hand.set(side*.63,1.13,.02);
+      tip.set(hand.x+side*.25,hand.y-.90,hand.z+.10);
+      direction.copy(tip).sub(hand).normalize();
+      pole.position.copy(hand);pole.quaternion.setFromUnitVectors(up,direction);
+    }
+  }
+  return {root,update};
 }
 
 function footBasedSkiPlacement(root,rig){
@@ -793,6 +824,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     skiEquipmentRoot.name='ski-equipment';
     riderVisual.add(skiEquipmentRoot);
     const skis=addSkiEquipment(skiEquipmentRoot,updateRig?.rig,placement);
+    const poleEquipment=makeSkiPoles(riderVisual);
     const snowboard=createSnowboardEquipment({
       centerX:snowboardStance.placement.centerX,
       z:snowboardStance.placement.z,
@@ -813,6 +845,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       currentRideMode=normalizeRideMode(mode);
       const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
       skiEquipmentRoot.visible=!snowboardMode;
+      poleEquipment.root.visible=!snowboardMode;
       snowboard.root.visible=snowboardMode;
       // Rotate only the imported avatar visual. The selected side guarantees a
       // regular stance (left foot downhill/front) without touching gameplay axes.
@@ -847,6 +880,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,dt*60));
       clipLayer?.update(updateRig?.pose?.state,dt,.16,!!state.reducedMotion);
       updateRig?.(state);
+      poleEquipment.update(riderVisual,updateRig?.rig);
       const pose=updateRig?.pose;
       root.userData.animationState=pose?.state||'';
       const carve=pose?.carve??THREE.MathUtils.clamp(state.steer||0,-1,1);

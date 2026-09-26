@@ -193,7 +193,7 @@ function makeBanana(){
 }
 function makeRamp(){
   const g=createRampVisual();
-  g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.58;
+  g.userData.kind='ramp';g.userData.radius=1.15;g.userData.radiusX=1.16;g.userData.radiusZ=1.78;
   return g;
 }
 function makeLog(){
@@ -1372,15 +1372,15 @@ function update(dt,frameMs=dt*1000){
         if(item.userData.activated&&!aligned){
           collisionRuntime.clearRamp(item);
         }
-        if(!collisionRuntime.activeRamp&&!item.userData.activated&&!item.userData.consumed&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.72&&approachDepth>=.45){
+        if(!collisionRuntime.activeRamp&&!item.userData.activated&&!item.userData.consumed&&!state.air&&state.rampGrace<=0&&aligned&&approachDepth<=1.92&&approachDepth>=.45){
           collisionRuntime.engageRamp(item);
         }
 
-        // Crossing-based lip detection is robust at 300 km/h while preserving the
-        // same -1.42 lip threshold used by the previous window test.
-        const crossedLip=item.userData.activated&&aligned&&previousApproachDepth>-1.42&&approachDepth<=-1.42;
+        // Crossing-based lip detection is robust at 300 km/h and follows the
+        // extended downhill edge of the revised ramp deck.
+        const crossedLip=item.userData.activated&&aligned&&previousApproachDepth>-1.68&&approachDepth<=-1.68;
         if(item.userData.activated&&!state.air){
-          state.y=Math.max(state.y,itemGround+.34+.11*Math.cos(.18)-approachDepth*Math.sin(.18));
+          state.y=Math.max(state.y,itemGround+.34+.11*Math.cos(.205)-approachDepth*Math.sin(.205));
           player.position.y=state.y;
         }
         if(crossedLip&&!state.air){
