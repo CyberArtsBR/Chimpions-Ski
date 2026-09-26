@@ -106,7 +106,12 @@ export function createAlpineInfrastructure({world,terrainHeight}){
       put(carrierGlass,i,x,y+.06,z-.36*Math.sign(Math.cos(yaw)||1),.68,.31,.055,yaw);
     }
     carriers.instanceMatrix.needsUpdate=true;carrierGlass.instanceMatrix.needsUpdate=true;
-    carriers.computeBoundingSphere();carrierGlass.computeBoundingSphere();
+    if(!carriers.userData.environmentBoundsReady){
+      carriers.computeBoundingSphere();carrierGlass.computeBoundingSphere();
+      if(carriers.boundingSphere)carriers.boundingSphere.radius+=130;
+      if(carrierGlass.boundingSphere)carrierGlass.boundingSphere.radius+=130;
+      carriers.userData.environmentBoundsReady=carrierGlass.userData.environmentBoundsReady=true;
+    }
   }
 
   function setDetail(value=1){
