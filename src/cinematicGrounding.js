@@ -72,7 +72,7 @@ export function createCinematicGrounding({scene}={}){
 
   function setProfile(settings={}){
     profile=String(settings.profile||profile||'low');
-    enabled=!!settings.contactGrounding&&(profile==='high'||profile==='max');
+    enabled=!!settings.contactGrounding&&(profile==='high'||profile==='max'||profile==='max-cinematic');
     strength=clamp(Number(settings.contactGroundingStrength)||0,0,1.25);
     if(!enabled){
       mesh.visible=false;

@@ -1,4 +1,4 @@
-const MODE_NAMES=Object.freeze(['auto','high','max','medium','low']);
+const MODE_NAMES=Object.freeze(['auto','high','max','max-cinematic','medium','low']);
 const PROFILE_ORDER=Object.freeze(['high','medium','low']);
 
 const HIGH=Object.freeze({
@@ -65,6 +65,36 @@ const MAX=Object.freeze({
   particleDensity:1.18,
   exposure:1.02,
   maxAnisotropy:16
+});
+
+// Manual premium mode. Keep legacy MAX intact for direct visual comparison.
+const MAX_CINEMATIC=Object.freeze({
+  ...MAX,
+  profile:'max-cinematic',
+  dprCap:1.60,
+  msaaSamples:0,
+  bloomStrength:.65,
+  bloomRadius:.48,
+  bloomThreshold:1.60,
+  maxAnisotropy:8,
+  shadows:false,
+  shadowMapSize:0,
+  contactGrounding:true,
+  contactGroundingStrength:1,
+  ambientOcclusion:true,
+  aoResolutionScale:.5,
+  aoIntensity:.38,
+  aoRadius:.18,
+  aoThickness:1.2,
+  colorGrading:true,
+  sharpenEnabled:true,
+  sharpenStrength:.18,
+  volumetricFog:true,
+  volumetricResolutionScale:.375,
+  volumetricDensity:.13,
+  volumetricDistance:.85,
+  lightShafts:true,
+  depthOfField:'cinematic'
 });
 
 const MEDIUM=Object.freeze({
@@ -134,6 +164,7 @@ const LOW=Object.freeze({
 export const QUALITY_PROFILES=Object.freeze({
   high:HIGH,
   max:MAX,
+  'max-cinematic':MAX_CINEMATIC,
   medium:MEDIUM,
   low:LOW
 });

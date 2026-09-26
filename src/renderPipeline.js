@@ -3,6 +3,8 @@ import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
 import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
 import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
 import {OutputPass} from 'three/addons/postprocessing/OutputPass.js';
+import {GTAOPass} from 'three/addons/postprocessing/GTAOPass.js';
+import {CinematicAtmospherePass,CinematicFinishPass} from './cinematicPost.js';
 
 const WINDOW=240;
 const now=()=>globalThis.performance?.now?.()??Date.now();
@@ -150,6 +152,11 @@ export function createRenderPipeline({
   let renderPass=null;
   let bloomPass=null;
   let outputPass=null;
+  let aoPass=null;
+  let atmospherePass=null;
+  let finishPass=null;
+  let cinematicWeather='day';
+  let cinematicState=false;
   let rootTarget=null;
   let activeProfile='';
   let settings=quality.getSettings();
@@ -183,18 +190,26 @@ export function createRenderPipeline({
       count+=bloomPass.renderTargetsHorizontal?.length||0;
       count+=bloomPass.renderTargetsVertical?.length||0;
     }
+    if(aoPass)count+=3;
+    if(atmospherePass)count++;
     return count;
   }
 
   function disposePostPipeline(){
     if(!composer&&!rootTarget)return;
     try{bloomPass?.dispose?.();}catch{}
+    try{aoPass?.dispose?.();}catch{}
+    try{atmospherePass?.dispose?.();}catch{}
+    try{finishPass?.dispose?.();}catch{}
     try{renderPass?.dispose?.();}catch{}
     try{outputPass?.dispose?.();}catch{}
     try{composer?.dispose?.();}catch{}
     composer=null;
     renderPass=null;
     bloomPass=null;
+    aoPass=null;
+    atmospherePass=null;
+    finishPass=null;
     outputPass=null;
     rootTarget=null;
     composerPixelRatio=0;
@@ -338,6 +353,33 @@ export function createRenderPipeline({
     composer=new EffectComposer(renderer,rootTarget);
     renderPass=new RenderPass(scene,camera);
     composer.addPass(renderPass);
+    if(settings.ambientOcclusion&&renderer.capabilities.isWebGL2&&canHdr){
+      try{
+        aoPass=new GTAOPass(scene,camera,1,1);
+        // Composer sizes all passes at full size. Scale only the AO G-buffer,
+        // GTAO and denoise buffers; the final blend remains full resolution.
+        const setAoSize=aoPass.setSize.bind(aoPass);
+        aoPass.setSize=(w,h)=>setAoSize(Math.max(1,Math.round(w*settings.aoResolutionScale)),Math.max(1,Math.round(h*settings.aoResolutionScale)));
+        aoPass.blendIntensity=settings.aoIntensity;
+        aoPass.updateGtaoMaterial({radius:settings.aoRadius,thickness:settings.aoThickness,samples:8,screenSpaceRadius:false});
+        aoPass.updatePdMaterial({samples:8,rings:2,radius:6,depthPhi:2});
+        // The transparent grounding decal belongs in the beauty pass, not the
+        // opaque normal/depth G-buffer used for screen-space occlusion.
+        const grounding=scene.getObjectByName('cinematic-rider-grounding');
+        if(grounding){
+          const hide=aoPass._overrideVisibility.bind(aoPass);
+          const restore=aoPass._restoreVisibility.bind(aoPass);
+          let wasVisible=false;
+          aoPass._overrideVisibility=()=>{hide();wasVisible=grounding.visible;grounding.visible=false;};
+          aoPass._restoreVisibility=()=>{restore();grounding.visible=wasVisible;};
+        }
+        composer.addPass(aoPass);
+      }catch(error){console.warn('Cinematic AO disabled:',error);aoPass?.dispose?.();aoPass=null;}
+    }
+    if(aoPass&&settings.volumetricFog){
+      try{atmospherePass=new CinematicAtmospherePass(aoPass.depthTexture,camera,settings);composer.addPass(atmospherePass);}
+      catch(error){console.warn('Cinematic atmosphere disabled:',error);atmospherePass?.dispose?.();atmospherePass=null;}
+    }
     if(settings.bloomEnabled){
       bloomPass=new UnrealBloomPass(
         new THREE.Vector2(viewportWidth,viewportHeight),
@@ -349,6 +391,10 @@ export function createRenderPipeline({
     }
     outputPass=new OutputPass();
     composer.addPass(outputPass);
+    if(aoPass&&(settings.colorGrading||settings.sharpenEnabled)){
+      try{finishPass=new CinematicFinishPass(aoPass.depthTexture,camera,settings);composer.addPass(finishPass);}
+      catch(error){console.warn('Cinematic finish disabled:',error);finishPass?.dispose?.();finishPass=null;}
+    }
     pipelineRebuilds++;
   }
 
@@ -360,7 +406,8 @@ export function createRenderPipeline({
       next.postProcessing!==settings.postProcessing||
       next.renderTargetType!==settings.renderTargetType||
       next.msaaSamples!==settings.msaaSamples||
-      next.bloomEnabled!==settings.bloomEnabled;
+      next.bloomEnabled!==settings.bloomEnabled||
+      next.ambientOcclusion!==settings.ambientOcclusion;
 
     settings=next;
     activeProfile=next.profile;
@@ -388,7 +435,7 @@ export function createRenderPipeline({
     invalidated=true;
   }
 
-  function render(dt=0,{staticFrame=false,staticReason=null,stamp=now()}={}){
+  function render(dt=0,{staticFrame=false,staticReason=null,stamp=now(),weather=null,cinematic=false}={}){
     if(disposed)return false;
     const gpuSample=gpuTimer.poll();
     if(gpuSample!=null)pushSample(gpuSamples,gpuSample);
@@ -409,6 +456,10 @@ export function createRenderPipeline({
     }
 
     scheduleShadowUpdate(stamp,invalidated);
+    if(weather?.preset)cinematicWeather=weather.preset;
+    cinematicState=!!cinematic;
+    atmospherePass?.update(weather||{preset:cinematicWeather},shadowLight);
+    finishPass?.update(cinematicWeather,cinematicState);
     const queryStarted=gpuTimer.begin();
     const started=now();
     if(composer){
@@ -457,6 +508,18 @@ export function createRenderPipeline({
       bloomStrength:bloomPass?bloomPass.strength:0,
       bloomRadius:bloomPass?bloomPass.radius:0,
       bloomThreshold:bloomPass?bloomPass.threshold:null,
+      aoEnabled:!!aoPass,
+      aoResolutionScale:aoPass?settings.aoResolutionScale:0,
+      aoIntensity:aoPass?.blendIntensity||0,
+      contactShadowEnabled:!!settings.contactGrounding,
+      colorGradingEnabled:!!finishPass,
+      colorGradingPreset:finishPass?cinematicWeather:null,
+      sharpenEnabled:!!finishPass&&!!settings.sharpenEnabled,
+      sharpenStrength:finishPass?settings.sharpenStrength:0,
+      volumetricFogEnabled:!!atmospherePass,
+      volumetricResolutionScale:atmospherePass?settings.volumetricResolutionScale:0,
+      lightShaftsEnabled:!!atmospherePass&&!!settings.lightShafts,
+      depthOfFieldEnabled:!!finishPass&&cinematicState,
       toneMappingExposure:renderer.toneMappingExposure,
       shadowEnabled:!!renderer.shadowMap.enabled,
       shadowMapSize:shadowLight?.castShadow?shadowLight.shadow.mapSize.x:0,

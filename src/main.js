@@ -1600,7 +1600,9 @@ function render(now){
   renderPipeline.render(dt,{
     staticFrame:startScreen.isActive||state.mode==='paused',
     staticReason:startScreen.isActive?'start-screen':state.mode==='paused'?'paused':null,
-    stamp:now
+    stamp:now,
+    weather:mountainWeather.getState(),
+    cinematic:gameFlow.is(GAME_FLOW.COUNTDOWN)||gameFlow.is(GAME_FLOW.CRASHED)||gameFlow.is(GAME_FLOW.RESULTS)||selector?.dialog?.open===true
   });
   renderFrameHandle=requestAnimationFrame(render);
 }
