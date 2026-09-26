@@ -49,18 +49,28 @@ export function calculateLandingFeedback(landing={}){
   const qualityBias=LANDING_QUALITY_BIAS[quality]??.04;
   const intensity=clamp(impact01*.78+qualityBias+jumpHeight*.12+sourceBoost);
   const tiny=intensity<.16;
-  const hard=quality==='hard'||intensity>=.70;
+  const band=quality==='hard'||intensity>=.80?'hard'
+    :quality==='rough'||intensity>=.61?'rough'
+    :quality==='solid'||intensity>=.39?'solid'
+    :tiny?'tiny':'clean';
+  const hard=band==='hard';
+  const rough=band==='rough';
+  const gainBase={tiny:.20,clean:.32,solid:.43,rough:.50,hard:.58}[band];
+  const gainScale={tiny:.18,clean:.34,solid:.38,rough:.40,hard:.36}[band];
+  const rateBase={tiny:1.075,clean:1.025,solid:.985,rough:.945,hard:.895}[band];
   return {
     intensity,
     impact,
     quality,
-    sound:hard?'hardLand':'land',
-    audioGain:clamp((tiny?.23:.34)+intensity*(hard?.56:.42),.18,.92),
-    rateScale:clamp(1.05-intensity*.13,.86,1.08),
-    particleBurst:tiny?0:clamp((intensity-.14)/.86),
+    band,
+    sound:hard||rough?'hardLand':'land',
+    audioGain:clamp(gainBase+intensity*gainScale,.18,.94),
+    rateScale:clamp(rateBase-intensity*(hard?.035:rough?.025:.012),.84,1.08),
+    particleBurst:tiny?0:clamp((intensity-.12)/.88),
+    equipmentImpact:tiny?0:clamp((intensity-.08)/.92),
     cameraKick:intensity<.26?0:clamp((intensity-.24)/.76)*.72,
-    hapticStrength:intensity<.10?0:clamp(.10+intensity*.90),
-    dramatic:!tiny&&intensity>=.34
+    hapticStrength:intensity<.08?0:clamp(.08+intensity*.92),
+    dramatic:band==='solid'||rough||hard
   };
 }
 
