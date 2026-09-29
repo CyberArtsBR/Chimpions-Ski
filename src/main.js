@@ -49,6 +49,9 @@ import {createRiderController} from './riderController.js';
 import {createRuntimeDiagnostics} from './runtimeDiagnostics.js';
 import {createImpactVfx} from './impactVfx.js';
 
+const BASE=import.meta.env.BASE_URL;
+document.documentElement.style.setProperty('--ski-menu-background',`url("${BASE}menu/alpine-background.jpg")`);
+
 const userPreferences=loadUserPreferences();
 
 let requestedRunSeed=null;
@@ -745,7 +748,7 @@ async function setAvatar(entry,rideMode=selectedRideMode){
   startScreen.setReady(false);
   ui.setAvatarLoading(true);
   try{
-    const sourceUrl=entry.localOnly?entry.localObjectUrl:'/'+entry.url;
+    const sourceUrl=entry.localOnly?entry.localObjectUrl:BASE+entry.url;
     const avatarLoadStarted=performance.now();
     const nextSkier=await loadRiderAsset(sourceUrl,{
       rideMode:nextRideMode,
