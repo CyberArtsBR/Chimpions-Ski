@@ -1,6 +1,8 @@
-import startArtwork from './assets/chimpions-ski-start.jpg';
+const BASE=import.meta.env.BASE_URL;
+const DEFAULT_START_ART=BASE+'start/chimpions-ski-start.jpg';
+const FALLBACK_START_ART=BASE+'menu/alpine-background.jpg';
 
-export function createStartScreen({audio,onStart,assetUrl=startArtwork}={}){
+export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART}={}){
   const root=document.createElement('section');
   root.className='start-screen is-loading';
   root.setAttribute('aria-label','Chimpions Ski start screen');
@@ -49,10 +51,15 @@ export function createStartScreen({audio,onStart,assetUrl=startArtwork}={}){
     refreshReady();
   },{once:true});
   art.addEventListener('error',()=>{
+    if(!art.dataset.fallbackTried){
+      art.dataset.fallbackTried='true';
+      art.src=FALLBACK_START_ART;
+      return;
+    }
     artReady=false;
     artFailed=true;
     refreshReady();
-  },{once:true});
+  });
   if(artReady)root.classList.add('is-art-ready');
 
   function setReady(value){
