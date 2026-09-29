@@ -11,10 +11,12 @@ import {MENU_ACTION,menuActionFromKeyboardEvent} from './menuNavigation.js';
 import {BUILTIN_AVATAR_NAMES,canonicalizeBuiltinCatalog} from './avatarRoster.js';
 import {UPLOAD_AVATAR_ACTION,createLocalAvatarEntry,isUploadAvatarAction,validateLocalGlbFile} from './localAvatarUpload.js';
 
+const BASE=import.meta.env.BASE_URL;
+
 export async function loadAvatarCatalog(){
   // Metadata/thumbnails are cheap; GLBs remain lazy and are loaded only after a
   // concrete rider selection.
-  const response=await fetch('/avatars.json');
+  const response=await fetch(BASE+'avatars.json');
   if(!response.ok)throw new Error('Could not load Chimpion catalog');
   const entries=canonicalizeBuiltinCatalog(await response.json())
     .map(entry=>({...entry,compatibility:getAvatarCompatibility(entry)}));
