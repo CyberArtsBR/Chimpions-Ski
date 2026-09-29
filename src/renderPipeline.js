@@ -10,6 +10,14 @@ const WINDOW=240;
 const now=()=>globalThis.performance?.now?.()??Date.now();
 const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
 
+function isEmbeddedHost(){
+  try{
+    return !!globalThis.window&&globalThis.window.self!==globalThis.window.top;
+  }catch{
+    return true;
+  }
+}
+
 function percentile(sorted,p){
   if(!sorted.length)return 0;
   const index=(sorted.length-1)*p;
@@ -160,6 +168,7 @@ export function createRenderPipeline({
   let rootTarget=null;
   let activeProfile='';
   let settings=quality.getSettings();
+  const embeddedHost=isEmbeddedHost();
   let composerPixelRatio=0;
   let invalidated=true;
   let disposed=false;
@@ -331,7 +340,7 @@ export function createRenderPipeline({
 
   function buildPostPipeline(){
     disposePostPipeline();
-    if(!settings.postProcessing)return;
+    if(!settings.postProcessing||embeddedHost)return;
 
     const gl=renderer.getContext();
     const canHdr=renderer.capabilities.isWebGL2&&
@@ -496,7 +505,8 @@ export function createRenderPipeline({
     const postScale=composer?clamp(Number(settings.postResolutionScale)||1,.5,1):1;
     const managedRenderTargetCount=countManagedRenderTargets();
     return {
-      renderPipeline:composer?'composer':'direct',
+      renderPipeline:composer?'composer':embeddedHost?'direct-embedded':'direct',
+      embeddedHost,
       postProcessingEnabled:!!composer,
       renderTargetType:composer?targetTypeLabel(rootTarget?.texture?.type):'default-framebuffer',
       renderTargetSamples:composer?(rootTarget?.samples||0):0,
