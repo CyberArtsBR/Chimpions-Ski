@@ -1,7 +1,6 @@
-const BASE=import.meta.env.BASE_URL;
-const GAME_SELECTION_URL='https://chimp-jump.onrender.com/';
+import startArtwork from './assets/chimpions-ski-start.jpg';
 
-export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-ski-start.jpg'}={}){
+export function createStartScreen({audio,onStart,assetUrl=startArtwork}={}){
   const root=document.createElement('section');
   root.className='start-screen is-loading';
   root.setAttribute('aria-label','Chimpions Ski start screen');
@@ -11,9 +10,6 @@ export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-
       <button class="start-screen-hit start-screen-play" type="button" aria-label="Start Game" disabled>
         <span class="sr-only">Start Game</span>
       </button>
-      <a class="start-screen-hit start-screen-back" href="${GAME_SELECTION_URL}" aria-label="Back to the Game selection">
-        <span class="sr-only">Back to the Game selection</span>
-      </a>
       <div class="start-screen-status" aria-live="polite">Loading start screen…</div>
     </div>
   `;
@@ -23,7 +19,6 @@ export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-
 
   const art=root.querySelector('.start-screen-art');
   const play=root.querySelector('.start-screen-play');
-  const back=root.querySelector('.start-screen-back');
   const status=root.querySelector('.start-screen-status');
   let chimpionReady=false;
   let artReady=art.complete&&art.naturalWidth>0;
@@ -86,10 +81,8 @@ export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-
   }
 
   play.addEventListener('click',start);
-  back.addEventListener('click',()=>audio?.play?.('button',.18));
-
   function focusMove(direction){
-    const targets=[play,back].filter(element=>!element.matches(':disabled'));
+    const targets=[play].filter(element=>!element.matches(':disabled'));
     if(!targets.length)return;
     const current=targets.indexOf(document.activeElement);
     const next=current<0?(direction>0?0:targets.length-1):(current+direction+targets.length)%targets.length;
@@ -116,8 +109,7 @@ export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-
       return;
     }
     if(pressed(0)){
-      const active=document.activeElement===back?back:play;
-      active.click();
+      play.click();
       previousButtons=buttons.slice();
       return;
     }
@@ -132,6 +124,6 @@ export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-
     start,
     get isActive(){return !root.hidden;},
     get isReady(){return !play.disabled;},
-    gameSelectionUrl:GAME_SELECTION_URL
+    gameSelectionUrl:null
   };
 }

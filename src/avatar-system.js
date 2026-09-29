@@ -13,6 +13,13 @@ import {UPLOAD_AVATAR_ACTION,createLocalAvatarEntry,isUploadAvatarAction,validat
 
 const BASE=import.meta.env.BASE_URL;
 
+function resolvePortraitUrl(value=''){
+  const url=String(value||'');
+  if(!url)return '';
+  if(/^(?:https?:|data:|blob:)/i.test(url))return url;
+  return BASE+url.replace(/^\.?\//,'');
+}
+
 export async function loadAvatarCatalog(){
   // Metadata/thumbnails are cheap; GLBs remain lazy and are loaded only after a
   // concrete rider selection.
@@ -79,7 +86,7 @@ function createPortrait(entry,className=''){
   wrap.className=('portrait '+className).trim();
   if(entry?.image){
     const image=document.createElement('img');
-    image.src=entry.image;
+    image.src=resolvePortraitUrl(entry.image);
     image.alt='';
     image.loading='lazy';
     image.decoding='async';
@@ -167,7 +174,7 @@ export function createAvatarSelector({catalog,onSelect,onValidateLocalAvatar=asy
     previewPortrait.replaceChildren();
     if(entry.image){
       const image=document.createElement('img');
-      image.src=entry.image;
+      image.src=resolvePortraitUrl(entry.image);
       image.alt='';
       image.loading='eager';
       image.decoding='async';
