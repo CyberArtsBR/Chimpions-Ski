@@ -1,4 +1,5 @@
 import {SKI_TUNING} from './gameplayTuning.js';
+const BASE=import.meta.env.BASE_URL;
 import {DEFAULT_RIDE_MODE,getRideAudioProfile,getRideSpeedFeel,normalizeRideMode} from './rideAudioProfile.js';
 import {createTrickAudioState,getTrickFailProfile,getTrickStartProfile,getTrickSuccessProfile} from './trickAudio.js';
 import {calculateCarveFeedback} from './gameFeelFeedback.js';
@@ -7,7 +8,7 @@ const clamp=(value,min=0,max=1)=>Math.max(min,Math.min(max,value));
 const AudioContextClass=globalThis.AudioContext||globalThis.webkitAudioContext;
 
 export function createSkiAudio(){
-  const JUMP_MUSIC_URL='/audio/music-full.mp3';
+  const JUMP_MUSIC_URL=BASE+'audio/music-full.mp3';
   let context=null;
   let graph=null;
   let weatherGraph=null,weatherNoise=null,lastWeatherUpdate=-1;
