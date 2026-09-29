@@ -2,7 +2,7 @@ const BASE=import.meta.env.BASE_URL;
 const DEFAULT_START_ART=BASE+'start/chimpions-ski-start.jpg';
 const FALLBACK_START_ART=BASE+'menu/alpine-background.jpg';
 
-export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART}={}){
+export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART,autoStartMs=0}={}){
   const root=document.createElement('section');
   root.className='start-screen is-loading';
   root.setAttribute('aria-label','Chimpions Ski start screen');
@@ -28,6 +28,7 @@ export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART}={})
   let closing=false;
   let previousButtons=[];
   let axisLatch=0;
+  let autoStartTimer=0;
 
   function refreshReady(){
     const ready=chimpionReady&&(artReady||artFailed);
@@ -38,8 +39,18 @@ export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART}={})
     else if(!artReady)status.textContent='Loading start screen…';
     else if(!chimpionReady)status.textContent='Loading Chimpion…';
     else status.textContent='ENTER / A · START';
+    if(!ready&&autoStartTimer){
+      clearTimeout(autoStartTimer);
+      autoStartTimer=0;
+    }
     if(ready&&root.isConnected&&!root.hidden&&document.activeElement===document.body){
       requestAnimationFrame(()=>{if(!play.disabled&&!root.hidden)play.focus();});
+    }
+    if(ready&&autoStartMs>0&&!autoStartTimer&&!closing&&!root.hidden){
+      autoStartTimer=setTimeout(()=>{
+        autoStartTimer=0;
+        start();
+      },autoStartMs);
     }
     return ready;
   }
@@ -69,6 +80,10 @@ export function createStartScreen({audio,onStart,assetUrl=DEFAULT_START_ART}={})
 
   function start(){
     if(play.disabled||closing||root.hidden)return;
+    if(autoStartTimer){
+      clearTimeout(autoStartTimer);
+      autoStartTimer=0;
+    }
     closing=true;
     audio?.unlock?.();
     root.classList.add('is-leaving');
