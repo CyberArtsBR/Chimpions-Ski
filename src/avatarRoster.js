@@ -21,7 +21,7 @@ export function isBuiltinAvatarName(name=''){
 
 export function builtinAvatarUrl(name){
   if(!isBuiltinAvatarName(name))throw new Error('Avatar is not in the built-in roster: '+String(name));
-  return 'model/characters/'+encodeURIComponent(String(name))+'.glb';
+  return 'model/characters/'+String(name).replace(/\s+/g,'_')+'.glb';
 }
 
 export function createBuiltinAvatarEntry(name=DEFAULT_AVATAR_NAME,metadata={}){
