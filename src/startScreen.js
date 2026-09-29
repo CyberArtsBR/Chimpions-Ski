@@ -1,6 +1,7 @@
+const BASE=import.meta.env.BASE_URL;
 const GAME_SELECTION_URL='https://chimp-jump.onrender.com/';
 
-export function createStartScreen({audio,onStart,assetUrl='/start/chimpions-ski-start.jpg'}={}){
+export function createStartScreen({audio,onStart,assetUrl=BASE+'start/chimpions-ski-start.jpg'}={}){
   const root=document.createElement('section');
   root.className='start-screen is-loading';
   root.setAttribute('aria-label','Chimpions Ski start screen');
