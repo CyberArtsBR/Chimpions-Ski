@@ -676,7 +676,7 @@ const startScreen=createStartScreen({
     // The selected rider is interaction-critical and should not compete with crowd parsing.
     return true;
   },
-  assetUrl:'/start/chimpions-ski-start.jpg'
+  autoStartMs:5000
 });
 startScreen.setReady(false);
 ui.setAvatarLoading(true);
