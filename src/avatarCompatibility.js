@@ -115,7 +115,7 @@ export function validateAvatarOverride(override={}){
 }
 
 function nameParts(name=''){
-  let s=name.replace(/([a-z0-9])([A-Z])/g,'$1 $2').toLowerCase()
+  let s=name.split(':').pop().replace(/([a-z0-9])([A-Z])/g,'$1 $2').toLowerCase()
     .replace(/mixamorig\d*[:_ ]*/g,'').replace(/cc[_ ]*base[_ ]*/g,'').replace(/[^a-z0-9]+/g,' ').trim();
   let words=s.split(/\s+/).filter(Boolean);
   let side=words.includes('left')||words.includes('l')?'left':words.includes('right')||words.includes('r')?'right':'';

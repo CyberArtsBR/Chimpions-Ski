@@ -8,6 +8,9 @@ import {createSnowboardEquipment} from './snowboardEquipment.js';
 import {AvatarCompatibilityError,assertAvatarPlayable,getAvatarRigCapabilities,isCatalogAvatarUrl,resolveAvatarRig} from './avatarCompatibility.js';
 import {createRiderPoseController} from './riderPoseController.js';
 import {createTerrainLegIK} from './riderIK.js';
+import {createRigPoseAxes} from './rigPoseAxes.js';
+import {createUnrealRideProfile} from './unrealRideProfile.js';
+import {createSnowboardSoleClearance} from './snowboardSoleClearance.js';
 import {createRiderClipLayer} from './riderClipLayer.js';
 import {validateParsedLocalGlb} from './localAvatarUpload.js';
 
@@ -493,7 +496,7 @@ function addSkiEquipment(root,rig,placement=footBasedSkiPlacement(root,rig)){
   return skis;
 }
 
-function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(model,compatibility)){
+export function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(model,compatibility)){
   const {rig,bones}=rigResolution;
   const required=['hips','leftThigh','rightThigh','leftShin','rightShin','leftFoot','rightFoot'];
   if(required.some(k=>!rig[k]))return null;
@@ -504,7 +507,10 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   const axisX=new THREE.Vector3(1,0,0),axisY=new THREE.Vector3(0,1,0),axisZ=new THREE.Vector3(0,0,1);
   const poseController=createRiderPoseController({rideMode:RIDE_MODE.SKI});
   const pose=poseController.pose;
-  const terrainIK=createTerrainLegIK(rig);
+  const poseAxes=createRigPoseAxes(model,rig);
+  const terrainIK=createTerrainLegIK(rig,{axes:poseAxes.axes});
+  const calibratedPoseCache=new Map();
+  const unrealProfile=poseAxes.profile==='unreal-humanoid'?createUnrealRideProfile(model,rig):null;
 
   // Arm targets are rebuilt from the untouched GLB local rest pose every frame.
   // A separate display cache provides smoothing without ever using a previously
@@ -575,10 +581,17 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
   function rotate(key,x=0,y=0,z=0,response=.20){
     const b=rig[key];if(!b)return;
     targetQ.copy(rest.get(b));
-    targetQ.multiply(delta.setFromAxisAngle(axisX,x));
-    targetQ.multiply(delta.setFromAxisAngle(axisY,y));
-    targetQ.multiply(delta.setFromAxisAngle(axisZ,z));
-    b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
+    const axes=poseAxes.axes.get(key)||[axisX,axisY,axisZ];
+    targetQ.multiply(delta.setFromAxisAngle(axes[0],x));
+    targetQ.multiply(delta.setFromAxisAngle(axes[1],y));
+    targetQ.multiply(delta.setFromAxisAngle(axes[2],z));
+    // Smooth only the procedural base, never last frame's terrain correction.
+    if(poseAxes.axes.has(key)){
+      let displayed=calibratedPoseCache.get(key);
+      if(!displayed){displayed=rest.get(b).clone();calibratedPoseCache.set(key,displayed);}
+      displayed.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
+      b.quaternion.copy(displayed);
+    }else b.quaternion.slerp(targetQ,1-Math.pow(1-response,poseDt*60));
   }
 
   function armBlendFactor(response){
@@ -648,6 +661,8 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
     poseController.setRideMode(currentRideMode);
     poseController.update(frame);
     const snowboardMode=currentRideMode===RIDE_MODE.SNOWBOARD;
+    unrealProfile?.reset();
+    const armTemplate=unrealProfile?.template[currentRideMode];
     const mix=(a,b,response)=>THREE.MathUtils.lerp(a,b,1-Math.pow(1-response,poseDt*60));
 
     const carve=pose.carve;
@@ -720,11 +735,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       const styleReach=pose.styleReach||0;
       const styleHand=styleReach*(sideSign===pose.styleSide?1:0);
       const styleCounter=styleReach*(sideSign!==pose.styleSide?1:0);
-      const upperOut=(snowboardMode ? .88 : .48)+inside*.18+airBlend*.12+Math.abs(pose.armBalance)*.09-pose.trickTuck*.12+pose.trickOpen*.08-styleHand*(snowboardMode?.31:.20)+styleCounter*.08;
-      const upperDown=snowboardMode
+      const upperOut=(armTemplate?.upperOut??(snowboardMode ? .88 : .48))+inside*.18+airBlend*.12+Math.abs(pose.armBalance)*.09-pose.trickTuck*.12+pose.trickOpen*.08-styleHand*(snowboardMode?.31:.20)+styleCounter*.08;
+      const upperDown=armTemplate?armTemplate.upperDown+pose.landingAbsorb*.1+styleHand*.28:snowboardMode
         ?(.43+outside*.26-inside*.15+speedCrouch*.025+pose.landingAbsorb*.12-pose.trickTuck*.10+styleHand*.36)
         :(.78+outside*.20-inside*.19+speedCrouch*.030+pose.landingAbsorb*.12-pose.trickTuck*.10+styleHand*.28);
-      const upperForward=(snowboardMode?.12:.25)+sideSign*carve*(snowboardMode?.32:.23)*pose.secondaryWeight+ascent*.08*airScale+pose.trickSpin*.07+polePlant*.20-styleHand*(snowboardMode?.16:.08)+styleCounter*.06;
+      const upperForward=(armTemplate?.upperForward??(snowboardMode?.12:.25))+sideSign*carve*(snowboardMode?.32:.23)*pose.secondaryWeight+ascent*.08*airScale+pose.trickSpin*.07+polePlant*.20-styleHand*(snowboardMode?.16:.08)+styleCounter*.06;
       upperArmTarget.copy(riderRight).multiplyScalar(authoredOutSign*upperOut)
         .addScaledVector(riderUp,-upperDown)
         .addScaledVector(riderForward,upperForward)
@@ -738,11 +753,11 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
 
       // A stronger downward forearm vector creates a mild, readable elbow bend
       // instead of aiming both hands toward the chest.
-      const foreOut=(snowboardMode ? .66 : .22)+inside*.10+Math.abs(pose.armBalance)*.05-pose.trickTuck*.08-styleHand*(snowboardMode?.28:.18)+styleCounter*.05;
-      const foreDown=snowboardMode
+      const foreOut=(armTemplate?.foreOut??(snowboardMode ? .66 : .22))+inside*.10+Math.abs(pose.armBalance)*.05-pose.trickTuck*.08-styleHand*(snowboardMode?.28:.18)+styleCounter*.05;
+      const foreDown=armTemplate?armTemplate.foreDown+pose.landingAbsorb*.1+styleHand*.42:snowboardMode
         ?(.36+outside*.31-inside*.10+speedCrouch*.020+pose.landingAbsorb*.16-pose.trickTuck*.12+polePlant*.12+styleHand*.52)
         :(.46+outside*.23-inside*.13+speedCrouch*.025+pose.landingAbsorb*.16-pose.trickTuck*.12+polePlant*.12+styleHand*.42);
-      const foreForward=(snowboardMode?.22:.66)+sideSign*carve*(snowboardMode?.28:.20)*pose.secondaryWeight+descent*.04*airScale+pose.trickSpin*.055+polePlant*.24-styleHand*(snowboardMode?.18:.10)+styleCounter*.08;
+      const foreForward=(armTemplate?.foreForward??(snowboardMode?.22:.66))+sideSign*carve*(snowboardMode?.28:.20)*pose.secondaryWeight+descent*.04*airScale+pose.trickSpin*.055+polePlant*.24-styleHand*(snowboardMode?.18:.10)+styleCounter*.08;
       forearmTarget.copy(riderRight).multiplyScalar(authoredOutSign*foreOut)
         .addScaledVector(riderUp,-foreDown)
         .addScaledVector(riderForward,foreForward)
@@ -757,16 +772,21 @@ function makeRigController(model,compatibility,rigResolution=resolveAvatarRig(mo
       applyArmRestDelta(side+'Hand',0,0,0,.28);
     }
 
-    const ik=terrainIK.update(frame,pose.ikWeight);
-    if(rig.hips&&ik.pelvisRoll)rig.hips.quaternion.multiply(delta.setFromAxisAngle(axisZ,ik.pelvisRoll));
+    const ik=unrealProfile?{pelvisRoll:0,pelvisOffsetY:0}:terrainIK.update(frame,pose.ikWeight);
+    if(rig.hips&&ik.pelvisRoll)rig.hips.quaternion.multiply(delta.setFromAxisAngle(poseAxes.axes.get('hips')?.[2]||axisZ,ik.pelvisRoll));
     model.position.y=modelBaseY+Math.sin(time*5.2)*.004*pose.secondaryWeight+pose.visualLift+ik.pelvisOffsetY-pose.landingAbsorb*.018+airBlend*.006+apex*.006*airScale;
+    unrealProfile?.update(pose,frame,currentRideMode);
   };
   update.rig=rig;
+  update.rigPoseProfile=poseAxes.profile;
   update.rigResolution=rigResolution;
   update.pose=pose;
   update.setRideMode=mode=>{
     currentRideMode=normalizeRideMode(mode);
     poseController.reset(currentRideMode);
+    calibratedPoseCache.clear();
+    unrealProfile?.reset();
+    for(const key of poseAxes.axes.keys())rig[key].quaternion.copy(rest.get(rig[key]));
     resetArmChainToRest();
   };
   update.setSnowboardSideSign=sign=>{snowboardSideSign=Number(sign)<0?-1:1;};
@@ -837,6 +857,8 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
       rightBindingZ:snowboardStance.placement.rightBindingZ
     });
     riderVisual.add(snowboard.root);
+    const soleClearance=updateRig?.rigPoseProfile==='unreal-humanoid'
+      ?createSnowboardSoleClearance(model,updateRig.rig,snowboard.root):null;
     const setPowerGlow=createEquipmentPowerGlow(skis,snowboard);
     updateRig?.setSnowboardSideSign?.(snowboardStance.sideSign);
 
@@ -861,6 +883,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
     root.userData.modelForwardAxis='-Z';
     root.userData.fallback=false;
     root.userData.rigReady=!!updateRig;
+    root.userData.rigPoseProfile=updateRig?.rigPoseProfile||'legacy';
     root.userData.avatarCompatibility=compatibility;
     root.userData.rigResolution=updateRig?.rigResolution||rigResolution;
     root.userData.rigCapabilities=rigCapabilities;
@@ -911,6 +934,7 @@ export async function loadSkier(url='/models/default.glb',{rideMode=RIDE_MODE.SK
         board.position.x=mix(board.position.x,rest.x,.18);
         board.position.y=mix(board.position.y,rest.y+air*.026-landing*.012-speed*.004,.18);
         board.position.z=mix(board.position.z,rest.z+air*.012,.18);
+        soleClearance?.update();
       }else{
         skis.forEach((ski,index)=>{
           const side=index===0?-1:1;

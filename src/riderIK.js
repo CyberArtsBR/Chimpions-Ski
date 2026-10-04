@@ -14,7 +14,7 @@ function legMetrics(rig,side){
   return {thigh,shin,foot,upper,lower,restReach:reach,restKnee:Math.acos(cosine)};
 }
 
-export function createTerrainLegIK(rig){
+export function createTerrainLegIK(rig,{axes=new Map()}={}){
   const left=legMetrics(rig,'left');
   const right=legMetrics(rig,'right');
   const axisX=new THREE.Vector3(1,0,0);
@@ -29,7 +29,7 @@ export function createTerrainLegIK(rig){
   };
   if(!result.enabled)return {update:()=>result,result};
 
-  function solve(leg,contactDelta,groundPitch,groundRoll,weight){
+  function solve(leg,side,contactDelta,groundPitch,groundRoll,weight){
     const desiredReach=clamp(
       leg.restReach-contactDelta,
       Math.abs(leg.upper-leg.lower)+.001,
@@ -41,10 +41,10 @@ export function createTerrainLegIK(rig){
     );
     const knee=Math.acos(cosine);
     const flex=clamp(leg.restKnee-knee,-.10,.24)*weight;
-    leg.thigh.quaternion.multiply(delta.setFromAxisAngle(axisX,-flex*.44));
-    leg.shin.quaternion.multiply(delta.setFromAxisAngle(axisX,flex*.86));
-    leg.foot.quaternion.multiply(delta.setFromAxisAngle(axisX,clamp(groundPitch,-.18,.18)*.18*weight-flex*.20));
-    leg.foot.quaternion.multiply(delta.setFromAxisAngle(axisZ,clamp(groundRoll,-.18,.18)*.12*weight));
+    leg.thigh.quaternion.multiply(delta.setFromAxisAngle(axes.get(side+'Thigh')?.[0]||axisX,-flex*.44));
+    leg.shin.quaternion.multiply(delta.setFromAxisAngle(axes.get(side+'Shin')?.[0]||axisX,flex*.86));
+    leg.foot.quaternion.multiply(delta.setFromAxisAngle(axes.get(side+'Foot')?.[0]||axisX,clamp(groundPitch,-.18,.18)*.18*weight-flex*.20));
+    leg.foot.quaternion.multiply(delta.setFromAxisAngle(axes.get(side+'Foot')?.[2]||axisZ,clamp(groundRoll,-.18,.18)*.12*weight));
     return flex;
   }
 
@@ -58,8 +58,8 @@ export function createTerrainLegIK(rig){
     const ikWeight=air?0:clamp(weight,0,1);
     const leftDelta=clamp((Number(leftGround)||0)-(Number(centerGround)||0),-.10,.10);
     const rightDelta=clamp((Number(rightGround)||0)-(Number(centerGround)||0),-.10,.10);
-    result.leftCompression=solve(left,leftDelta,groundPitch,groundRoll,ikWeight);
-    result.rightCompression=solve(right,rightDelta,groundPitch,groundRoll,ikWeight);
+    result.leftCompression=solve(left,'left',leftDelta,groundPitch,groundRoll,ikWeight);
+    result.rightCompression=solve(right,'right',rightDelta,groundPitch,groundRoll,ikWeight);
     const average=(leftDelta+rightDelta)*.5;
     result.pelvisOffsetY=clamp(average*.18,-.018,.018)*ikWeight;
     result.pelvisRoll=clamp((rightDelta-leftDelta)*.22,-.025,.025)*ikWeight;
